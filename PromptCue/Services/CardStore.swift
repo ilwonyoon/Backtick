@@ -1,12 +1,22 @@
 import Foundation
 import GRDB
 
+enum CardStoreError: Error {
+    case unavailable(underlying: Error?)
+    case loadFailed(Error)
+    case saveFailed(Error)
+}
+
 @MainActor
 final class CardStore {
     private let dbQueue: DatabaseQueue?
+    private let setupError: Error?
 
-    init(fileManager: FileManager = .default) {
-        let databaseURL = Self.databaseURL(fileManager: fileManager)
+    init(
+        fileManager: FileManager = .default,
+        databaseURL: URL? = nil
+    ) {
+        let databaseURL = (databaseURL ?? Self.databaseURL(fileManager: fileManager)).standardizedFileURL
 
         do {
             try fileManager.createDirectory(
@@ -32,15 +42,17 @@ final class CardStore {
             }
             try migrator.migrate(queue)
             dbQueue = queue
+            setupError = nil
         } catch {
             dbQueue = nil
+            setupError = error
             NSLog("CardStore setup failed: %@", error.localizedDescription)
         }
     }
 
-    func load() -> [CaptureCard] {
+    func load() throws -> [CaptureCard] {
         guard let dbQueue else {
-            return []
+            throw CardStoreError.unavailable(underlying: setupError)
         }
 
         do {
@@ -52,13 +64,13 @@ final class CardStore {
             }
         } catch {
             NSLog("CardStore load failed: %@", error.localizedDescription)
-            return []
+            throw CardStoreError.loadFailed(error)
         }
     }
 
-    func save(_ cards: [CaptureCard]) {
+    func save(_ cards: [CaptureCard]) throws {
         guard let dbQueue else {
-            return
+            throw CardStoreError.unavailable(underlying: setupError)
         }
 
         do {
@@ -70,6 +82,7 @@ final class CardStore {
             }
         } catch {
             NSLog("CardStore save failed: %@", error.localizedDescription)
+            throw CardStoreError.saveFailed(error)
         }
     }
 

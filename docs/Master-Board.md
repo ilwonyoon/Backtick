@@ -26,9 +26,12 @@ Ship Prompt Cue as a native macOS utility app that gives AI-assisted developers 
 | Core contracts | In progress | App target now depends on `PromptCueCore`; some app-only state contracts remain local |
 | Hotkey integration | In progress | Carbon-backed registration is implemented; runtime smoke test still needed |
 | Windowing | In progress | NSPanel controllers are implemented; runtime focus behavior still needs verification |
-| Persistence | In progress | SQLite-backed `CardStore` is implemented via GRDB |
-| Screenshot attachment | In progress | Recent screenshot detection heuristic is implemented |
+| Persistence | In progress | SQLite-backed `CardStore` is implemented via GRDB and attachment ownership is app-managed |
+| Screenshot attachment | In progress | Recent screenshot detection now depends on an explicitly approved folder |
 | Core UI | In progress | Capture and stack views now render real MVP UI |
+| Quality audit | Completed | Findings captured and prioritized for remediation |
+| Remediation lane | In progress | Contract lock and phased closure tracked in `docs/Quality-Remediation-Plan.md` |
+| Settings surface | In progress | Shortcut recorders and screenshot folder controls are now implemented |
 
 ## Current File Ownership
 
@@ -63,6 +66,15 @@ Ship Prompt Cue as a native macOS utility app that gives AI-assisted developers 
 5. Launch-at-login, settings, and polish
 6. DMG packaging, Gumroad release prep, and MAS compatibility review
 
+## Remediation Merge Order
+
+1. Phase R0 contract lock
+2. Track A, data integrity and attachment ownership
+3. Track C, screenshot access and settings
+4. Track B, selection and clipboard export
+5. Track D, design-system reconciliation
+6. Full verification pass
+
 ## Track Gates
 
 ### Gate 1: Track Review
@@ -89,7 +101,7 @@ Ship Prompt Cue as a native macOS utility app that gives AI-assisted developers 
 
 ## Immediate Next Moves
 
-1. Run manual smoke tests for hotkey, capture submit, stack open, and clipboard copy
-2. Tighten AppModel and controller interaction where close/selection behavior still feels rough
-3. Add settings and explicit screenshot-folder permission flow
-4. Begin launch-at-login and release pipeline work after smoke coverage improves
+1. Finish Track B by validating grouped export against target paste destinations
+2. Expand app-level regression coverage beyond `PromptCueCore`
+3. Reconcile design-system docs, tokens, and production semantics
+4. Re-run full remediation gate after Track B and Track D land

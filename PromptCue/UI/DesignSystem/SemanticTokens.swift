@@ -13,6 +13,8 @@ enum SemanticTokens {
         static let cardFill = Color(nsColor: .controlBackgroundColor).opacity(PrimitiveTokens.Opacity.surface)
         static let notificationCardFill = Color(nsColor: .windowBackgroundColor).opacity(0.80)
         static let notificationCardBackdrop = Color(nsColor: .windowBackgroundColor).opacity(0.34)
+        static let notificationCardHoverFill = Color.white.opacity(0.06)
+        static let notificationStackPlateBase = Color(nsColor: .windowBackgroundColor)
         static let stackPanelBackdropTint = Color(nsColor: .windowBackgroundColor).opacity(0.32)
         static let stackPanelGradientTop = Color.white.opacity(0.12)
         static let stackPanelGradientBottom = Color.black.opacity(0.08)
@@ -37,6 +39,7 @@ enum SemanticTokens {
     enum Border {
         static let subtle = Color(nsColor: .separatorColor).opacity(PrimitiveTokens.Opacity.soft)
         static let notificationCard = Color.white.opacity(0.14)
+        static let notificationCardHover = Color.white.opacity(0.22)
         static let emphasis = Accent.selection.opacity(PrimitiveTokens.Opacity.subtle)
         static let glassHighlight = Color.white.opacity(0.44)
         static let glassInner = Color.white.opacity(0.18)

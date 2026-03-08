@@ -43,6 +43,7 @@ enum PrimitiveTokens {
         static let captureAttachmentPreviewSize: CGFloat = 72
         static let thumbnailHeight: CGFloat = 112
         static let notificationThumbnailHeight: CGFloat = 96
+        static let notificationStackPlateHeight: CGFloat = 96
         static let emptyStateHeight: CGFloat = 240
         static let emptyStateTextWidth: CGFloat = 220
         static let panelPadding: CGFloat = 18

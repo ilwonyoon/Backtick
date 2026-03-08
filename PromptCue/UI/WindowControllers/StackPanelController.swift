@@ -35,6 +35,8 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     func close() {
+        model.clearSelection()
+
         guard let panel else {
             isVisible = false
             removeDismissMonitors()
@@ -107,6 +109,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
                 onCopyCard: { [weak self] card in
                     self?.copyCardAndClose(card)
                 },
+                onCopySelection: { [weak self] in
+                    self?.copySelectionAndClose()
+                },
                 onDeleteCard: { [weak self] card in
                     self?.model.delete(card: card)
                 }
@@ -119,6 +124,14 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
     private func copyCardAndClose(_ card: CaptureCard) {
         _ = model.copy(card: card)
+        close()
+    }
+
+    private func copySelectionAndClose() {
+        guard model.copySelection() != nil else {
+            return
+        }
+
         close()
     }
 

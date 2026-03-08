@@ -12,6 +12,7 @@
   - `Sources/PromptCueCore/*`
 - The app target is now wired to `PromptCueCore` for shared pure logic.
 - Current overall status: `Phase 0 complete`, `Phase 1 in progress`, `Phase 2 and Phase 3 started`.
+- A quality audit has now been completed and a remediation lane is active in `docs/Quality-Remediation-Plan.md`.
 
 ## Phase Summary
 
@@ -21,8 +22,24 @@
 | Phase 1 | Foundation and shared contracts | In progress | Early scaffold exists, shared contracts need tightening |
 | Phase 2 | Core capture flow | In progress | Services, panels, and capture UI skeleton are implemented |
 | Phase 3 | Stack and export UX | In progress | Card stack and copy interactions are implemented, smoke testing pending |
-| Phase 4 | Platform and operations hardening | Pending | Depends on working feature flows |
+| Phase 4 | Platform and operations hardening | In progress | Settings and screenshot folder access are now implemented |
 | Phase 5 | Polish, validation, and release prep | Pending | Final integration phase |
+| Phase R | Audit remediation and quality closure | In progress | Resolves MVP gaps, privacy model drift, and design-system drift |
+
+## Active Remediation Lane
+
+The current highest-priority work is tracked in:
+
+- `docs/Quality-Remediation-Plan.md`
+
+That remediation lane is now authoritative for:
+
+- multi-card selection and grouped export closure
+- screenshot attachment ownership and cleanup
+- explicit screenshot folder access and bookmark persistence
+- clipboard reliability for image + text export
+- design-system reconciliation and reuse cleanup
+- app-level verification expansion
 
 ## Phase 0: Research And Decisions
 
@@ -58,8 +75,8 @@ Create the stable technical foundation that other tracks can build on without fi
 | --- | --- | --- | --- | --- | --- |
 | Normalize project structure around `project.yml` and app target layout | Foundation lead | Phase 0 | No | Buildable app project structure is agreed | In progress |
 | Freeze shared contracts: card model, draft model, panel constants, service protocols | Foundation lead | Phase 0 | No | Shared types stop changing daily | In progress |
-| Add `GRDB` and define SQLite-backed storage for cards and attachments | Data lead | Shared contracts | Yes | Persistence interface is stable and migration-ready | Pending |
-| Define screenshot source abstraction and permission model | Platform lead | Shared contracts | Yes | Folder selection and watcher rules are agreed | Pending |
+| Add `GRDB` and define SQLite-backed storage for cards and attachments | Data lead | Shared contracts | Yes | Persistence interface is stable and migration-ready | In progress |
+| Define screenshot source abstraction and permission model | Platform lead | Shared contracts | Yes | Folder selection and watcher rules are agreed | In progress |
 | Define global shortcut abstraction and action routing | Platform lead | Shared contracts | Yes | Capture and stack actions are centrally routed | Pending |
 | Add baseline test targets and verification commands | Foundation lead | Project structure | Yes | Unit test target exists and runs | Completed |
 
@@ -146,8 +163,8 @@ Turn the working prototype into an operable macOS utility app.
 | Task | Suggested Owner | Dependency | Parallelizable | Exit Criteria | Status |
 | --- | --- | --- | --- | --- | --- |
 | Add launch-at-login support via `SMAppService` | Platform lead | Working app shell | Yes | Login item can be enabled and disabled reliably | Pending |
-| Add settings surface for screenshot folder, TTL, and startup behavior | Product engineering lead | Working core flows | Yes | Sensitive behaviors are user-configurable | Pending |
-| Implement security-scoped bookmark storage for screenshot folder | Platform lead | Settings surface | Yes | Folder access persists across launches | Pending |
+| Add settings surface for screenshot folder, TTL, and startup behavior | Product engineering lead | Working core flows | Yes | Sensitive behaviors are user-configurable | In progress |
+| Implement security-scoped bookmark storage for screenshot folder | Platform lead | Settings surface | Yes | Folder access persists across launches | In progress |
 | Add logging for hotkey, capture, storage, and watcher failures | Platform lead | Core services | Yes | Failure paths are observable | Pending |
 | Decide update strategy and wire `Sparkle` if shipping direct | Release lead | Distribution decision | Yes | Auto-update path is documented or implemented | Pending |
 | Add notarization/signing pipeline | Release lead | Build stability | Yes | Signed and notarized app can be shipped | Pending |

@@ -7,15 +7,18 @@ enum CardSurfaceStyle: Equatable {
 
 struct CardSurface<Content: View>: View {
     let isSelected: Bool
+    let isEmphasized: Bool
     let style: CardSurfaceStyle
     @ViewBuilder private var content: Content
 
     init(
         isSelected: Bool = false,
+        isEmphasized: Bool = false,
         style: CardSurfaceStyle = .standard,
         @ViewBuilder content: () -> Content
     ) {
         self.isSelected = isSelected
+        self.isEmphasized = isEmphasized
         self.style = style
         self.content = content()
     }
@@ -34,6 +37,11 @@ struct CardSurface<Content: View>: View {
                             }
                             .overlay {
                                 shape.fill(backgroundFill)
+                            }
+                            .overlay {
+                                if isEmphasized {
+                                    shape.fill(SemanticTokens.Surface.notificationCardHoverFill)
+                                }
                             }
                     } else {
                         shape.fill(backgroundFill)
@@ -82,6 +90,10 @@ struct CardSurface<Content: View>: View {
     private var borderColor: Color {
         if isSelected {
             return SemanticTokens.Border.emphasis
+        }
+
+        if isEmphasized, style == .notification {
+            return SemanticTokens.Border.notificationCardHover
         }
 
         switch style {

@@ -2,15 +2,23 @@ import SwiftUI
 
 struct CaptureCardView: View {
     let card: CaptureCard
+    let isSelected: Bool
+    let selectionMode: Bool
     let onCopy: () -> Void
+    let onToggleSelection: () -> Void
     let onDelete: () -> Void
     @State private var isCardHovered = false
     @State private var isCopyHovered = false
     @State private var isDeleteHovered = false
+    @State private var isSelectionHovered = false
     @State private var isShowingCopyFeedback = false
 
     var body: some View {
-        CardSurface(style: .notification) {
+        CardSurface(
+            isSelected: isSelected,
+            isEmphasized: isCardHovered || isCopyHovered || isDeleteHovered || isSelectionHovered || isShowingCopyFeedback,
+            style: .notification
+        ) {
             HStack(alignment: .top, spacing: PrimitiveTokens.Space.sm) {
                 VStack(alignment: .leading, spacing: contentSpacing) {
                     if let screenshotURL = card.screenshotURL {
@@ -38,7 +46,21 @@ struct CaptureCardView: View {
                         action: performCopy
                     )
                     .onHover { hovered in
-                        isCopyHovered = hovered
+                        withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
+                            isCopyHovered = hovered
+                        }
+                    }
+
+                    iconButton(
+                        systemName: isSelected ? "checkmark.circle.fill" : "circle",
+                        foregroundColor: selectionIconColor,
+                        backgroundColor: selectionIconBackground,
+                        action: onToggleSelection
+                    )
+                    .onHover { hovered in
+                        withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
+                            isSelectionHovered = hovered
+                        }
                     }
 
                     iconButton(
@@ -48,14 +70,16 @@ struct CaptureCardView: View {
                         action: onDelete
                     )
                     .onHover { hovered in
-                        isDeleteHovered = hovered
+                        withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
+                            isDeleteHovered = hovered
+                        }
                     }
                 }
                 .frame(width: actionColumnWidth, alignment: .topTrailing)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
-            .onTapGesture(perform: performCopy)
+            .onTapGesture(perform: performPrimaryAction)
             .onHover { hovered in
                 withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
                     isCardHovered = hovered
@@ -73,6 +97,10 @@ struct CaptureCardView: View {
     }
 
     private var bodyColor: Color {
+        if isSelected || isCardHovered || isCopyHovered || isDeleteHovered || isSelectionHovered {
+            return SemanticTokens.Text.primary
+        }
+
         if card.isCopied {
             return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
         }
@@ -81,7 +109,7 @@ struct CaptureCardView: View {
     }
 
     private var copyIconColor: Color {
-        if isDeleteHovered {
+        if isDeleteHovered || isSelectionHovered {
             return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.subtle)
         }
 
@@ -89,12 +117,8 @@ struct CaptureCardView: View {
             return SemanticTokens.Text.primary
         }
 
-        if isCopyHovered || isCardHovered {
+        if isCopyHovered || (isCardHovered && !selectionMode) {
             return SemanticTokens.Text.primary
-        }
-
-        if card.isCopied {
-            return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
         }
 
         return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
@@ -112,8 +136,20 @@ struct CaptureCardView: View {
         return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
     }
 
+    private var selectionIconColor: Color {
+        if isSelected {
+            return SemanticTokens.Text.selection
+        }
+
+        if isSelectionHovered || selectionMode {
+            return SemanticTokens.Text.primary
+        }
+
+        return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
+    }
+
     private var copyIconBackground: Color {
-        if isDeleteHovered {
+        if isDeleteHovered || isSelectionHovered {
             return .clear
         }
 
@@ -121,7 +157,7 @@ struct CaptureCardView: View {
             return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
         }
 
-        if isCopyHovered || isCardHovered {
+        if isCopyHovered || (isCardHovered && !selectionMode) {
             return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
         }
 
@@ -136,8 +172,29 @@ struct CaptureCardView: View {
         return .clear
     }
 
+    private var selectionIconBackground: Color {
+        if isSelected {
+            return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
+        }
+
+        if isSelectionHovered {
+            return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.medium)
+        }
+
+        return .clear
+    }
+
     private var actionColumnWidth: CGFloat {
         PrimitiveTokens.Space.xl
+    }
+
+    private func performPrimaryAction() {
+        if selectionMode {
+            onToggleSelection()
+            return
+        }
+
+        performCopy()
     }
 
     private func performCopy() {

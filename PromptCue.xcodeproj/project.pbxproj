@@ -11,6 +11,7 @@
 		0E5795F3A40B6410EA4E1BF2 /* CardStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09A461FEECE4CB884E435CC0 /* CardStore.swift */; };
 		13195ED782BB3CC9B9698822 /* SearchFieldSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5287D013CA7D419F8D42EB4F /* SearchFieldSurface.swift */; };
 		1F0DF73DFB7C80D7255E5730 /* CapturePanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E7982703EC6D0302F17A37 /* CapturePanelController.swift */; };
+		23C965DA44CED7A359BCF844 /* ScreenshotSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6406A9FA30876A8FE4765C78 /* ScreenshotSettingsModel.swift */; };
 		2881AFAAED24B84D13C1D2F9 /* SemanticTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1A35DDD4DE852B69D3DA9D /* SemanticTokens.swift */; };
 		2F4EE6CC77F08A303FAB0B78 /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA2879AA171EC8A6059D6871 /* AppCoordinator.swift */; };
 		2FBCACEF1C76E3A2BCDE0D6D /* PanelHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CD794F5690F98D2FFE1C87 /* PanelHeader.swift */; };
@@ -26,10 +27,14 @@
 		70882034EC81B45D3FCAD37D /* DesignSystemPreviewTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A701332249F0A64002B3F01 /* DesignSystemPreviewTokens.swift */; };
 		755EA71A621537FE2BC9A64E /* PromptCueSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DF85020152C8E2A90F7B51D /* PromptCueSettingsView.swift */; };
 		786094F18BF590AAD9790C44 /* CardStackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45B066AAC1F6859743A3CD47 /* CardStackView.swift */; };
+		7B9C6FED9ED0560877C8476C /* AttachmentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B5ACFB745ADD636ED5EC0A4 /* AttachmentStore.swift */; };
 		820836A9AF96F1C02339F619 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D57C8B2EF3007C094E964AE /* AppDelegate.swift */; };
 		821635AD08C0277EE465565E /* PromptCueShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A375A280E139D2C4C63F586 /* PromptCueShortcuts.swift */; };
+		8C75B4FB98B0D8107DDE9F9C /* PromptCueCore in Frameworks */ = {isa = PBXBuildFile; productRef = 72E63F66D51437F9424F0BB5 /* PromptCueCore */; };
 		9AA939FBD91B56B05A7C168F /* PromptCueApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ACEFD4C812481A89D90B251 /* PromptCueApp.swift */; };
+		A8FF21FF3EA560720F63B376 /* StorageServicesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CF4040B34025F10E6AB2C52 /* StorageServicesTests.swift */; };
 		A9A325745A3FCD8776614A21 /* HotKeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F447D3D2D92FFA7B5252D467 /* HotKeyCenter.swift */; };
+		AAEE765E6306C005070C399D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 6072B9D68F6A5C85EA50D901 /* GRDB */; };
 		B358F4085B2EDA1EAF7764BD /* PrimitiveTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25E52C65D0F3F5887CBAB797 /* PrimitiveTokens.swift */; };
 		B761D5F05053A512EA58320D /* ScreenshotDirectoryResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1BD85EA1F495DB2F4FAD6AB /* ScreenshotDirectoryResolver.swift */; };
 		B9485BF7E8009D0B8B229E77 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3578175AAD479D3659D72CE5 /* AppModel.swift */; };
@@ -37,12 +42,25 @@
 		BD3347E542F5DB6843EBB2EB /* LocalImageThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA97F3D13BA392CBAF2BDCF8 /* LocalImageThumbnail.swift */; };
 		C2407D1A540A57F74B8CD8A2 /* DesignSystemWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358723B50B0EB526C0C3916D /* DesignSystemWindowController.swift */; };
 		C33CB0CB8D6163E8E29C9390 /* DesignSystemPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE47CEE43805033948881E6 /* DesignSystemPreviewView.swift */; };
+		E23D3ACFA5D3B089CD1901FC /* ScreenshotFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5494BC3D393236C1E14A6833 /* ScreenshotFolderAccess.swift */; };
+		E45BAF6D8F909939C646162D /* VisualEffectBackdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CDBE5DCAF84737F31BD15F4 /* VisualEffectBackdrop.swift */; };
 		E93530A6A47A754B4C3C5E50 /* ScreenshotMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C3A27C7707D53FD72E4023 /* ScreenshotMonitor.swift */; };
 		EDD8142E6E57D70B3270212B /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B9CDCE0290CBC1B005127A /* GlassPanel.swift */; };
+		EF6900D8010810BCFE9A3011 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 11F11A0DF7C48E6630E17838 /* KeyboardShortcuts */; };
 		F86E4FB60F9BDAB84E5EE6DC /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03B37B6220DABE400C68F4AB /* SettingsWindowController.swift */; };
 		FB8EA336F8388768A2E70097 /* ClipboardFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E42D900064EA79ABFF67858 /* ClipboardFormatter.swift */; };
 		FDEB6A4E1FCC0915A473CFFA /* CaptureCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E6B1D035A1C732D61C34CC2 /* CaptureCard.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		2FDB431A91DD84763A1A778D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E313617D2C223B2D099A3FC4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 972D0CBE09F636D40D3542D4;
+			remoteInfo = PromptCue;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		03B37B6220DABE400C68F4AB /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
@@ -59,12 +77,18 @@
 		3A1A35DDD4DE852B69D3DA9D /* SemanticTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticTokens.swift; sourceTree = "<group>"; };
 		45B066AAC1F6859743A3CD47 /* CardStackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStackView.swift; sourceTree = "<group>"; };
 		47233D95CF58604EC1CA8325 /* CueTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueTextEditor.swift; sourceTree = "<group>"; };
+		4CDBE5DCAF84737F31BD15F4 /* VisualEffectBackdrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectBackdrop.swift; sourceTree = "<group>"; };
 		5287D013CA7D419F8D42EB4F /* SearchFieldSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFieldSurface.swift; sourceTree = "<group>"; };
 		538FD2D12C938EEE09CB144D /* PromptCueShadowModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueShadowModifiers.swift; sourceTree = "<group>"; };
+		5494BC3D393236C1E14A6833 /* ScreenshotFolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotFolderAccess.swift; sourceTree = "<group>"; };
 		57A7183C8DD5C8731C131B9B /* CaptureComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureComposerView.swift; sourceTree = "<group>"; };
 		5A701332249F0A64002B3F01 /* DesignSystemPreviewTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystemPreviewTokens.swift; sourceTree = "<group>"; };
 		5ACEFD4C812481A89D90B251 /* PromptCueApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueApp.swift; sourceTree = "<group>"; };
+		5CF4040B34025F10E6AB2C52 /* StorageServicesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageServicesTests.swift; sourceTree = "<group>"; };
+		6406A9FA30876A8FE4765C78 /* ScreenshotSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSettingsModel.swift; sourceTree = "<group>"; };
 		7DF85020152C8E2A90F7B51D /* PromptCueSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueSettingsView.swift; sourceTree = "<group>"; };
+		89F0750F1298FD38DDDBBB34 /* PromptCueTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PromptCueTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8B5ACFB745ADD636ED5EC0A4 /* AttachmentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentStore.swift; sourceTree = "<group>"; };
 		8D57C8B2EF3007C094E964AE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		8E6B1D035A1C732D61C34CC2 /* CaptureCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCard.swift; sourceTree = "<group>"; };
 		91B9CDCE0290CBC1B005127A /* GlassPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassPanel.swift; sourceTree = "<group>"; };
@@ -89,6 +113,16 @@
 				662E8E8AA1826F28777F5221 /* PromptCueCore in Frameworks */,
 				361D934FC4E08154C82C96C5 /* GRDB in Frameworks */,
 				56447FA1D5E295B63DB42DCA /* KeyboardShortcuts in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FA922D7E4F5D568F7C38A33F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8C75B4FB98B0D8107DDE9F9C /* PromptCueCore in Frameworks */,
+				AAEE765E6306C005070C399D /* GRDB in Frameworks */,
+				EF6900D8010810BCFE9A3011 /* KeyboardShortcuts in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -144,10 +178,12 @@
 		56AA0B104F60E9039263699B /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				8B5ACFB745ADD636ED5EC0A4 /* AttachmentStore.swift */,
 				09A461FEECE4CB884E435CC0 /* CardStore.swift */,
 				0E42D900064EA79ABFF67858 /* ClipboardFormatter.swift */,
 				F447D3D2D92FFA7B5252D467 /* HotKeyCenter.swift */,
 				D1BD85EA1F495DB2F4FAD6AB /* ScreenshotDirectoryResolver.swift */,
+				5494BC3D393236C1E14A6833 /* ScreenshotFolderAccess.swift */,
 				F6C3A27C7707D53FD72E4023 /* ScreenshotMonitor.swift */,
 			);
 			path = Services;
@@ -157,6 +193,7 @@
 			isa = PBXGroup;
 			children = (
 				7DF85020152C8E2A90F7B51D /* PromptCueSettingsView.swift */,
+				6406A9FA30876A8FE4765C78 /* ScreenshotSettingsModel.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -195,6 +232,7 @@
 			children = (
 				6FDC8665E7B2B81DDA302044 /* Packages */,
 				55A1BA512B3A1905C478BE80 /* PromptCue */,
+				AF83515198E7EA1B81754D52 /* PromptCueTests */,
 				8BB62A79D3DE0C1DED494E0B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -203,8 +241,17 @@
 			isa = PBXGroup;
 			children = (
 				BFFA8B21D5818DC4A6138C6E /* PromptCue.app */,
+				89F0750F1298FD38DDDBBB34 /* PromptCueTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		AF83515198E7EA1B81754D52 /* PromptCueTests */ = {
+			isa = PBXGroup;
+			children = (
+				5CF4040B34025F10E6AB2C52 /* StorageServicesTests.swift */,
+			);
+			path = PromptCueTests;
 			sourceTree = "<group>";
 		};
 		B41F3CF00157DB5D28E0799E /* Views */ = {
@@ -227,6 +274,7 @@
 				20CD794F5690F98D2FFE1C87 /* PanelHeader.swift */,
 				D54D9E96EF212A4261A3D196 /* PromptCueChip.swift */,
 				5287D013CA7D419F8D42EB4F /* SearchFieldSurface.swift */,
+				4CDBE5DCAF84737F31BD15F4 /* VisualEffectBackdrop.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -242,6 +290,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		711D9625027BA4A1868F85E9 /* PromptCueTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 84948D005C074ADF2E2C8930 /* Build configuration list for PBXNativeTarget "PromptCueTests" */;
+			buildPhases = (
+				46E56E2503C00C1EAEF1D1D9 /* Sources */,
+				FA922D7E4F5D568F7C38A33F /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				2DF3D726181EA7BCA416349D /* PBXTargetDependency */,
+			);
+			name = PromptCueTests;
+			packageProductDependencies = (
+				72E63F66D51437F9424F0BB5 /* PromptCueCore */,
+				6072B9D68F6A5C85EA50D901 /* GRDB */,
+				11F11A0DF7C48E6630E17838 /* KeyboardShortcuts */,
+			);
+			productName = PromptCueTests;
+			productReference = 89F0750F1298FD38DDDBBB34 /* PromptCueTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		972D0CBE09F636D40D3542D4 /* PromptCue */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3B27A387A8D41BF6AEA3DA1A /* Build configuration list for PBXNativeTarget "PromptCue" */;
@@ -272,6 +342,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					711D9625027BA4A1868F85E9 = {
+						DevelopmentTeam = "";
+					};
 					972D0CBE09F636D40D3542D4 = {
 						DevelopmentTeam = "";
 					};
@@ -297,11 +370,20 @@
 			projectRoot = "";
 			targets = (
 				972D0CBE09F636D40D3542D4 /* PromptCue */,
+				711D9625027BA4A1868F85E9 /* PromptCueTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
+		46E56E2503C00C1EAEF1D1D9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A8FF21FF3EA560720F63B376 /* StorageServicesTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		836CC1B945C49EBCEFF34881 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -310,6 +392,7 @@
 				820836A9AF96F1C02339F619 /* AppDelegate.swift in Sources */,
 				B9485BF7E8009D0B8B229E77 /* AppModel.swift in Sources */,
 				30488E717DCE1F702B3F92A8 /* AppUIConstants.swift in Sources */,
+				7B9C6FED9ED0560877C8476C /* AttachmentStore.swift in Sources */,
 				FDEB6A4E1FCC0915A473CFFA /* CaptureCard.swift in Sources */,
 				67387EC750467E7F43312823 /* CaptureCardView.swift in Sources */,
 				6E23938A01779029981B2144 /* CaptureComposerView.swift in Sources */,
@@ -333,15 +416,26 @@
 				02C6BDE093B5A2C49D4B21C8 /* PromptCueShadowModifiers.swift in Sources */,
 				821635AD08C0277EE465565E /* PromptCueShortcuts.swift in Sources */,
 				B761D5F05053A512EA58320D /* ScreenshotDirectoryResolver.swift in Sources */,
+				E23D3ACFA5D3B089CD1901FC /* ScreenshotFolderAccess.swift in Sources */,
 				E93530A6A47A754B4C3C5E50 /* ScreenshotMonitor.swift in Sources */,
+				23C965DA44CED7A359BCF844 /* ScreenshotSettingsModel.swift in Sources */,
 				13195ED782BB3CC9B9698822 /* SearchFieldSurface.swift in Sources */,
 				2881AFAAED24B84D13C1D2F9 /* SemanticTokens.swift in Sources */,
 				F86E4FB60F9BDAB84E5EE6DC /* SettingsWindowController.swift in Sources */,
 				70466BE87469152E7F2F2360 /* StackPanelController.swift in Sources */,
+				E45BAF6D8F909939C646162D /* VisualEffectBackdrop.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		2DF3D726181EA7BCA416349D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 972D0CBE09F636D40D3542D4 /* PromptCue */;
+			targetProxy = 2FDB431A91DD84763A1A778D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		3181DB7264246B2F2F11FFB7 /* Release */ = {
@@ -364,6 +458,42 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.promptcue.promptcue;
 				PRODUCT_NAME = "Prompt Cue";
 				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		4343148A749711435D2D509E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.promptcue.promptcue.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Prompt Cue.app/Contents/MacOS/Prompt Cue";
+			};
+			name = Debug;
+		};
+		53963C70B2A61302021D0171 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.promptcue.promptcue.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Prompt Cue.app/Contents/MacOS/Prompt Cue";
 			};
 			name = Release;
 		};
@@ -523,6 +653,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		84948D005C074ADF2E2C8930 /* Build configuration list for PBXNativeTarget "PromptCueTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4343148A749711435D2D509E /* Debug */,
+				53963C70B2A61302021D0171 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		976AC2BF31872EAB9373AC25 /* Build configuration list for PBXProject "PromptCue" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -561,6 +700,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		11F11A0DF7C48E6630E17838 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3A892BF127A2B4435F71B6DD /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
+		};
 		27D0ADD95BEDD435CC0EAE9D /* KeyboardShortcuts */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3A892BF127A2B4435F71B6DD /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
@@ -570,6 +714,15 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 48DD230977FC6A7D5557BB14 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
+		};
+		6072B9D68F6A5C85EA50D901 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 48DD230977FC6A7D5557BB14 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		72E63F66D51437F9424F0BB5 /* PromptCueCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PromptCueCore;
 		};
 		AFC3CC710569DFF516D4E39C /* PromptCueCore */ = {
 			isa = XCSwiftPackageProductDependency;

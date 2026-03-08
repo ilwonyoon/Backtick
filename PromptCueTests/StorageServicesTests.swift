@@ -1,0 +1,70 @@
+import Foundation
+import XCTest
+@testable import Prompt_Cue
+import PromptCueCore
+
+@MainActor
+final class StorageServicesTests: XCTestCase {
+    private var tempDirectoryURL: URL!
+
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        tempDirectoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: tempDirectoryURL,
+            withIntermediateDirectories: true
+        )
+    }
+
+    override func tearDownWithError() throws {
+        if let tempDirectoryURL, FileManager.default.fileExists(atPath: tempDirectoryURL.path) {
+            try FileManager.default.removeItem(at: tempDirectoryURL)
+        }
+        tempDirectoryURL = nil
+        try super.tearDownWithError()
+    }
+
+    func testAttachmentStoreImportsAndPrunesManagedFiles() throws {
+        let attachmentsURL = tempDirectoryURL.appendingPathComponent("Attachments", isDirectory: true)
+        let store = AttachmentStore(baseDirectoryURL: attachmentsURL)
+
+        let sourceURL = tempDirectoryURL.appendingPathComponent("shot.png")
+        try Data("png".utf8).write(to: sourceURL)
+
+        let keptURL = try store.importScreenshot(from: sourceURL, ownerID: UUID())
+        let orphanURL = try store.importScreenshot(from: sourceURL, ownerID: UUID())
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: keptURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: orphanURL.path))
+        XCTAssertTrue(store.isManagedFile(keptURL))
+
+        try store.pruneUnreferencedManagedFiles(referencedFileURLs: [keptURL])
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: keptURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphanURL.path))
+    }
+
+    func testCardStoreRoundTripsCopiedMetadata() throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let store = CardStore(databaseURL: databaseURL)
+        let copiedAt = Date().addingTimeInterval(-30)
+        let expectedCard = CaptureCard(
+            id: UUID(),
+            text: "Round trip",
+            createdAt: Date(),
+            screenshotPath: "/tmp/screenshot.png",
+            lastCopiedAt: copiedAt
+        )
+
+        try store.save([expectedCard])
+        let loadedCards = try store.load()
+
+        XCTAssertEqual(loadedCards.count, 1)
+        XCTAssertEqual(loadedCards.first?.id, expectedCard.id)
+        XCTAssertEqual(loadedCards.first?.text, expectedCard.text)
+        XCTAssertEqual(loadedCards.first?.screenshotPath, expectedCard.screenshotPath)
+        let loadedCopiedAt = try XCTUnwrap(loadedCards.first?.lastCopiedAt)
+        XCTAssertLessThan(abs(loadedCopiedAt.timeIntervalSince(copiedAt)), 1)
+    }
+}

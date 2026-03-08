@@ -36,7 +36,7 @@ final class AppCoordinator {
 
     private func configureStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: "square.and.pencil", accessibilityDescription: "Prompt Cue")
+        item.button?.image = NSImage(systemSymbolName: "quote.opening", accessibilityDescription: "Prompt Cue")
         item.button?.imagePosition = .imageOnly
 
         let menu = NSMenu()

@@ -10,6 +10,7 @@ enum AppUIConstants {
     static let capturePanelVerticalSpacing: CGFloat = 12
     static let captureTextLineHeight: CGFloat = 22
     static let settingsPanelWidth: CGFloat = 420
+    static let settingsPanelHeight: CGFloat = 360
     static let horizontalMargin: CGFloat = 24
     static let verticalMargin: CGFloat = 24
     static let recentScreenshotMaxAge: TimeInterval = 30
