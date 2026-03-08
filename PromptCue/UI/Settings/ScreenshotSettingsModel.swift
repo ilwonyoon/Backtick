@@ -17,32 +17,37 @@ final class ScreenshotSettingsModel: ObservableObject {
         accessState = ScreenshotDirectoryResolver.accessState()
     }
 
-    func chooseFolder() {
+    @discardableResult
+    func chooseFolder(
+        message: String = "Choose the folder Prompt Cue should watch for recent screenshots."
+    ) -> Bool {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
         panel.prompt = "Choose"
-        panel.message = "Choose the folder Prompt Cue should watch for recent screenshots."
+        panel.message = message
         panel.directoryURL = ScreenshotDirectoryResolver.selectionSeedURL()
 
         NSApp.activate(ignoringOtherApps: true)
         let response = panel.runModal()
         guard response == .OK, let url = panel.url else {
-            return
+            return false
         }
 
         do {
             try ScreenshotDirectoryResolver.saveAuthorizedDirectory(url)
             refresh()
+            return true
         } catch {
             NSApp.presentError(error)
+            return false
         }
     }
 
     func reconnectFolder() {
-        chooseFolder()
+        _ = chooseFolder()
     }
 
     func clearFolder() {
@@ -54,5 +59,16 @@ final class ScreenshotSettingsModel: ObservableObject {
         ScreenshotDirectoryResolver.withAuthorizedDirectory { directoryURL in
             NSWorkspace.shared.activateFileViewerSelecting([directoryURL])
         }
+    }
+
+    func presentOnboardingIfNeeded() {
+        guard ScreenshotDirectoryResolver.shouldPresentOnboarding else {
+            return
+        }
+
+        ScreenshotDirectoryResolver.markOnboardingHandled()
+        _ = chooseFolder(
+            message: "Select your screenshot folder once to enable automatic screenshot attach. You can change this later in Settings."
+        )
     }
 }

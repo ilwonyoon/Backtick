@@ -4,6 +4,7 @@ import SwiftUI
 
 struct CueTextEditor: NSViewRepresentable {
     @Binding var text: String
+    let maxContentHeight: CGFloat
     let onHeightChange: (CGFloat) -> Void
     let onSubmit: () -> Void
     let onCancel: () -> Void
@@ -18,6 +19,7 @@ struct CueTextEditor: NSViewRepresentable {
 
         textView.delegate = context.coordinator
         textView.string = text
+        container.maxMeasuredHeight = maxContentHeight
         container.onHeightChange = onHeightChange
         textView.onSubmit = onSubmit
         textView.onCancel = onCancel
@@ -38,15 +40,26 @@ struct CueTextEditor: NSViewRepresentable {
             container.layoutSubtreeIfNeeded()
         }
 
+        container.maxMeasuredHeight = maxContentHeight
         container.onHeightChange = onHeightChange
         textView.onSubmit = onSubmit
         textView.onCancel = onCancel
         configure(textView)
+        requestFocusIfNeeded(in: container)
+    }
 
-        if !context.coordinator.didFocus, container.window != nil {
-            context.coordinator.didFocus = true
-            DispatchQueue.main.async {
-                container.window?.makeFirstResponder(textView)
+    private func requestFocusIfNeeded(in container: CueEditorContainerView) {
+        DispatchQueue.main.async {
+            guard let window = container.window else {
+                return
+            }
+
+            guard NSApp.isActive, window.isKeyWindow else {
+                return
+            }
+
+            if window.firstResponder !== container.textView {
+                window.makeFirstResponder(container.textView)
             }
         }
     }
@@ -94,7 +107,6 @@ struct CueTextEditor: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: CueTextEditor
-        var didFocus = false
 
         init(_ parent: CueTextEditor) {
             self.parent = parent
@@ -117,6 +129,7 @@ struct CueTextEditor: NSViewRepresentable {
 final class CueEditorContainerView: NSView {
     let scrollView = NSScrollView()
     let textView = WrappingCueTextView()
+    var maxMeasuredHeight: CGFloat = AppUIConstants.captureEditorMaxHeight
     var onHeightChange: ((CGFloat) -> Void)?
 
     override init(frame frameRect: NSRect) {
@@ -142,6 +155,8 @@ final class CueEditorContainerView: NSView {
         scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .overlay
+        scrollView.verticalScrollElasticity = .allowed
 
         addSubview(scrollView)
 
@@ -173,10 +188,12 @@ final class CueEditorContainerView: NSView {
         textView.layoutManager?.ensureLayout(for: textView.textContainer!)
         let usedHeight = textView.layoutManager?.usedRect(for: textView.textContainer!).height ?? 0
         let contentHeight = max(PrimitiveTokens.LineHeight.capture, ceil(usedHeight))
-        let height = contentHeight
+        let visibleHeight = min(contentHeight, maxMeasuredHeight)
+        let shouldScroll = contentHeight > maxMeasuredHeight + 0.5
 
-        textView.frame = NSRect(x: 0, y: 0, width: width, height: height)
-        onHeightChange?(contentHeight)
+        scrollView.hasVerticalScroller = shouldScroll
+        textView.frame = NSRect(x: 0, y: 0, width: width, height: contentHeight)
+        onHeightChange?(visibleHeight)
     }
 }
 

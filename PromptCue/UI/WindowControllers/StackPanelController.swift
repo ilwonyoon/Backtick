@@ -12,16 +12,28 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     private(set) var isVisible = false
     private var isAnimatingClose = false
 
+    var isPresentedOrTransitioning: Bool {
+        isVisible || isAnimatingClose || panel?.isVisible == true
+    }
+
     init(model: AppModel) {
         self.model = model
     }
 
     func show() {
+        guard !isAnimatingClose else {
+            return
+        }
+
         let panel = panel ?? makePanel()
+        guard !panel.isVisible else {
+            return
+        }
+
+        model.reloadCards()
         let targetFrame = onscreenPanelFrame(for: panel.frame.size)
         panel.setFrame(offscreenPanelFrame(for: targetFrame.size), display: false)
         panel.alphaValue = 1
-        panel.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         isVisible = true
@@ -77,8 +89,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     private func makePanel() -> StackPanel {
+        let initialFrame = offscreenPanelFrame(for: NSSize(width: AppUIConstants.stackPanelWidth, height: 0))
         let panel = StackPanel(
-            contentRect: onscreenPanelFrame(),
+            contentRect: initialFrame,
             styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView, .resizable],
             backing: .buffered,
             defer: false
@@ -90,12 +103,12 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.isMovableByWindowBackground = true
+        panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = true
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
-        panel.animationBehavior = .utilityWindow
+        panel.animationBehavior = .none
         panel.standardWindowButton(.closeButton)?.isHidden = true
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
@@ -226,6 +239,10 @@ private final class StackPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
+    }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.type == .keyDown, event.keyCode == UInt16(kVK_Escape) {

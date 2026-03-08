@@ -44,24 +44,6 @@ struct CardStackView: View {
         Group {
             if selectionMode {
                 selectionHeader
-            } else {
-                defaultHeader
-            }
-        }
-    }
-
-    private var defaultHeader: some View {
-        HStack(alignment: .center, spacing: PrimitiveTokens.Space.sm) {
-            Text("Prompt Cue")
-                .font(PrimitiveTokens.Typography.bodyStrong)
-                .foregroundStyle(SemanticTokens.Text.primary)
-
-            Spacer(minLength: PrimitiveTokens.Space.xs)
-
-            if !model.cards.isEmpty {
-                Text("\(model.cards.count)")
-                    .font(PrimitiveTokens.Typography.meta)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
             }
         }
     }
@@ -147,10 +129,10 @@ struct CardStackView: View {
                     cardRow(for: card)
                 }
             }
-            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            .transition(expandedCopiedSectionTransition)
         } else {
             collapsedCopiedStack
-                .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .bottom)))
+                .transition(collapsedCopiedStackTransition)
         }
     }
 
@@ -201,7 +183,10 @@ struct CardStackView: View {
                         if let card = copiedCards.first {
                             Text(card.text)
                                 .font(PrimitiveTokens.Typography.body)
-                                .foregroundStyle(SemanticTokens.Text.primary)
+                                .foregroundStyle(
+                                    SemanticTokens.Text.secondary
+                                        .opacity(PrimitiveTokens.Opacity.soft)
+                                )
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -220,6 +205,14 @@ struct CardStackView: View {
             .padding(.bottom, PrimitiveTokens.Space.sm)
         }
         .buttonStyle(.plain)
+    }
+
+    private var expandedCopiedSectionTransition: AnyTransition {
+        .opacity.combined(with: .scale(scale: 0.985, anchor: .top))
+    }
+
+    private var collapsedCopiedStackTransition: AnyTransition {
+        .opacity.combined(with: .scale(scale: 0.985, anchor: .top))
     }
 
     private func stackedBackPlate(index: Int) -> some View {

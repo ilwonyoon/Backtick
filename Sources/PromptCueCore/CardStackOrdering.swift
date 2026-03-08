@@ -23,6 +23,10 @@ public enum CardStackOrdering {
     }
 
     private static func compareByFreshPriority(_ lhs: CaptureCard, _ rhs: CaptureCard) -> Bool {
+        if lhs.sortOrder != rhs.sortOrder {
+            return lhs.sortOrder > rhs.sortOrder
+        }
+
         if lhs.createdAt != rhs.createdAt {
             return lhs.createdAt > rhs.createdAt
         }

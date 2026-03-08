@@ -3,16 +3,22 @@ import SwiftUI
 
 struct LocalImageThumbnail: View {
     let url: URL
+    let width: CGFloat?
     let height: CGFloat
 
-    init(url: URL, height: CGFloat = PrimitiveTokens.Size.thumbnailHeight) {
+    init(
+        url: URL,
+        width: CGFloat? = nil,
+        height: CGFloat = PrimitiveTokens.Size.thumbnailHeight
+    ) {
         self.url = url
+        self.width = width
         self.height = height
     }
 
     var body: some View {
         Group {
-            if let image = NSImage(contentsOf: url) {
+            if let image = loadImage() {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -26,12 +32,18 @@ struct LocalImageThumbnail: View {
                     }
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: height)
+        .frame(width: width, height: height)
+        .frame(maxWidth: width == nil ? .infinity : nil)
         .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
                 .stroke(SemanticTokens.Border.subtle)
+        }
+    }
+
+    private func loadImage() -> NSImage? {
+        ScreenshotDirectoryResolver.withAccessIfNeeded(to: url) { scopedURL in
+            NSImage(contentsOf: scopedURL)
         }
     }
 }

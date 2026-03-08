@@ -4,6 +4,7 @@ enum ScreenshotDirectoryResolver {
     private static let bookmarkDataKey = "preferredScreenshotDirectoryBookmarkData"
     private static let lastKnownPathKey = "preferredScreenshotDirectoryLastKnownPath"
     private static let legacyPreferredPathKey = "preferredScreenshotDirectoryPath"
+    private static let onboardingHandledKey = "preferredScreenshotDirectoryOnboardingHandled"
 
     static func bootstrapPreferredDirectoryIfNeeded() {
         let defaults = UserDefaults.standard
@@ -78,6 +79,40 @@ enum ScreenshotDirectoryResolver {
         return try body(authorizedDirectoryURL)
     }
 
+    static func withAccessIfNeeded<Result>(
+        to fileURL: URL,
+        _ body: (URL) throws -> Result
+    ) rethrows -> Result {
+        let standardizedFileURL = fileURL.standardizedFileURL
+
+        guard let authorizedDirectoryURL = authorizedDirectoryURL(),
+              contains(fileURL: standardizedFileURL, inDirectory: authorizedDirectoryURL)
+        else {
+            return try body(standardizedFileURL)
+        }
+
+        let startedAccess = authorizedDirectoryURL.startAccessingSecurityScopedResource()
+        defer {
+            if startedAccess {
+                authorizedDirectoryURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        return try body(standardizedFileURL)
+    }
+
+    static var shouldPresentOnboarding: Bool {
+        guard case .notConfigured = accessState() else {
+            return false
+        }
+
+        return !UserDefaults.standard.bool(forKey: onboardingHandledKey)
+    }
+
+    static func markOnboardingHandled() {
+        UserDefaults.standard.set(true, forKey: onboardingHandledKey)
+    }
+
     static func selectionSeedURL() -> URL? {
         authorizedDirectoryURL()
             ?? lastKnownDirectoryURL()
@@ -109,6 +144,10 @@ enum ScreenshotDirectoryResolver {
         }
 
         return FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first?.standardizedFileURL
+    }
+
+    static func authorizedDirectoryURLForMonitoring() -> URL? {
+        authorizedDirectoryURL()
     }
 
     private static func authorizedDirectoryURL() -> URL? {
@@ -184,6 +223,14 @@ enum ScreenshotDirectoryResolver {
         }
 
         return path
+    }
+
+    private static func contains(fileURL: URL, inDirectory directoryURL: URL) -> Bool {
+        let standardizedDirectoryURL = directoryURL.standardizedFileURL
+        let directoryPath = standardizedDirectoryURL.path
+        let filePath = fileURL.standardizedFileURL.path
+
+        return filePath == directoryPath || filePath.hasPrefix(directoryPath + "/")
     }
 }
 

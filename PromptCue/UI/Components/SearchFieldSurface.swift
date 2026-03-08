@@ -40,7 +40,7 @@ struct SearchFieldSurface<Content: View>: View {
                     shape.fill(SemanticTokens.Surface.raisedFill.opacity(PrimitiveTokens.Opacity.faint))
                 }
                 .overlay {
-                    shape.stroke(SemanticTokens.Border.subtle)
+                    shape.stroke(SemanticTokens.Border.notificationCard)
                 }
                 .promptCuePanelShadow()
         case .showcase:

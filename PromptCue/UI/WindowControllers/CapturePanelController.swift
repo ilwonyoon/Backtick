@@ -7,40 +7,22 @@ import SwiftUI
 final class CapturePanelController: NSObject, NSWindowDelegate {
     private let model: AppModel
     private var panel: CapturePanel?
-    private var cardsObserver: AnyCancellable?
     private var sizingObserver: AnyCancellable?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
-    private var lastKnownCardCount: Int
     private var anchoredTopY: CGFloat?
     private var anchoredOriginX: CGFloat?
 
     init(model: AppModel) {
         self.model = model
-        lastKnownCardCount = model.cards.count
         super.init()
 
-        cardsObserver = model.$cards
-            .map(\.count)
-            .sink { [weak self] newCount in
-                guard let self else {
-                    return
-                }
-
-                defer { lastKnownCardCount = newCount }
-
-                guard isVisible, newCount > lastKnownCardCount else {
-                    return
-                }
-
-                close()
-            }
-
-        sizingObserver = Publishers.CombineLatest(
+        sizingObserver = Publishers.CombineLatest3(
             model.$draftEditorContentHeight.removeDuplicates(),
-            model.$pendingScreenshotAttachment.map { $0 != nil }.removeDuplicates()
+            model.$pendingScreenshotAttachment.map { $0 != nil }.removeDuplicates(),
+            model.$isAwaitingRecentScreenshot.removeDuplicates()
         )
-        .sink { [weak self] _, _ in
+        .sink { [weak self] _, _, _ in
             self?.resizePanelIfNeeded()
         }
     }
@@ -70,10 +52,6 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         panel?.isVisible == true
     }
 
-    func windowDidResignKey(_ notification: Notification) {
-        close()
-    }
-
     private func makePanel() -> CapturePanel {
         let panel = CapturePanel(
             contentRect: initialPanelFrame(),
@@ -89,7 +67,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.isMovableByWindowBackground = false
-        panel.hidesOnDeactivate = true
+        panel.hidesOnDeactivate = false
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
@@ -100,7 +78,14 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         panel.onCancel = { [weak self] in
             self?.close()
         }
-        panel.contentViewController = NSHostingController(rootView: CaptureComposerView(model: model))
+        panel.contentViewController = NSHostingController(
+            rootView: CaptureComposerView(
+                model: model,
+                onSubmitSuccess: { [weak self] in
+                    self?.close()
+                }
+            )
+        )
 
         self.panel = panel
         return panel
@@ -168,7 +153,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         let editorHeight = max(model.draftEditorContentHeight, AppUIConstants.captureTextLineHeight)
         let attachmentHeight: CGFloat
 
-        if model.pendingScreenshotAttachment != nil {
+        if model.pendingScreenshotAttachment != nil || model.isAwaitingRecentScreenshot {
             attachmentHeight = PrimitiveTokens.Size.captureAttachmentPreviewSize + PrimitiveTokens.Space.sm
         } else {
             attachmentHeight = 0

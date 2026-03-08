@@ -54,7 +54,8 @@ final class StorageServicesTests: XCTestCase {
             text: "Round trip",
             createdAt: Date(),
             screenshotPath: "/tmp/screenshot.png",
-            lastCopiedAt: copiedAt
+            lastCopiedAt: copiedAt,
+            sortOrder: 42
         )
 
         try store.save([expectedCard])
@@ -64,6 +65,7 @@ final class StorageServicesTests: XCTestCase {
         XCTAssertEqual(loadedCards.first?.id, expectedCard.id)
         XCTAssertEqual(loadedCards.first?.text, expectedCard.text)
         XCTAssertEqual(loadedCards.first?.screenshotPath, expectedCard.screenshotPath)
+        XCTAssertEqual(loadedCards.first?.sortOrder, expectedCard.sortOrder)
         let loadedCopiedAt = try XCTUnwrap(loadedCards.first?.lastCopiedAt)
         XCTAssertLessThan(abs(loadedCopiedAt.timeIntervalSince(copiedAt)), 1)
     }

@@ -33,11 +33,38 @@ final class CardStore {
                     table.column("text", .text).notNull()
                     table.column("createdAt", .datetime).notNull()
                     table.column("screenshotPath", .text)
+                    table.column("sortOrder", .double).notNull()
                 }
             }
             migrator.registerMigration("addLastCopiedAt") { db in
                 try db.alter(table: CardRecord.databaseTableName) { table in
                     table.add(column: "lastCopiedAt", .datetime)
+                }
+            }
+            migrator.registerMigration("addSortOrder") { db in
+                let existingColumnNames = try db.columns(in: CardRecord.databaseTableName).map(\.name)
+                guard !existingColumnNames.contains("sortOrder") else {
+                    return
+                }
+
+                try db.alter(table: CardRecord.databaseTableName) { table in
+                    table.add(column: "sortOrder", .double).notNull().defaults(to: 0)
+                }
+
+                let legacyCards = try LegacyCardRecord.fetchAll(
+                    db,
+                    sql: """
+                    SELECT id, createdAt
+                    FROM \(CardRecord.databaseTableName)
+                    ORDER BY createdAt DESC
+                    """
+                )
+                for (index, card) in legacyCards.enumerated() {
+                    let order = card.createdAt.timeIntervalSinceReferenceDate - (Double(index) * 0.000001)
+                    try db.execute(
+                        sql: "UPDATE \(CardRecord.databaseTableName) SET sortOrder = ? WHERE id = ?",
+                        arguments: [order, card.id]
+                    )
                 }
             }
             try migrator.migrate(queue)
@@ -58,7 +85,7 @@ final class CardStore {
         do {
             return try dbQueue.read { db in
                 try CardRecord
-                    .order(Column("createdAt").desc)
+                    .order(Column("sortOrder").desc)
                     .fetchAll(db)
                     .map(\.captureCard)
             }
@@ -104,6 +131,7 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
     let createdAt: Date
     let screenshotPath: String?
     let lastCopiedAt: Date?
+    let sortOrder: Double
 
     init(captureCard: CaptureCard) {
         id = captureCard.id.uuidString
@@ -111,6 +139,7 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
         createdAt = captureCard.createdAt
         screenshotPath = captureCard.screenshotPath
         lastCopiedAt = captureCard.lastCopiedAt
+        sortOrder = captureCard.sortOrder
     }
 
     var captureCard: CaptureCard {
@@ -119,7 +148,13 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
             text: text,
             createdAt: createdAt,
             screenshotPath: screenshotPath,
-            lastCopiedAt: lastCopiedAt
+            lastCopiedAt: lastCopiedAt,
+            sortOrder: sortOrder
         )
     }
+}
+
+private struct LegacyCardRecord: FetchableRecord, Decodable {
+    let id: String
+    let createdAt: Date
 }

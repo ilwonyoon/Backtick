@@ -10,13 +10,12 @@ struct CaptureCardView: View {
     @State private var isCardHovered = false
     @State private var isCopyHovered = false
     @State private var isDeleteHovered = false
-    @State private var isSelectionHovered = false
     @State private var isShowingCopyFeedback = false
 
     var body: some View {
         CardSurface(
             isSelected: isSelected,
-            isEmphasized: isCardHovered || isCopyHovered || isDeleteHovered || isSelectionHovered || isShowingCopyFeedback,
+            isEmphasized: isCardHovered || isCopyHovered || isDeleteHovered || isShowingCopyFeedback,
             style: .notification
         ) {
             HStack(alignment: .top, spacing: PrimitiveTokens.Space.sm) {
@@ -40,7 +39,7 @@ struct CaptureCardView: View {
 
                 VStack(spacing: PrimitiveTokens.Space.xs) {
                     iconButton(
-                        systemName: isShowingCopyFeedback ? "checkmark" : "doc.on.doc",
+                        systemName: copyIconSystemName,
                         foregroundColor: copyIconColor,
                         backgroundColor: copyIconBackground,
                         action: performCopy
@@ -48,18 +47,6 @@ struct CaptureCardView: View {
                     .onHover { hovered in
                         withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
                             isCopyHovered = hovered
-                        }
-                    }
-
-                    iconButton(
-                        systemName: isSelected ? "checkmark.circle.fill" : "circle",
-                        foregroundColor: selectionIconColor,
-                        backgroundColor: selectionIconBackground,
-                        action: onToggleSelection
-                    )
-                    .onHover { hovered in
-                        withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
-                            isSelectionHovered = hovered
                         }
                     }
 
@@ -97,7 +84,7 @@ struct CaptureCardView: View {
     }
 
     private var bodyColor: Color {
-        if isSelected || isCardHovered || isCopyHovered || isDeleteHovered || isSelectionHovered {
+        if isSelected || isCardHovered || isCopyHovered || isDeleteHovered {
             return SemanticTokens.Text.primary
         }
 
@@ -109,7 +96,7 @@ struct CaptureCardView: View {
     }
 
     private var copyIconColor: Color {
-        if isDeleteHovered || isSelectionHovered {
+        if isDeleteHovered {
             return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.subtle)
         }
 
@@ -124,6 +111,18 @@ struct CaptureCardView: View {
         return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
     }
 
+    private var copyIconSystemName: String {
+        if isShowingCopyFeedback {
+            return "checkmark"
+        }
+
+        if isCopyHovered || (isCardHovered && !selectionMode) {
+            return "doc.on.doc.fill"
+        }
+
+        return "doc.on.doc"
+    }
+
     private var deleteIconColor: Color {
         if isDeleteHovered {
             return SemanticTokens.Text.primary
@@ -136,20 +135,8 @@ struct CaptureCardView: View {
         return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
     }
 
-    private var selectionIconColor: Color {
-        if isSelected {
-            return SemanticTokens.Text.selection
-        }
-
-        if isSelectionHovered || selectionMode {
-            return SemanticTokens.Text.primary
-        }
-
-        return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
-    }
-
     private var copyIconBackground: Color {
-        if isDeleteHovered || isSelectionHovered {
+        if isDeleteHovered {
             return .clear
         }
 
@@ -166,18 +153,6 @@ struct CaptureCardView: View {
 
     private var deleteIconBackground: Color {
         if isDeleteHovered {
-            return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.medium)
-        }
-
-        return .clear
-    }
-
-    private var selectionIconBackground: Color {
-        if isSelected {
-            return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
-        }
-
-        if isSelectionHovered {
             return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.medium)
         }
 

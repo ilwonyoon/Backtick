@@ -5,13 +5,17 @@ import KeyboardShortcuts
 final class AppCoordinator {
     private let model = AppModel()
     private let hotKeyCenter = HotKeyCenter()
+    private let screenshotSettingsModel = ScreenshotSettingsModel()
     private lazy var capturePanelController = CapturePanelController(model: model)
     private lazy var stackPanelController = StackPanelController(model: model)
     private lazy var designSystemWindowController = DesignSystemWindowController()
-    private lazy var settingsWindowController = SettingsWindowController()
+    private lazy var settingsWindowController = SettingsWindowController(
+        screenshotSettingsModel: screenshotSettingsModel
+    )
     private var statusItem: NSStatusItem?
 
     func start() {
+        terminateDuplicateDebugInstancesIfNeeded()
         ScreenshotDirectoryResolver.bootstrapPreferredDirectoryIfNeeded()
         model.start()
         hotKeyCenter.registerDefaultShortcuts(
@@ -23,6 +27,7 @@ final class AppCoordinator {
             }
         )
         configureStatusItem()
+        screenshotSettingsModel.presentOnboardingIfNeeded()
 
         if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_DESIGN_SYSTEM"] == "1" {
             showDesignSystemWindow()
@@ -85,7 +90,7 @@ final class AppCoordinator {
 
     private func toggleStackPanel() {
         capturePanelController.close()
-        if stackPanelController.isVisible {
+        if stackPanelController.isPresentedOrTransitioning {
             stackPanelController.close()
         } else {
             stackPanelController.show()
@@ -98,5 +103,27 @@ final class AppCoordinator {
 
     private func showSettingsWindow() {
         settingsWindowController.show()
+    }
+
+    private func terminateDuplicateDebugInstancesIfNeeded() {
+        #if DEBUG
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
+            return
+        }
+
+        let currentProcessIdentifier = ProcessInfo.processInfo.processIdentifier
+        let duplicateApps = NSRunningApplication
+            .runningApplications(withBundleIdentifier: bundleIdentifier)
+            .filter { $0.processIdentifier != currentProcessIdentifier }
+
+        for duplicateApp in duplicateApps {
+            duplicateApp.terminate()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if !duplicateApp.isTerminated {
+                    duplicateApp.forceTerminate()
+                }
+            }
+        }
+        #endif
     }
 }

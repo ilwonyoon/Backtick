@@ -4,11 +4,17 @@ import SwiftUI
 
 struct CaptureComposerView: View {
     @ObservedObject var model: AppModel
+    let onSubmitSuccess: () -> Void
+
+    init(model: AppModel, onSubmitSuccess: @escaping () -> Void = {}) {
+        self.model = model
+        self.onSubmitSuccess = onSubmitSuccess
+    }
 
     var body: some View {
         SearchFieldSurface {
             VStack(alignment: .leading, spacing: PrimitiveTokens.Space.sm) {
-                if let recentScreenshotAttachment {
+                if shouldShowScreenshotSlot {
                     screenshotPreview(for: recentScreenshotAttachment)
                 }
 
@@ -35,22 +41,32 @@ struct CaptureComposerView: View {
         model.pendingScreenshotAttachment
     }
 
+    private var shouldShowScreenshotSlot: Bool {
+        recentScreenshotAttachment != nil || model.isAwaitingRecentScreenshot
+    }
+
     private var cueEditor: some View {
-        CueTextEditor(
+        let editorVisibleHeight = max(AppUIConstants.captureTextLineHeight, model.draftEditorContentHeight)
+
+        return CueTextEditor(
             text: $model.draftText,
+            maxContentHeight: AppUIConstants.captureEditorMaxHeight,
             onHeightChange: { height in
                 if abs(model.draftEditorContentHeight - height) > 0.5 {
                     model.draftEditorContentHeight = height
                 }
             },
             onSubmit: {
-                _ = model.submitCapture()
+                if model.submitCapture() {
+                    onSubmitSuccess()
+                }
             },
             onCancel: closePanel
         )
         .frame(
             maxWidth: .infinity,
-            minHeight: max(AppUIConstants.captureTextLineHeight, model.draftEditorContentHeight),
+            minHeight: editorVisibleHeight,
+            maxHeight: editorVisibleHeight,
             alignment: .topLeading
         )
         .overlay(alignment: .topLeading) {
@@ -64,16 +80,17 @@ struct CaptureComposerView: View {
         }
     }
 
-    private func screenshotPreview(for attachment: ScreenshotAttachment) -> some View {
+    private func screenshotPreview(for attachment: ScreenshotAttachment?) -> some View {
         ZStack(alignment: .topTrailing) {
-            LocalImageThumbnail(
-                url: URL(fileURLWithPath: attachment.path),
-                height: PrimitiveTokens.Size.captureAttachmentPreviewSize
-            )
-            .frame(
-                width: PrimitiveTokens.Size.captureAttachmentPreviewSize,
-                height: PrimitiveTokens.Size.captureAttachmentPreviewSize
-            )
+            if let attachment {
+                LocalImageThumbnail(
+                    url: URL(fileURLWithPath: attachment.path),
+                    width: PrimitiveTokens.Size.captureAttachmentPreviewSize,
+                    height: PrimitiveTokens.Size.captureAttachmentPreviewSize
+                )
+            } else {
+                screenshotPlaceholder
+            }
 
             Button(action: clearRecentScreenshot) {
                 Image(systemName: "xmark.circle.fill")
@@ -84,13 +101,31 @@ struct CaptureComposerView: View {
             .buttonStyle(.plain)
             .help("Remove recent screenshot")
             .accessibilityLabel("Remove recent screenshot")
-            .padding(PrimitiveTokens.Space.xxs)
+            .padding(.top, PrimitiveTokens.Space.xs)
+            .padding(.trailing, PrimitiveTokens.Space.xs)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func clearRecentScreenshot() {
         model.dismissPendingScreenshot()
+    }
+
+    private var screenshotPlaceholder: some View {
+        RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
+            .fill(SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.faint))
+            .frame(
+                width: PrimitiveTokens.Size.captureAttachmentPreviewSize,
+                height: PrimitiveTokens.Size.captureAttachmentPreviewSize
+            )
+            .overlay {
+                ProgressView()
+                    .controlSize(.small)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
+                    .stroke(SemanticTokens.Border.subtle)
+            }
     }
 
     private func closePanel() {

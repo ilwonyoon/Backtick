@@ -680,6 +680,7 @@ private struct CueEditorLivePreview: View {
     var body: some View {
         CueTextEditor(
             text: $text,
+            maxContentHeight: AppUIConstants.captureEditorMaxHeight,
             onHeightChange: { height in
                 measuredHeight = height
             },

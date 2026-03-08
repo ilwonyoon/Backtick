@@ -4,7 +4,12 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
-    private let screenshotSettingsModel = ScreenshotSettingsModel()
+    private let screenshotSettingsModel: ScreenshotSettingsModel
+
+    init(screenshotSettingsModel: ScreenshotSettingsModel) {
+        self.screenshotSettingsModel = screenshotSettingsModel
+        super.init()
+    }
 
     func show() {
         let window = window ?? makeWindow()

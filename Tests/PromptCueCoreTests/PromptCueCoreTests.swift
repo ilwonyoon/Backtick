@@ -25,6 +25,15 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func screenshotAttachmentIdentityTracksFreshness() {
+        let date = Date(timeIntervalSince1970: 1_000)
+        let older = ScreenshotAttachment(path: "/tmp/screenshot.png", modifiedAt: date)
+        let newer = ScreenshotAttachment(path: "/tmp/screenshot.png", modifiedAt: date.addingTimeInterval(1))
+
+        #expect(older.identityKey != newer.identityKey)
+    }
+
+    @Test
     func captureCardExpiresAfterDefaultTTL() {
         let createdAt = Date(timeIntervalSince1970: 1_000)
         let card = CaptureCard(text: "auth redirect incorrect", createdAt: createdAt)
@@ -79,6 +88,16 @@ struct PromptCueCoreTests {
         let ordered = CardStackOrdering.sort([justCopiedCard, olderCopiedCard, freshCard])
 
         #expect(ordered.map(\.text) == ["fresh", "older copied", "just copied"])
+    }
+
+    @Test
+    func cardStackOrderingRespectsManualSortOrderWithinSection() {
+        let top = CaptureCard(text: "top", createdAt: .now, sortOrder: 10)
+        let bottom = CaptureCard(text: "bottom", createdAt: .now.addingTimeInterval(-10), sortOrder: 1)
+
+        let ordered = CardStackOrdering.sort([bottom, top])
+
+        #expect(ordered.map(\.text) == ["top", "bottom"])
     }
 
     @Test
