@@ -7,15 +7,18 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let screenshotSettingsModel: ScreenshotSettingsModel
     private let exportTailSettingsModel: PromptExportTailSettingsModel
     private let retentionSettingsModel: CardRetentionSettingsModel
+    private let cloudSyncSettingsModel: CloudSyncSettingsModel
 
     init(
         screenshotSettingsModel: ScreenshotSettingsModel,
         exportTailSettingsModel: PromptExportTailSettingsModel,
-        retentionSettingsModel: CardRetentionSettingsModel
+        retentionSettingsModel: CardRetentionSettingsModel,
+        cloudSyncSettingsModel: CloudSyncSettingsModel
     ) {
         self.screenshotSettingsModel = screenshotSettingsModel
         self.exportTailSettingsModel = exportTailSettingsModel
         self.retentionSettingsModel = retentionSettingsModel
+        self.cloudSyncSettingsModel = cloudSyncSettingsModel
         super.init()
     }
 
@@ -24,6 +27,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         screenshotSettingsModel.refresh()
         exportTailSettingsModel.refresh()
         retentionSettingsModel.refresh()
+        cloudSyncSettingsModel.refresh()
         window.setContentSize(
             NSSize(
                 width: PanelMetrics.settingsPanelWidth,
@@ -64,7 +68,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             rootView: PromptCueSettingsView(
                 screenshotSettingsModel: screenshotSettingsModel,
                 exportTailSettingsModel: exportTailSettingsModel,
-                retentionSettingsModel: retentionSettingsModel
+                retentionSettingsModel: retentionSettingsModel,
+                cloudSyncSettingsModel: cloudSyncSettingsModel
             )
         )
 

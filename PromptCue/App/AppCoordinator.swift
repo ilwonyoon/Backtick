@@ -3,18 +3,20 @@ import KeyboardShortcuts
 
 @MainActor
 final class AppCoordinator {
-    private let model = AppModel()
+    let model = AppModel()
     private let hotKeyCenter = HotKeyCenter()
     private let screenshotSettingsModel = ScreenshotSettingsModel()
     private let exportTailSettingsModel = PromptExportTailSettingsModel()
     private let retentionSettingsModel = CardRetentionSettingsModel()
+    private let cloudSyncSettingsModel = CloudSyncSettingsModel()
     private lazy var capturePanelController = CapturePanelController(model: model)
     private lazy var stackPanelController = StackPanelController(model: model)
     private lazy var designSystemWindowController = DesignSystemWindowController()
     private lazy var settingsWindowController = SettingsWindowController(
         screenshotSettingsModel: screenshotSettingsModel,
         exportTailSettingsModel: exportTailSettingsModel,
-        retentionSettingsModel: retentionSettingsModel
+        retentionSettingsModel: retentionSettingsModel,
+        cloudSyncSettingsModel: cloudSyncSettingsModel
     )
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?

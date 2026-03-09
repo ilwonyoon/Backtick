@@ -6,6 +6,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         coordinator = AppCoordinator()
         coordinator?.start()
+
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+            NSApplication.shared.registerForRemoteNotifications()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -14,5 +18,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    func application(
+        _ application: NSApplication,
+        didReceiveRemoteNotification userInfo: [String: Any]
+    ) {
+        coordinator?.model.handleCloudRemoteNotification()
     }
 }

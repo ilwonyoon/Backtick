@@ -1,4 +1,5 @@
 import AppKit
+import CloudKit
 import Combine
 import Foundation
 import PromptCueCore
@@ -30,24 +31,31 @@ final class AppModel: ObservableObject {
     private let cardStore: CardStore
     private let attachmentStore: AttachmentStoring
     private let recentScreenshotCoordinator: RecentScreenshotCoordinating
+    private var cloudSyncEngine: CloudSyncEngine?
     private var cleanupTimer: Timer?
     private var captureSubmissionTask: Task<Bool, Never>?
+    private var syncToggleObserver: NSObjectProtocol?
 
     init(
         cardStore: CardStore,
         attachmentStore: AttachmentStoring,
-        recentScreenshotCoordinator: RecentScreenshotCoordinating
+        recentScreenshotCoordinator: RecentScreenshotCoordinating,
+        cloudSyncEngine: CloudSyncEngine? = nil
     ) {
         self.cardStore = cardStore
         self.attachmentStore = attachmentStore
         self.recentScreenshotCoordinator = recentScreenshotCoordinator
+        self.cloudSyncEngine = cloudSyncEngine
     }
 
     convenience init() {
+        let isTestEnvironment = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        let syncEnabled = !isTestEnvironment && CloudSyncPreferences.load()
         self.init(
             cardStore: CardStore(),
             attachmentStore: AttachmentStore(),
-            recentScreenshotCoordinator: RecentScreenshotCoordinator()
+            recentScreenshotCoordinator: RecentScreenshotCoordinator(),
+            cloudSyncEngine: syncEnabled ? CloudSyncEngine() : nil
         )
     }
 
@@ -100,6 +108,7 @@ final class AppModel: ObservableObject {
                 self?.purgeExpiredCards()
             }
         }
+        startCloudSync()
     }
 
     func stop() {
@@ -108,6 +117,11 @@ final class AppModel: ObservableObject {
         recentScreenshotCoordinator.onStateChange = nil
         recentScreenshotCoordinator.stop()
         applyRecentScreenshotState(.idle)
+        if let syncToggleObserver {
+            NotificationCenter.default.removeObserver(syncToggleObserver)
+        }
+        syncToggleObserver = nil
+        cloudSyncEngine?.delegate = nil
     }
 
     func reloadCards() {
@@ -242,6 +256,7 @@ final class AppModel: ObservableObject {
             recentScreenshotCoordinator.consumeCurrent()
         }
         syncRecentScreenshotState()
+        cloudSyncEngine?.pushLocalChange(card: newCard)
         return true
     }
 
@@ -347,6 +362,7 @@ final class AppModel: ObservableObject {
         cards = updatedCards
         selectedCardIDs.remove(card.id)
         cleanupManagedAttachments(removedCards: [card], remainingCards: updatedCards)
+        cloudSyncEngine?.pushDeletion(id: card.id)
     }
 
     func purgeExpiredCards() {
@@ -375,6 +391,7 @@ final class AppModel: ObservableObject {
             filtered.contains(where: { $0.id == id })
         }
         cleanupManagedAttachments(removedCards: expiredCards, remainingCards: filtered)
+        cloudSyncEngine?.pushBatch(cards: [], deletions: expiredCards.map(\.id))
     }
 
     private func markCopied(ids: [UUID]) {
@@ -400,6 +417,11 @@ final class AppModel: ObservableObject {
 
         cards = updatedCards
         clearSelection()
+
+        let copiedCards = updatedCards.filter { copiedIDs.contains($0.id) }
+        for card in copiedCards {
+            cloudSyncEngine?.pushLocalChange(card: card)
+        }
     }
 
     private func sortedCards(_ cards: [CaptureCard]) -> [CaptureCard] {
@@ -526,5 +548,172 @@ final class AppModel: ObservableObject {
 
     private func applyRecentScreenshotState(_ state: RecentScreenshotState) {
         recentScreenshotState = state
+    }
+
+    // MARK: - Cloud Sync
+
+    private func startCloudSync() {
+        syncToggleObserver = NotificationCenter.default.addObserver(
+            forName: .cloudSyncEnabledChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let enabled = notification.userInfo?["enabled"] as? Bool ?? false
+            Task { @MainActor [weak self] in
+                self?.setSyncEnabled(enabled)
+            }
+        }
+
+        guard let cloudSyncEngine else { return }
+        cloudSyncEngine.delegate = self
+
+        Task {
+            await cloudSyncEngine.setup()
+            cloudSyncEngine.fetchRemoteChanges()
+        }
+    }
+
+    func handleCloudRemoteNotification() {
+        cloudSyncEngine?.handleRemoteNotification()
+    }
+
+    func setSyncEnabled(_ enabled: Bool) {
+        if enabled, cloudSyncEngine == nil {
+            let engine = CloudSyncEngine()
+            cloudSyncEngine = engine
+            startCloudSync()
+        } else if !enabled {
+            cloudSyncEngine?.delegate = nil
+            cloudSyncEngine = nil
+        }
+    }
+}
+
+// MARK: - CloudSyncDelegate
+
+extension AppModel: CloudSyncDelegate {
+    func cloudSyncDidComplete(_ engine: CloudSyncEngine) {
+        // Observable by CloudSyncSettingsModel via NotificationCenter
+        NotificationCenter.default.post(name: .cloudSyncDidComplete, object: nil)
+    }
+
+    func cloudSync(_ engine: CloudSyncEngine, didFailWithError message: String) {
+        NotificationCenter.default.post(
+            name: .cloudSyncDidFail,
+            object: nil,
+            userInfo: ["message": message]
+        )
+    }
+
+    func cloudSync(_ engine: CloudSyncEngine, accountStatusChanged status: CloudSyncAccountStatus) {
+        NotificationCenter.default.post(
+            name: .cloudSyncAccountStatusChanged,
+            object: nil,
+            userInfo: ["status": status]
+        )
+    }
+
+    func cloudSync(_ engine: CloudSyncEngine, didReceiveChanges changes: [SyncChange]) {
+        applyRemoteChanges(changes)
+    }
+
+    func applyRemoteChanges(_ changes: [SyncChange]) {
+        var updatedCards = cards
+        var removedCards: [CaptureCard] = []
+
+        for change in changes {
+            switch change {
+            case .upsert(let remoteCard, let screenshotAssetURL):
+                let cardWithScreenshot = importRemoteScreenshotIfNeeded(
+                    card: remoteCard,
+                    assetURL: screenshotAssetURL
+                )
+
+                if let index = updatedCards.firstIndex(where: { $0.id == cardWithScreenshot.id }) {
+                    let local = updatedCards[index]
+                    let merged = mergeCard(local: local, remote: cardWithScreenshot)
+                    updatedCards[index] = merged
+                } else {
+                    updatedCards.append(cardWithScreenshot)
+                }
+
+            case .delete(let id):
+                if let index = updatedCards.firstIndex(where: { $0.id == id }) {
+                    removedCards.append(updatedCards[index])
+                    updatedCards.remove(at: index)
+                }
+            }
+        }
+
+        let sorted = sortedCards(updatedCards)
+
+        do {
+            try cardStore.save(sorted)
+            storageErrorMessage = nil
+        } catch {
+            logStorageFailure("Cloud sync apply failed", error: error)
+            return
+        }
+
+        cards = sorted
+        selectedCardIDs = selectedCardIDs.filter { id in
+            sorted.contains(where: { $0.id == id })
+        }
+
+        if !removedCards.isEmpty {
+            cleanupManagedAttachments(removedCards: removedCards, remainingCards: sorted)
+        }
+    }
+
+    private func importRemoteScreenshotIfNeeded(card: CaptureCard, assetURL: URL?) -> CaptureCard {
+        guard let assetURL, FileManager.default.fileExists(atPath: assetURL.path) else {
+            return card
+        }
+
+        do {
+            let importedURL = try attachmentStore.importScreenshot(
+                from: assetURL,
+                ownerID: card.id
+            )
+            return CaptureCard(
+                id: card.id,
+                text: card.text,
+                createdAt: card.createdAt,
+                screenshotPath: importedURL.path,
+                lastCopiedAt: card.lastCopiedAt,
+                sortOrder: card.sortOrder
+            )
+        } catch {
+            logStorageFailure("Remote screenshot import failed", error: error)
+            return card
+        }
+    }
+
+    private func mergeCard(local: CaptureCard, remote: CaptureCard) -> CaptureCard {
+        let winner: CaptureCard
+        switch (local.lastCopiedAt, remote.lastCopiedAt) {
+        case (.some(let localDate), .some(let remoteDate)):
+            winner = localDate >= remoteDate ? local : remote
+        case (.some, .none):
+            winner = local
+        case (.none, .some):
+            winner = remote
+        case (.none, .none):
+            winner = local
+        }
+
+        let resolvedScreenshotPath = winner.screenshotPath ?? local.screenshotPath ?? remote.screenshotPath
+        guard resolvedScreenshotPath != winner.screenshotPath else {
+            return winner
+        }
+
+        return CaptureCard(
+            id: winner.id,
+            text: winner.text,
+            createdAt: winner.createdAt,
+            screenshotPath: resolvedScreenshotPath,
+            lastCopiedAt: winner.lastCopiedAt,
+            sortOrder: winner.sortOrder
+        )
     }
 }

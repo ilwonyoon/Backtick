@@ -6,23 +6,27 @@ struct PromptCueSettingsView: View {
     @ObservedObject private var screenshotSettingsModel: ScreenshotSettingsModel
     @ObservedObject private var exportTailSettingsModel: PromptExportTailSettingsModel
     @ObservedObject private var retentionSettingsModel: CardRetentionSettingsModel
+    @ObservedObject private var cloudSyncSettingsModel: CloudSyncSettingsModel
 
     private let labelColumnWidth: CGFloat = PanelMetrics.settingsLabelColumnWidth
 
     init(
         screenshotSettingsModel: ScreenshotSettingsModel,
         exportTailSettingsModel: PromptExportTailSettingsModel,
-        retentionSettingsModel: CardRetentionSettingsModel
+        retentionSettingsModel: CardRetentionSettingsModel,
+        cloudSyncSettingsModel: CloudSyncSettingsModel
     ) {
         self.screenshotSettingsModel = screenshotSettingsModel
         self.exportTailSettingsModel = exportTailSettingsModel
         self.retentionSettingsModel = retentionSettingsModel
+        self.cloudSyncSettingsModel = cloudSyncSettingsModel
     }
 
     init() {
         self.screenshotSettingsModel = ScreenshotSettingsModel()
         self.exportTailSettingsModel = PromptExportTailSettingsModel()
         self.retentionSettingsModel = CardRetentionSettingsModel()
+        self.cloudSyncSettingsModel = CloudSyncSettingsModel()
     }
 
     var body: some View {
@@ -186,6 +190,42 @@ struct PromptCueSettingsView: View {
                         }
                     }
                 }
+
+                sectionDivider
+
+                settingsSection(
+                    title: "iCloud Sync",
+                    footer: "Sync cards across your Macs via iCloud. Screenshots stay local."
+                ) {
+                    settingsGrid {
+                        row("Sync", verticalAlignment: .top) {
+                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
+                                Toggle(
+                                    "Enable iCloud sync",
+                                    isOn: binding(
+                                        get: { cloudSyncSettingsModel.isSyncEnabled },
+                                        set: cloudSyncSettingsModel.updateSyncEnabled
+                                    )
+                                )
+                                .toggleStyle(.checkbox)
+
+                                rowNote("Cards sync automatically between Macs signed into the same Apple ID.")
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
+                        row("Status") {
+                            Text(cloudSyncSettingsModel.syncStatusText)
+                                .font(PrimitiveTokens.Typography.body)
+                                .foregroundStyle(
+                                    cloudSyncSettingsModel.syncError != nil
+                                        ? SemanticTokens.Text.secondary
+                                        : SemanticTokens.Text.primary
+                                )
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
             }
             .padding(PrimitiveTokens.Space.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -199,6 +239,7 @@ struct PromptCueSettingsView: View {
             screenshotSettingsModel.refresh()
             exportTailSettingsModel.refresh()
             retentionSettingsModel.refresh()
+            cloudSyncSettingsModel.refresh()
         }
     }
 
