@@ -419,9 +419,11 @@ struct DesignSystemPreviewView: View {
                     CaptureCardView(
                         card: sampleCard,
                         isSelected: false,
+                        isRecentlyCopied: false,
                         selectionMode: false,
                         onCopy: {},
                         onToggleSelection: {},
+                        onCmdClick: {},
                         onDelete: {}
                     )
                     .frame(width: DesignSystemPreviewTokens.previewCardWidth, alignment: .leading)

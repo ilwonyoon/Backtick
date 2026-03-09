@@ -5,6 +5,7 @@ struct CardStackView: View {
     @ObservedObject var model: AppModel
     let onCopyCard: (CaptureCard) -> Void
     let onCopySelection: () -> Void
+    let onCopyMultiSelection: () -> Void
     let onDeleteCard: (CaptureCard) -> Void
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
 
@@ -46,10 +47,79 @@ struct CardStackView: View {
 
     private var header: some View {
         Group {
-            if selectionMode {
+            if model.isMultiSelectMode {
+                multiSelectHeader
+            } else if selectionMode {
                 selectionHeader
+            } else if !model.cards.isEmpty {
+                defaultHeader
             }
         }
+    }
+
+    private var defaultHeader: some View {
+        HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
+            Spacer(minLength: PrimitiveTokens.Space.xs)
+
+            Button(action: { model.enterMultiSelectMode() }) {
+                PromptCueChip {
+                    HStack(spacing: PrimitiveTokens.Space.xxs) {
+                        Text("Copy Multiple")
+                            .font(PrimitiveTokens.Typography.chip)
+                            .foregroundStyle(SemanticTokens.Text.primary)
+                        Text("⌘")
+                            .font(PrimitiveTokens.Typography.chip)
+                            .foregroundStyle(SemanticTokens.Text.secondary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Enter multi-select mode")
+        }
+        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
+    }
+
+    private var multiSelectHeader: some View {
+        HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
+            if model.selectionCount > 0 || !model.recentlyCopiedCardIDs.isEmpty {
+                let totalCount = model.selectionCount + model.recentlyCopiedCardIDs.count
+                Text("\(totalCount) selected")
+                    .font(PrimitiveTokens.Typography.bodyStrong)
+                    .foregroundStyle(SemanticTokens.Text.primary)
+            } else {
+                Text("Select cues to copy")
+                    .font(PrimitiveTokens.Typography.body)
+                    .foregroundStyle(SemanticTokens.Text.secondary)
+            }
+
+            Spacer(minLength: PrimitiveTokens.Space.xs)
+
+            if model.selectionCount > 0 {
+                Button(action: onCopyMultiSelection) {
+                    PromptCueChip(
+                        fill: SemanticTokens.Surface.accentFill,
+                        border: SemanticTokens.Border.emphasis
+                    ) {
+                        Text("Copy")
+                            .font(PrimitiveTokens.Typography.chip)
+                            .foregroundStyle(SemanticTokens.Text.selection)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Copy \(model.selectionCount) selected cues")
+            }
+
+            Button(action: { model.exitMultiSelectMode() }) {
+                PromptCueChip {
+                    Image(systemName: "xmark")
+                        .font(PrimitiveTokens.Typography.chipIcon)
+                        .foregroundStyle(SemanticTokens.Text.primary)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Exit multi-select mode")
+        }
+        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
     }
 
     private var selectionHeader: some View {
@@ -108,18 +178,25 @@ struct CardStackView: View {
     }
 
     private var selectionMode: Bool {
-        model.selectionCount > 0
+        model.isMultiSelectMode || model.selectionCount > 0
     }
 
     private func cardRow(for card: CaptureCard) -> some View {
         CaptureCardView(
             card: card,
             isSelected: model.selectedCardIDs.contains(card.id),
+            isRecentlyCopied: model.recentlyCopiedCardIDs.contains(card.id),
             selectionMode: selectionMode,
             onCopy: {
                 onCopyCard(card)
             },
             onToggleSelection: {
+                model.toggleSelection(for: card)
+            },
+            onCmdClick: {
+                if !model.isMultiSelectMode {
+                    model.enterMultiSelectMode()
+                }
                 model.toggleSelection(for: card)
             },
             onDelete: {

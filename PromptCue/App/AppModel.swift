@@ -27,6 +27,8 @@ final class AppModel: ObservableObject {
     @Published var draftEditorMetrics: CaptureEditorMetrics = .empty
     @Published var selectedCardIDs: Set<UUID> = []
     @Published private(set) var isSubmittingCapture = false
+    @Published var isMultiSelectMode = false
+    @Published private(set) var recentlyCopiedCardIDs: Set<UUID> = []
 
     private let cardStore: CardStore
     private let attachmentStore: AttachmentStoring
@@ -324,6 +326,71 @@ final class AppModel: ObservableObject {
     }
 
     func clearSelection() {
+        selectedCardIDs.removeAll()
+        isMultiSelectMode = false
+        recentlyCopiedCardIDs.removeAll()
+    }
+
+    func enterMultiSelectMode() {
+        isMultiSelectMode = true
+    }
+
+    func exitMultiSelectMode() {
+        isMultiSelectMode = false
+        selectedCardIDs.removeAll()
+        recentlyCopiedCardIDs.removeAll()
+    }
+
+    @discardableResult
+    func copySelectionMultiMode() -> String? {
+        let selectedCards = selectedCardsInDisplayOrder
+        guard !selectedCards.isEmpty else {
+            return nil
+        }
+
+        let payload = ClipboardFormatter.string(for: selectedCards)
+        ClipboardFormatter.copyToPasteboard(cards: selectedCards)
+        markCopiedDeferred(ids: selectedCards.map(\.id))
+        return payload
+    }
+
+    func commitDeferredCopies() {
+        guard !recentlyCopiedCardIDs.isEmpty else {
+            return
+        }
+
+        let copiedIDs = recentlyCopiedCardIDs
+        let updatedCards = sortedCards(
+            cards.map { card in
+                guard copiedIDs.contains(card.id) else {
+                    return card
+                }
+                return card.markCopied(at: Date())
+            }
+        )
+
+        do {
+            try cardStore.save(updatedCards)
+            storageErrorMessage = nil
+        } catch {
+            logStorageFailure("Deferred copy commit failed", error: error)
+            return
+        }
+
+        cards = updatedCards
+
+        let copiedCards = updatedCards.filter { copiedIDs.contains($0.id) }
+        for card in copiedCards {
+            cloudSyncEngine?.pushLocalChange(card: card)
+        }
+
+        recentlyCopiedCardIDs.removeAll()
+        selectedCardIDs.removeAll()
+        isMultiSelectMode = false
+    }
+
+    private func markCopiedDeferred(ids: [UUID]) {
+        recentlyCopiedCardIDs.formUnion(ids)
         selectedCardIDs.removeAll()
     }
 

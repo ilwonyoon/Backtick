@@ -55,7 +55,11 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     func close() {
-        model.clearSelection()
+        if model.isMultiSelectMode {
+            model.commitDeferredCopies()
+        } else {
+            model.clearSelection()
+        }
 
         guard let panel else {
             isVisible = false
@@ -141,6 +145,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
                 onCopySelection: { [weak self] in
                     self?.copySelectionAndClose()
                 },
+                onCopyMultiSelection: { [weak self] in
+                    self?.copyMultiSelection()
+                },
                 onDeleteCard: { [weak self] card in
                     self?.model.delete(card: card)
                 }
@@ -162,6 +169,10 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
 
         close()
+    }
+
+    private func copyMultiSelection() {
+        _ = model.copySelectionMultiMode()
     }
 
     private func onscreenPanelFrame(for size: NSSize? = nil) -> NSRect {

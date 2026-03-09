@@ -37,9 +37,11 @@ final class CaptureCardRenderingTests: XCTestCase {
         let view = CaptureCardView(
             card: card,
             isSelected: false,
+            isRecentlyCopied: false,
             selectionMode: false,
             onCopy: {},
             onToggleSelection: {},
+            onCmdClick: {},
             onDelete: {}
         )
         .environment(\.colorScheme, .light)

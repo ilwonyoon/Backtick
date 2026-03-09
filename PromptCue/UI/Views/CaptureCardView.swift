@@ -4,9 +4,11 @@ struct CaptureCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let card: CaptureCard
     let isSelected: Bool
+    let isRecentlyCopied: Bool
     let selectionMode: Bool
     let onCopy: () -> Void
     let onToggleSelection: () -> Void
+    let onCmdClick: () -> Void
     let onDelete: () -> Void
     @State private var isCardHovered = false
     @State private var isCopyHovered = false
@@ -41,12 +43,20 @@ struct CaptureCardView: View {
                         .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }
 
-                    Text(card.text)
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(actionStyle.bodyColor)
-                        .multilineTextAlignment(.leading)
-                        .lineSpacing(PrimitiveTokens.Space.xxxs)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(alignment: .top, spacing: PrimitiveTokens.Space.xs) {
+                        Text(card.text)
+                            .font(PrimitiveTokens.Typography.body)
+                            .foregroundStyle(isRecentlyCopied ? SemanticTokens.Text.secondary : actionStyle.bodyColor)
+                            .multilineTextAlignment(.leading)
+                            .lineSpacing(PrimitiveTokens.Space.xxxs)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        if isRecentlyCopied {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(PrimitiveTokens.Typography.accessoryIcon)
+                                .foregroundStyle(SemanticTokens.Accent.primary)
+                        }
+                    }
                 }
                 .padding(.trailing, actionColumnReservedWidth)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -88,6 +98,9 @@ struct CaptureCardView: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Cue: \(card.text)")
             .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .simultaneousGesture(TapGesture().modifiers(.command).onEnded {
+                onCmdClick()
+            })
             .onTapGesture(perform: performPrimaryAction)
             .onHover { hovered in
                 withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
