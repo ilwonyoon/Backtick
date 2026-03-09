@@ -87,7 +87,7 @@ struct PromptCueCoreTests {
 
         let ordered = CardStackOrdering.sort([justCopiedCard, olderCopiedCard, freshCard])
 
-        #expect(ordered.map(\.text) == ["fresh", "older copied", "just copied"])
+        #expect(ordered.map(\.text) == ["fresh", "just copied", "older copied"])
     }
 
     @Test
