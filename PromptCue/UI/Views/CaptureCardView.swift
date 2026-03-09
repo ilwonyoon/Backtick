@@ -86,89 +86,25 @@ struct CaptureCardView: View {
         return PrimitiveTokens.Space.xxs
     }
 
-    private var bodyColor: Color {
-        if isSelected || isCardHovered || isCopyHovered || isDeleteHovered {
-            return SemanticTokens.Text.primary
-        }
-
-        if card.isCopied {
-            return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
-        }
-
-        return SemanticTokens.Text.primary
+    private var resolvedStyle: CardActionStyle {
+        CardActionStyle(
+            isCardHovered: isCardHovered,
+            isCopyHovered: isCopyHovered,
+            isDeleteHovered: isDeleteHovered,
+            isSelected: isSelected,
+            isShowingCopyFeedback: isShowingCopyFeedback,
+            isCopied: card.isCopied,
+            selectionMode: selectionMode,
+            usesPersistentActionBackdrop: usesPersistentActionBackdrop
+        )
     }
 
-    private var copyIconColor: Color {
-        if isDeleteHovered {
-            return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.subtle)
-        }
-
-        if isShowingCopyFeedback {
-            return SemanticTokens.Text.primary
-        }
-
-        if isCopyHovered || (isCardHovered && !selectionMode) {
-            return SemanticTokens.Text.primary
-        }
-
-        return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
-    }
-
-    private var copyIconSystemName: String {
-        if isShowingCopyFeedback {
-            return "checkmark"
-        }
-
-        if isCopyHovered || (isCardHovered && !selectionMode) {
-            return "doc.on.doc.fill"
-        }
-
-        return "doc.on.doc"
-    }
-
-    private var deleteIconColor: Color {
-        if isDeleteHovered {
-            return SemanticTokens.Text.primary
-        }
-
-        if card.isCopied {
-            return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.subtle)
-        }
-
-        return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
-    }
-
-    private var copyIconBackground: Color {
-        if isDeleteHovered {
-            return .clear
-        }
-
-        if isShowingCopyFeedback {
-            return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
-        }
-
-        if isCopyHovered || (isCardHovered && !selectionMode) {
-            return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
-        }
-
-        if usesPersistentActionBackdrop {
-            return SemanticTokens.Surface.notificationCardBackdrop.opacity(0.72)
-        }
-
-        return .clear
-    }
-
-    private var deleteIconBackground: Color {
-        if isDeleteHovered {
-            return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.medium)
-        }
-
-        if usesPersistentActionBackdrop {
-            return SemanticTokens.Surface.notificationCardBackdrop.opacity(0.6)
-        }
-
-        return .clear
-    }
+    private var bodyColor: Color { resolvedStyle.bodyColor }
+    private var copyIconColor: Color { resolvedStyle.copyIconColor }
+    private var copyIconSystemName: String { resolvedStyle.copyIconSystemName }
+    private var deleteIconColor: Color { resolvedStyle.deleteIconColor }
+    private var copyIconBackground: Color { resolvedStyle.copyIconBackground }
+    private var deleteIconBackground: Color { resolvedStyle.deleteIconBackground }
 
     private var actionColumnWidth: CGFloat {
         PrimitiveTokens.Space.xl

@@ -34,108 +34,110 @@ struct SearchFieldSurface<Content: View>: View {
         switch style {
         case .quiet:
             if colorScheme == .light {
-                shape
-                    .fill(SemanticTokens.MaterialStyle.floatingShell)
-                    .overlay {
-                        shape.fill(SemanticTokens.Surface.panelFill)
-                    }
-                    .overlay {
-                        shape.fill(
-                            LinearGradient(
-                                colors: [
-                                    SemanticTokens.Surface.glassSheen.opacity(0.82),
-                                    SemanticTokens.Surface.glassTint.opacity(0.22),
-                                    SemanticTokens.Surface.glassEdge.opacity(0),
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                    }
-                    .overlay {
-                        shape.stroke(SemanticTokens.Border.notificationCard)
-                    }
-                    .overlay {
-                        shape
-                            .inset(by: PrimitiveTokens.Stroke.subtle)
-                            .stroke(SemanticTokens.Border.glassInner.opacity(0.82))
-                            .mask(alignment: .top) {
-                                Rectangle()
-                                    .frame(height: PrimitiveTokens.Space.xl)
-                            }
-                    }
-                    .overlay(alignment: .top) {
-                        shape
-                            .stroke(
-                                SemanticTokens.Border.glassHighlight.opacity(0.82),
-                                lineWidth: PrimitiveTokens.Stroke.subtle
-                            )
-                            .frame(height: PrimitiveTokens.Space.lg)
-                            .mask(alignment: .top) {
-                                Rectangle()
-                                    .frame(height: PrimitiveTokens.Space.sm)
-                            }
-                    }
-                    .overlay {
-                        shape
-                            .stroke(SemanticTokens.Border.notificationCard.opacity(0.28))
-                            .mask(alignment: .bottom) {
-                                Rectangle()
-                                    .frame(height: PrimitiveTokens.Space.sm)
-                            }
-                    }
-                    .promptCueCaptureSurfaceShadow()
+                quietLightBackground
             } else {
-                shape
-                    .fill(SemanticTokens.MaterialStyle.floatingShell)
-                    .overlay {
-                        shape.fill(SemanticTokens.Surface.panelFill)
-                    }
-                    .overlay {
-                        shape.fill(SemanticTokens.Surface.raisedFill.opacity(PrimitiveTokens.Opacity.faint))
-                    }
-                    .overlay {
-                        shape.stroke(SemanticTokens.Border.notificationCard)
-                    }
-                    .promptCuePanelShadow()
+                quietDarkBackground
             }
         case .showcase:
-            shape
-                .fill(SemanticTokens.MaterialStyle.elevatedGlass)
-                .overlay {
-                    shape.fill(SemanticTokens.Surface.panelFill)
-                }
-                .overlay {
-                    shape.fill(
-                        LinearGradient(
-                            colors: [
-                                SemanticTokens.Surface.glassSheen,
-                                SemanticTokens.Surface.glassTint,
-                                SemanticTokens.Surface.glassEdge,
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                }
-                .overlay {
-                    shape.stroke(SemanticTokens.Border.subtle)
-                }
-                .overlay {
-                    shape
-                        .inset(by: PrimitiveTokens.Stroke.subtle)
-                        .stroke(SemanticTokens.Border.glassInner)
-                }
-                .overlay(alignment: .top) {
-                    shape
-                        .stroke(SemanticTokens.Border.glassHighlight, lineWidth: PrimitiveTokens.Stroke.subtle)
-                        .frame(height: PrimitiveTokens.Space.xxl)
-                        .mask(alignment: .top) {
-                            Rectangle()
-                                .frame(height: PrimitiveTokens.Space.xl)
-                        }
-                }
-                .promptCueGlassShadow()
+            showcaseBackground
         }
+    }
+
+    private var quietLightBackground: some View {
+        shape
+            .fill(SemanticTokens.MaterialStyle.floatingShell)
+            .overlay { shape.fill(SemanticTokens.Surface.panelFill) }
+            .overlay { quietLightGradientOverlay }
+            .overlay { shape.stroke(SemanticTokens.Border.notificationCard) }
+            .overlay { quietLightInnerGlowOverlay }
+            .overlay(alignment: .top) { quietLightTopHighlightOverlay }
+            .overlay { quietLightBottomEdgeOverlay }
+            .promptCueCaptureSurfaceShadow()
+    }
+
+    private var quietLightGradientOverlay: some View {
+        shape.fill(
+            LinearGradient(
+                colors: [
+                    SemanticTokens.Surface.glassSheen.opacity(0.82),
+                    SemanticTokens.Surface.glassTint.opacity(0.22),
+                    SemanticTokens.Surface.glassEdge.opacity(0),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    private var quietLightInnerGlowOverlay: some View {
+        shape
+            .inset(by: PrimitiveTokens.Stroke.subtle)
+            .stroke(SemanticTokens.Border.glassInner.opacity(0.82))
+            .mask(alignment: .top) {
+                Rectangle().frame(height: PrimitiveTokens.Space.xl)
+            }
+    }
+
+    private var quietLightTopHighlightOverlay: some View {
+        shape
+            .stroke(
+                SemanticTokens.Border.glassHighlight.opacity(0.82),
+                lineWidth: PrimitiveTokens.Stroke.subtle
+            )
+            .frame(height: PrimitiveTokens.Space.lg)
+            .mask(alignment: .top) {
+                Rectangle().frame(height: PrimitiveTokens.Space.sm)
+            }
+    }
+
+    private var quietLightBottomEdgeOverlay: some View {
+        shape
+            .stroke(SemanticTokens.Border.notificationCard.opacity(0.28))
+            .mask(alignment: .bottom) {
+                Rectangle().frame(height: PrimitiveTokens.Space.sm)
+            }
+    }
+
+    private var quietDarkBackground: some View {
+        shape
+            .fill(SemanticTokens.MaterialStyle.floatingShell)
+            .overlay { shape.fill(SemanticTokens.Surface.panelFill) }
+            .overlay { shape.fill(SemanticTokens.Surface.raisedFill.opacity(PrimitiveTokens.Opacity.faint)) }
+            .overlay { shape.stroke(SemanticTokens.Border.notificationCard) }
+            .promptCuePanelShadow()
+    }
+
+    private var showcaseBackground: some View {
+        shape
+            .fill(SemanticTokens.MaterialStyle.elevatedGlass)
+            .overlay { shape.fill(SemanticTokens.Surface.panelFill) }
+            .overlay { showcaseGradientOverlay }
+            .overlay { shape.stroke(SemanticTokens.Border.subtle) }
+            .overlay { shape.inset(by: PrimitiveTokens.Stroke.subtle).stroke(SemanticTokens.Border.glassInner) }
+            .overlay(alignment: .top) { showcaseTopHighlightOverlay }
+            .promptCueGlassShadow()
+    }
+
+    private var showcaseGradientOverlay: some View {
+        shape.fill(
+            LinearGradient(
+                colors: [
+                    SemanticTokens.Surface.glassSheen,
+                    SemanticTokens.Surface.glassTint,
+                    SemanticTokens.Surface.glassEdge,
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    private var showcaseTopHighlightOverlay: some View {
+        shape
+            .stroke(SemanticTokens.Border.glassHighlight, lineWidth: PrimitiveTokens.Stroke.subtle)
+            .frame(height: PrimitiveTokens.Space.xxl)
+            .mask(alignment: .top) {
+                Rectangle().frame(height: PrimitiveTokens.Space.xl)
+            }
     }
 }

@@ -39,6 +39,7 @@
 		821635AD08C0277EE465565E /* PromptCueShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A375A280E139D2C4C63F586 /* PromptCueShortcuts.swift */; };
 		87DACC5473D8E35DE0C94591 /* RecentScreenshotCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A679683687A04D7C37581DDD /* RecentScreenshotCoordinatorTests.swift */; };
 		8C75B4FB98B0D8107DDE9F9C /* PromptCueCore in Frameworks */ = {isa = PBXBuildFile; productRef = 72E63F66D51437F9424F0BB5 /* PromptCueCore */; };
+		981F066FD9D75AA0D599AAD1 /* CardActionStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA378F332C64EDFEA9C75EA /* CardActionStyle.swift */; };
 		99E47620285AD3D897387B66 /* CaptureEditorRuntimeHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19509EEED1658575B46ED8F4 /* CaptureEditorRuntimeHostView.swift */; };
 		9AA939FBD91B56B05A7C168F /* PromptCueApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ACEFD4C812481A89D90B251 /* PromptCueApp.swift */; };
 		9FDC842CD22533DEF3817216 /* TransientScreenshotCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABC3CC7704E03CAB7D3959F /* TransientScreenshotCache.swift */; };
@@ -95,6 +96,7 @@
 		23579BC7E06ED49F32AE8EB1 /* RecentScreenshotContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotContracts.swift; sourceTree = "<group>"; };
 		25E52C65D0F3F5887CBAB797 /* PrimitiveTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimitiveTokens.swift; sourceTree = "<group>"; };
 		2ABC3CC7704E03CAB7D3959F /* TransientScreenshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransientScreenshotCache.swift; sourceTree = "<group>"; };
+		311C9130630BE62252FB3591 /* fix-structural-audit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "fix-structural-audit"; path = .; sourceTree = SOURCE_ROOT; };
 		3578175AAD479D3659D72CE5 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		358723B50B0EB526C0C3916D /* DesignSystemWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystemWindowController.swift; sourceTree = "<group>"; };
 		3A1A35DDD4DE852B69D3DA9D /* SemanticTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticTokens.swift; sourceTree = "<group>"; };
@@ -128,6 +130,7 @@
 		BFFA8B21D5818DC4A6138C6E /* PromptCue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PromptCue.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3AF65D17E0E0A80CFBE4E86 /* CardSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardSurface.swift; sourceTree = "<group>"; };
 		CA2879AA171EC8A6059D6871 /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
+		CEA378F332C64EDFEA9C75EA /* CardActionStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardActionStyle.swift; sourceTree = "<group>"; };
 		D1BD85EA1F495DB2F4FAD6AB /* ScreenshotDirectoryResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDirectoryResolver.swift; sourceTree = "<group>"; };
 		D372ADD4A30AC64621AF5E05 /* RecentScreenshotLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotLocator.swift; sourceTree = "<group>"; };
 		D54D9E96EF212A4261A3D196 /* PromptCueChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueChip.swift; sourceTree = "<group>"; };
@@ -135,7 +138,6 @@
 		D9BD2A11BE05AD6376D87E70 /* CaptureEditorLayoutCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorLayoutCalculatorTests.swift; sourceTree = "<group>"; };
 		EA97F3D13BA392CBAF2BDCF8 /* LocalImageThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalImageThumbnail.swift; sourceTree = "<group>"; };
 		ECBCAD08F6EF428AD0BFFA79 /* CapturePanelRuntimeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePanelRuntimeViewController.swift; sourceTree = "<group>"; };
-		F287F749BFB619B9796E0FE2 /* PromptCue */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PromptCue; path = .; sourceTree = SOURCE_ROOT; };
 		F447D3D2D92FFA7B5252D467 /* HotKeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyCenter.swift; sourceTree = "<group>"; };
 		F50F3545344096FAFA3E2BFE /* AppUIConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUIConstants.swift; sourceTree = "<group>"; };
 		FA398C36FD577AAFA26C7F9F /* RecentScreenshotCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotCoordinator.swift; sourceTree = "<group>"; };
@@ -243,7 +245,7 @@
 		6FDC8665E7B2B81DDA302044 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				F287F749BFB619B9796E0FE2 /* PromptCue */,
+				311C9130630BE62252FB3591 /* fix-structural-audit */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -310,6 +312,7 @@
 			children = (
 				0DA754E495B637178A614D3C /* CaptureCardView.swift */,
 				57A7183C8DD5C8731C131B9B /* CaptureComposerView.swift */,
+				CEA378F332C64EDFEA9C75EA /* CardActionStyle.swift */,
 				45B066AAC1F6859743A3CD47 /* CardStackView.swift */,
 				EA97F3D13BA392CBAF2BDCF8 /* LocalImageThumbnail.swift */,
 			);
@@ -472,6 +475,7 @@
 				99E47620285AD3D897387B66 /* CaptureEditorRuntimeHostView.swift in Sources */,
 				1F0DF73DFB7C80D7255E5730 /* CapturePanelController.swift in Sources */,
 				71E16059075785332FDE9994 /* CapturePanelRuntimeViewController.swift in Sources */,
+				981F066FD9D75AA0D599AAD1 /* CardActionStyle.swift in Sources */,
 				786094F18BF590AAD9790C44 /* CardStackView.swift in Sources */,
 				0E5795F3A40B6410EA4E1BF2 /* CardStore.swift in Sources */,
 				BA3AC4B19E18C615BA97E637 /* CardSurface.swift in Sources */,
