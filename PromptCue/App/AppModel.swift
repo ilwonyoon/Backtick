@@ -48,11 +48,12 @@ final class AppModel: ObservableObject {
     }
 
     convenience init() {
+        let syncEnabled = CloudSyncPreferences.load()
         self.init(
             cardStore: CardStore(),
             attachmentStore: AttachmentStore(),
             recentScreenshotCoordinator: RecentScreenshotCoordinator(),
-            cloudSyncEngine: CloudSyncEngine()
+            cloudSyncEngine: syncEnabled ? CloudSyncEngine() : nil
         )
     }
 
@@ -562,6 +563,19 @@ final class AppModel: ObservableObject {
 // MARK: - CloudSyncDelegate
 
 extension AppModel: CloudSyncDelegate {
+    func cloudSyncDidComplete(_ engine: CloudSyncEngine) {
+        // Observable by CloudSyncSettingsModel via NotificationCenter
+        NotificationCenter.default.post(name: .cloudSyncDidComplete, object: nil)
+    }
+
+    func cloudSync(_ engine: CloudSyncEngine, didFailWithError message: String) {
+        NotificationCenter.default.post(
+            name: .cloudSyncDidFail,
+            object: nil,
+            userInfo: ["message": message]
+        )
+    }
+
     func cloudSync(_ engine: CloudSyncEngine, didReceiveChanges changes: [SyncChange]) {
         let existingIDs = Set(cards.map(\.id))
         var updatedCards = cards

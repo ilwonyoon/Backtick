@@ -10,6 +10,8 @@ enum SyncChange: Sendable {
 @MainActor
 protocol CloudSyncDelegate: AnyObject {
     func cloudSync(_ engine: CloudSyncEngine, didReceiveChanges changes: [SyncChange])
+    func cloudSyncDidComplete(_ engine: CloudSyncEngine)
+    func cloudSync(_ engine: CloudSyncEngine, didFailWithError message: String)
 }
 
 @MainActor
@@ -103,10 +105,12 @@ final class CloudSyncEngine {
         Task {
             do {
                 _ = try await database.save(record)
+                delegate?.cloudSyncDidComplete(self)
             } catch let error as CKError where error.code == .serverRecordChanged {
                 handleConflict(error: error, localCard: card)
             } catch {
                 NSLog("CloudSync push failed for %@: %@", card.id.uuidString, String(describing: error))
+                delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
             }
         }
     }
@@ -117,10 +121,13 @@ final class CloudSyncEngine {
         Task {
             do {
                 try await database.deleteRecord(withID: recordID)
+                delegate?.cloudSyncDidComplete(self)
             } catch let error as CKError where error.code == .unknownItem {
                 // Already deleted remotely
+                delegate?.cloudSyncDidComplete(self)
             } catch {
                 NSLog("CloudSync delete failed for %@: %@", id.uuidString, String(describing: error))
+                delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
             }
         }
     }
@@ -198,12 +205,14 @@ final class CloudSyncEngine {
                         upserted: upsertedRecords,
                         deleted: deletedRecordIDs
                     )
+                    self.delegate?.cloudSyncDidComplete(self)
                 case .failure(let error):
                     if let ckError = error as? CKError, ckError.code == .changeTokenExpired {
                         self.serverChangeToken = nil
                         self.fetchRemoteChanges()
                     } else {
                         NSLog("CloudSync fetch zone failed: %@", String(describing: error))
+                        self.delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
                     }
                 }
             }
