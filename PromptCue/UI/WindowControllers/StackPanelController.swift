@@ -96,6 +96,14 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.setFrame(onscreenPanelFrame(for: panel.frame.size), display: true, animate: false)
     }
 
+    func windowDidChangeScreen(_ notification: Notification) {
+        guard let panel, isVisible else {
+            return
+        }
+
+        panel.setFrame(onscreenPanelFrame(for: panel.frame.size), display: true, animate: false)
+    }
+
     private func makePanel() -> StackPanel {
         let initialFrame = offscreenPanelFrame(for: NSSize(width: AppUIConstants.stackPanelWidth, height: 0))
         let panel = StackPanel(

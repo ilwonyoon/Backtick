@@ -53,6 +53,16 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         anchoredOriginX = nil
     }
 
+    func windowDidChangeScreen(_ notification: Notification) {
+        guard isVisible else {
+            return
+        }
+
+        anchoredTopY = nil
+        anchoredOriginX = nil
+        resizePanelIfNeeded()
+    }
+
     private var isVisible: Bool {
         panel?.isVisible == true
     }
