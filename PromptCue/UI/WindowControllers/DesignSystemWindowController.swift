@@ -25,7 +25,7 @@ final class DesignSystemWindowController: NSObject, NSWindowDelegate {
             defer: false
         )
 
-        window.title = "Prompt Cue Design System"
+        window.title = "Backtick Design System"
         window.titlebarAppearsTransparent = false
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(

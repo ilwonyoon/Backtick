@@ -213,7 +213,7 @@ struct DesignSystemPreviewView: View {
         GlassPanel {
             HStack(alignment: .top, spacing: PrimitiveTokens.Space.xxl) {
                 VStack(alignment: .leading, spacing: PrimitiveTokens.Space.md) {
-                    Text("Prompt Cue Design System")
+                    Text("Backtick Design System")
                         .font(PrimitiveTokens.Typography.panelTitle)
                         .foregroundStyle(SemanticTokens.Text.primary)
 
@@ -404,7 +404,7 @@ struct DesignSystemPreviewView: View {
 
                 previewCard(title: "PanelHeader") {
                     PanelHeader(
-                        title: "Prompt Cue",
+                        title: "Backtick",
                         subtitle: "3 cues in temporary stack"
                     )
                     .frame(width: DesignSystemPreviewTokens.headerPreviewWidth, alignment: .leading)
@@ -453,7 +453,7 @@ struct DesignSystemPreviewView: View {
                         name: "Body",
                         usage: "Cards and readable content",
                         font: PrimitiveTokens.Typography.body,
-                        sample: "This is the main reading size for Prompt Cue surfaces."
+                        sample: "This is the main reading size for Backtick surfaces."
                     )
 
                     TypographyRow(

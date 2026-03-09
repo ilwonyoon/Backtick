@@ -71,6 +71,7 @@
 		CFC5DE7C11066C8565D21A29 /* CaptureEditorLayoutCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9BD2A11BE05AD6376D87E70 /* CaptureEditorLayoutCalculatorTests.swift */; };
 		D14DBB05114C016BE0B3995E /* RecentScreenshotCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA398C36FD577AAFA26C7F9F /* RecentScreenshotCoordinator.swift */; };
 		D3E0A4FB416F1388131D8320 /* PromptExportTailSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699C75609B52C164D9294CE8 /* PromptExportTailSettingsModel.swift */; };
+		D70CA12B7EE92B8021E7A589 /* ShowcaseGlassChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB7F40074E71FB405239B55 /* ShowcaseGlassChrome.swift */; };
 		E11F430A23AB41A4A98614C2 /* CueTextEditorMetricsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F756E64C316B19267AB3E0E /* CueTextEditorMetricsTests.swift */; };
 		E23D3ACFA5D3B089CD1901FC /* ScreenshotFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5494BC3D393236C1E14A6833 /* ScreenshotFolderAccess.swift */; };
 		E45BAF6D8F909939C646162D /* VisualEffectBackdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CDBE5DCAF84737F31BD15F4 /* VisualEffectBackdrop.swift */; };
@@ -79,6 +80,7 @@
 		EDD8142E6E57D70B3270212B /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B9CDCE0290CBC1B005127A /* GlassPanel.swift */; };
 		EE76F86A0B4911812D2E4A3E /* CaptureShellChromeRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD4260DC605F38E47233FB0 /* CaptureShellChromeRecipe.swift */; };
 		EF6900D8010810BCFE9A3011 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 11F11A0DF7C48E6630E17838 /* KeyboardShortcuts */; };
+		F3B98F6DF2F7372C28F9D70E /* StackPanelBackdropRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26ACFF12DCE20541229BE3C4 /* StackPanelBackdropRecipe.swift */; };
 		F86E4FB60F9BDAB84E5EE6DC /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03B37B6220DABE400C68F4AB /* SettingsWindowController.swift */; };
 		FB8EA336F8388768A2E70097 /* ClipboardFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E42D900064EA79ABFF67858 /* ClipboardFormatter.swift */; };
 		FDEB6A4E1FCC0915A473CFFA /* CaptureCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E6B1D035A1C732D61C34CC2 /* CaptureCard.swift */; };
@@ -111,6 +113,7 @@
 		20CD794F5690F98D2FFE1C87 /* PanelHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelHeader.swift; sourceTree = "<group>"; };
 		23579BC7E06ED49F32AE8EB1 /* RecentScreenshotContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotContracts.swift; sourceTree = "<group>"; };
 		25E52C65D0F3F5887CBAB797 /* PrimitiveTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimitiveTokens.swift; sourceTree = "<group>"; };
+		26ACFF12DCE20541229BE3C4 /* StackPanelBackdropRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackPanelBackdropRecipe.swift; sourceTree = "<group>"; };
 		2ABC3CC7704E03CAB7D3959F /* TransientScreenshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransientScreenshotCache.swift; sourceTree = "<group>"; };
 		3578175AAD479D3659D72CE5 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		358723B50B0EB526C0C3916D /* DesignSystemWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystemWindowController.swift; sourceTree = "<group>"; };
@@ -121,6 +124,7 @@
 		45B066AAC1F6859743A3CD47 /* CardStackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStackView.swift; sourceTree = "<group>"; };
 		47233D95CF58604EC1CA8325 /* CueTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueTextEditor.swift; sourceTree = "<group>"; };
 		493F47713E18AC9529C55F92 /* CaptureEditorMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorMetrics.swift; sourceTree = "<group>"; };
+		4AB7F40074E71FB405239B55 /* ShowcaseGlassChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowcaseGlassChrome.swift; sourceTree = "<group>"; };
 		4CDBE5DCAF84737F31BD15F4 /* VisualEffectBackdrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectBackdrop.swift; sourceTree = "<group>"; };
 		503A6CF43E7AA68788A9AF1B /* AppModelRecentScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelRecentScreenshotTests.swift; sourceTree = "<group>"; };
 		5287D013CA7D419F8D42EB4F /* SearchFieldSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFieldSurface.swift; sourceTree = "<group>"; };
@@ -374,9 +378,11 @@
 				20CD794F5690F98D2FFE1C87 /* PanelHeader.swift */,
 				D54D9E96EF212A4261A3D196 /* PromptCueChip.swift */,
 				5287D013CA7D419F8D42EB4F /* SearchFieldSurface.swift */,
+				4AB7F40074E71FB405239B55 /* ShowcaseGlassChrome.swift */,
 				AC3BC4BDEBDB5789858A2864 /* StackNotificationCardChromeRecipe.swift */,
 				BEEB6C15D81F9C8F2C4A411A /* StackNotificationCardSurface.swift */,
 				D5F9FE981B47D04E2603007B /* StackPanelBackdrop.swift */,
+				26ACFF12DCE20541229BE3C4 /* StackPanelBackdropRecipe.swift */,
 				1AE0A5A352E047EF7ED93053 /* TopEdgeStrokeOverlay.swift */,
 				4CDBE5DCAF84737F31BD15F4 /* VisualEffectBackdrop.swift */,
 			);
@@ -553,9 +559,11 @@
 				13195ED782BB3CC9B9698822 /* SearchFieldSurface.swift in Sources */,
 				2881AFAAED24B84D13C1D2F9 /* SemanticTokens.swift in Sources */,
 				F86E4FB60F9BDAB84E5EE6DC /* SettingsWindowController.swift in Sources */,
+				D70CA12B7EE92B8021E7A589 /* ShowcaseGlassChrome.swift in Sources */,
 				4F8E583C541684B32D830234 /* StackNotificationCardChromeRecipe.swift in Sources */,
 				48BC05C40A0A6AE034840FD1 /* StackNotificationCardSurface.swift in Sources */,
 				630633C63EAE3E6932494C35 /* StackPanelBackdrop.swift in Sources */,
+				F3B98F6DF2F7372C28F9D70E /* StackPanelBackdropRecipe.swift in Sources */,
 				70466BE87469152E7F2F2360 /* StackPanelController.swift in Sources */,
 				A3B388733B91B624F0344F36 /* TopEdgeStrokeOverlay.swift in Sources */,
 				9FDC842CD22533DEF3817216 /* TransientScreenshotCache.swift in Sources */,

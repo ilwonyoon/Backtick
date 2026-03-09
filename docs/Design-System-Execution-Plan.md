@@ -163,8 +163,8 @@ Goal:
 
 Status:
 
-- started on `feat/design-system-strategy-integration`
-- capture shell chrome, stack notification card chrome, and copied-stack recipe extraction are now underway
+- implemented on `feat/design-system-strategy-integration`
+- capture shell chrome, stack notification card chrome, copied-stack recipe extraction, and stack backdrop recipe extraction now live in owner files
 
 Tasks:
 
@@ -254,7 +254,7 @@ Required before any design-system work is considered done:
 
 - `DS1`: complete
 - `DS2`: complete
-- `DS3`: in progress
+- `DS3`: complete
 - `DS4`: started
 - `DS5`: not started
 
@@ -271,8 +271,8 @@ The next step is not a large refactor.
 
 It is:
 
-1. continue `Phase DS3` until remaining pattern-local visual math has a single owner
-2. expand `Phase DS4` only where reuse is already proven
+1. expand `Phase DS4` only where reuse is already proven
+2. keep feature-specific surfaces specialized while removing only genuinely duplicated shared chrome
 3. leave `Phase DS5` for a final native-macOS alignment pass after recipe ownership is stable
 3. split value ownership without touching runtime-critical behavior
 

@@ -7,8 +7,8 @@ struct StackPanelBackdrop: View {
     let densityScale: Double
     let grayscaleBias: Double
 
-    static let defaultDensityScale = 4.0
-    static let defaultGrayscaleBias = 2.0
+    static let defaultDensityScale = StackPanelBackdropRecipe.defaultDensityScale
+    static let defaultGrayscaleBias = StackPanelBackdropRecipe.defaultGrayscaleBias
 
     init(
         densityScale: Double = StackPanelBackdrop.defaultDensityScale,
@@ -20,7 +20,7 @@ struct StackPanelBackdrop: View {
 
     var body: some View {
         backdropLayers
-            .mask(edgeFadeMask)
+            .mask(StackPanelBackdropRecipe.edgeFadeMask(maskScale: maskScale))
             .allowsHitTesting(false)
             .ignoresSafeArea()
     }
@@ -40,24 +40,24 @@ struct StackPanelBackdrop: View {
                     blendingMode: .withinWindow,
                     appearanceName: .vibrantLight
                 )
-                .opacity(primaryLightDensityOpacity)
-                .mask(lightDensityMask)
+                .opacity(StackPanelBackdropRecipe.primaryLightDensityOpacity(densityScale))
+                .mask(StackPanelBackdropRecipe.lightDensityMask(maskScale: maskScale))
 
-                if secondaryLightDensityOpacity > 0 {
+                if StackPanelBackdropRecipe.secondaryLightDensityOpacity(densityScale) > 0 {
                     VisualEffectBackdrop(
                         material: .underWindowBackground,
                         blendingMode: .withinWindow,
                         appearanceName: .vibrantLight
                     )
-                    .opacity(secondaryLightDensityOpacity)
-                    .mask(lightDensityMask)
+                    .opacity(StackPanelBackdropRecipe.secondaryLightDensityOpacity(densityScale))
+                    .mask(StackPanelBackdropRecipe.lightDensityMask(maskScale: maskScale))
                 }
 
                 LinearGradient(
                     colors: [
-                        lightTopTint.opacity(0.01 * atmosphereScale),
+                        StackPanelBackdropRecipe.lightTopTint.opacity(0.01 * atmosphereScale),
                         Color.clear,
-                        lightBottomTint.opacity(0.02 * atmosphereScale),
+                        StackPanelBackdropRecipe.lightBottomTint(grayscaleBias).opacity(0.02 * atmosphereScale),
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -65,9 +65,9 @@ struct StackPanelBackdrop: View {
 
                 LinearGradient(
                     colors: [
-                        lightLeadingTint.opacity(0.01 * atmosphereScale),
-                        lightMidTint.opacity(0.03 * atmosphereScale),
-                        lightTrailingTint.opacity(0.08 * atmosphereScale),
+                        StackPanelBackdropRecipe.lightLeadingTint(grayscaleBias).opacity(0.01 * atmosphereScale),
+                        StackPanelBackdropRecipe.lightMidTint(grayscaleBias).opacity(0.03 * atmosphereScale),
+                        StackPanelBackdropRecipe.lightTrailingTint(grayscaleBias).opacity(0.08 * atmosphereScale),
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
@@ -86,17 +86,17 @@ struct StackPanelBackdrop: View {
                     blendingMode: .withinWindow,
                     appearanceName: .vibrantDark
                 )
-                .opacity(primaryDarkDensityOpacity)
-                .mask(darkDensityMask)
+                .opacity(StackPanelBackdropRecipe.primaryDarkDensityOpacity(densityScale))
+                .mask(StackPanelBackdropRecipe.darkDensityMask(maskScale: maskScale))
 
-                if secondaryDarkDensityOpacity > 0 {
+                if StackPanelBackdropRecipe.secondaryDarkDensityOpacity(densityScale) > 0 {
                     VisualEffectBackdrop(
                         material: .hudWindow,
                         blendingMode: .withinWindow,
                         appearanceName: .vibrantDark
                     )
-                    .opacity(secondaryDarkDensityOpacity)
-                    .mask(darkDensityMask)
+                    .opacity(StackPanelBackdropRecipe.secondaryDarkDensityOpacity(densityScale))
+                    .mask(StackPanelBackdropRecipe.darkDensityMask(maskScale: maskScale))
                 }
 
                 LinearGradient(
@@ -122,97 +122,11 @@ struct StackPanelBackdrop: View {
         }
     }
 
-    private var lightDensityMask: some View {
-        LinearGradient(
-            stops: [
-                .init(color: .clear, location: 0),
-                .init(color: .white.opacity(0.04 * maskScale), location: 0.18),
-                .init(color: .white.opacity(0.22 * maskScale), location: 0.42),
-                .init(color: .white.opacity(0.62 * maskScale), location: 0.74),
-                .init(color: .white, location: 1),
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-
-    private var darkDensityMask: some View {
-        LinearGradient(
-            stops: [
-                .init(color: .clear, location: 0),
-                .init(color: .white.opacity(0.12 * maskScale), location: 0.22),
-                .init(color: .white.opacity(0.58 * maskScale), location: 0.56),
-                .init(color: .white, location: 1),
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-
-    private var edgeFadeMask: some View {
-        LinearGradient(
-            stops: [
-                .init(color: .clear, location: 0),
-                .init(color: .white.opacity(0.06 * maskScale), location: 0.16),
-                .init(color: .white.opacity(0.28 * maskScale), location: 0.38),
-                .init(color: .white.opacity(0.70 * maskScale), location: 0.66),
-                .init(color: .white, location: 0.82),
-                .init(color: .white, location: 1),
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-
-    private var normalizedDensity: Double {
-        min(4, max(0.1, densityScale))
-    }
-
-    private var primaryLightDensityOpacity: Double {
-        min(1, 0.36 + (normalizedDensity * 0.34))
-    }
-
-    private var secondaryLightDensityOpacity: Double {
-        min(0.78, max(0, (normalizedDensity - 1) * 0.62))
-    }
-
-    private var primaryDarkDensityOpacity: Double {
-        min(1, 0.42 + (normalizedDensity * 0.40))
-    }
-
-    private var secondaryDarkDensityOpacity: Double {
-        min(0.88, max(0, (normalizedDensity - 1) * 0.70))
-    }
-
     private var atmosphereScale: Double {
-        min(1.8, max(0.4, 0.55 + (normalizedDensity * 0.45)))
+        StackPanelBackdropRecipe.atmosphereScale(densityScale)
     }
 
     private var maskScale: Double {
-        min(1, max(0.12, 0.18 + (normalizedDensity * 0.32)))
-    }
-
-    private var grayscaleClamped: Double {
-        min(2, max(0, grayscaleBias))
-    }
-
-    private var lightLeadingTint: Color {
-        Color(white: min(1, 0.90 + (grayscaleClamped * 0.10)))
-    }
-
-    private var lightMidTint: Color {
-        Color(white: min(1, 0.84 + (grayscaleClamped * 0.14)))
-    }
-
-    private var lightTrailingTint: Color {
-        Color(white: min(1, 0.74 + (grayscaleClamped * 0.22)))
-    }
-
-    private var lightTopTint: Color {
-        Color(white: 0.98)
-    }
-
-    private var lightBottomTint: Color {
-        Color(white: min(1, 0.42 + (grayscaleClamped * 0.29)))
+        StackPanelBackdropRecipe.maskScale(densityScale)
     }
 }

@@ -7,7 +7,7 @@ struct PromptCueSettingsView: View {
     @ObservedObject private var exportTailSettingsModel: PromptExportTailSettingsModel
     @ObservedObject private var retentionSettingsModel: CardRetentionSettingsModel
 
-    private let labelColumnWidth: CGFloat = 138
+    private let labelColumnWidth: CGFloat = PanelMetrics.settingsLabelColumnWidth
 
     init(
         screenshotSettingsModel: ScreenshotSettingsModel,

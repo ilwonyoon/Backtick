@@ -23,7 +23,7 @@
 - A quality audit has now been completed and a remediation lane is active in `docs/Quality-Remediation-Plan.md`.
 - A current-main-aligned design-system boundary proposal now exists in `docs/Design-System-Architecture-Proposal.md`.
 - A design-system execution document now exists in `docs/Design-System-Execution-Plan.md`.
-- `Phase DS1` and `Phase DS2` are now implemented in the design-system strategy branch, `Phase DS3` is in progress through pattern-recipe owner files, and `Phase DS4` has started where reuse is already proven.
+- `Phase DS1`, `Phase DS2`, and `Phase DS3` are now implemented in the design-system strategy branch, and `Phase DS4` has started where reuse is already proven.
 
 ## Phase Summary
 
@@ -38,7 +38,7 @@
 | Phase R | Audit remediation and quality closure | In progress | Resolves MVP gaps, privacy model drift, and design-system drift |
 | Phase DS1 | Design-system boundary freeze | Completed in strategy branch | Ownership boundaries are now explicit in docs and code comments |
 | Phase DS2 | Runtime/value ownership split | Completed in strategy branch | Grouped contracts now back runtime callers; `AppUIConstants` is only a compatibility facade |
-| Phase DS3 | Pattern recipe centralization | In progress in strategy branch | Capture shell chrome, stack card chrome, copied-stack recipe, and backdrop defaults now live in owner files |
+| Phase DS3 | Pattern recipe centralization | Completed in strategy branch | Capture shell chrome, stack card chrome, copied-stack recipe, and stack backdrop recipe now live in owner files |
 | Phase DS4 | Reusable surface rationalization | In progress in strategy branch | Shared notification-card chrome and top-edge highlight helpers are now extracted where reuse is proven; broader reusable-surface cleanup is still pending |
 
 ## Current Hot Slice

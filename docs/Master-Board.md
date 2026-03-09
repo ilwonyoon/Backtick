@@ -44,7 +44,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | AI Export Tail / Prompt Suffix | Planned | export-time-only suffix append with Settings toggle, multiline text, and regression coverage |
 | Stack card overflow and hover expansion | Queued | very long cards need capped resting height, explicit overflow, and stable copied-stack behavior |
 | Design-system architecture alignment | In progress in strategy branch | `docs/Design-System-Architecture-Proposal.md` defines a five-layer model that preserves runtime and pattern ownership |
-| Design-system execution planning | In progress in strategy branch | `docs/Design-System-Execution-Plan.md` breaks the strategy into DS1-DS5; DS1 and DS2 are implemented, DS3 is active, DS4 has started, and DS5 remains pending |
+| Design-system execution planning | In progress in strategy branch | `docs/Design-System-Execution-Plan.md` breaks the strategy into DS1-DS5; DS1, DS2, and DS3 are implemented, DS4 has started, and DS5 remains pending |
 
 ## Current File Ownership
 

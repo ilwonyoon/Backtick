@@ -117,19 +117,21 @@ Examples:
 - capture input styling changes accidentally changed runtime geometry
 - light/dark backdrop work accidentally redefined stack card chrome
 
-### 2. `AppUIConstants` is a mixed contract layer, not a token file
+### 2. `AppUIConstants` started as a mixed contract layer, but DS2 has now split the real ownership
 
 - [AppUIConstants.swift](/Users/ilwonyoon/Documents/PromptCue-design-system-strategy/PromptCue/App/AppUIConstants.swift)
+- [PanelMetrics.swift](/Users/ilwonyoon/Documents/PromptCue-design-system-strategy/PromptCue/App/PanelMetrics.swift)
+- [CaptureRuntimeMetrics.swift](/Users/ilwonyoon/Documents/PromptCue-design-system-strategy/PromptCue/UI/Capture/CaptureRuntimeMetrics.swift)
+- [AppTiming.swift](/Users/ilwonyoon/Documents/PromptCue-design-system-strategy/PromptCue/App/AppTiming.swift)
 
-This file mixes:
+The important architectural point now is:
 
-- stable visual geometry
-- panel dimensions
-- editor runtime thresholds
-- timing constants
-- screenshot-related timeouts
+- `PanelMetrics` owns stable panel and settings geometry
+- `CaptureRuntimeMetrics` owns live editor/runtime geometry contracts
+- `AppTiming` owns timing contracts
+- `AppUIConstants` is now only a compatibility facade while callers finish migrating
 
-Treating all of it as “token debt” would be wrong. Some of it is live runtime behavior.
+Treating all of this as ordinary “token debt” would still be wrong. Part of it remains live runtime behavior.
 
 ### 3. Not all hardcoded values are equally bad
 

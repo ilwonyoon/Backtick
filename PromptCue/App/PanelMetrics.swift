@@ -17,6 +17,7 @@ enum PanelMetrics {
 
     static let settingsPanelWidth: CGFloat = 560
     static let settingsPanelHeight: CGFloat = 620
+    static let settingsLabelColumnWidth: CGFloat = 138
     static let settingsExportTailEditorMinHeight: CGFloat = 96
     static let settingsExportTailEditorMaxHeight: CGFloat = 132
 

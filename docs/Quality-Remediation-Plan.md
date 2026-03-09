@@ -181,7 +181,7 @@ Boundary note:
 - `docs/Design-System-Architecture-Proposal.md` is the current-main-aligned ownership map for this phase.
 - `docs/Design-System-Execution-Plan.md` is the phased execution guide for this phase.
 - R4 must not flatten runtime-owned AppKit behavior or Backtick-specific pattern surfaces into generic components just to reduce visible hardcoding.
-- In the active strategy branch, DS1 and DS2 are complete, DS3 is in progress, and DS4 has started with narrowly shared helpers only.
+- In the active strategy branch, DS1, DS2, and DS3 are complete, and DS4 has started with narrowly shared helpers only.
 
 ### Tasks
 

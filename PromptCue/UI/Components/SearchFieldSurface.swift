@@ -70,18 +70,18 @@ struct SearchFieldSurface<Content: View>: View {
         shape
             .fill(SemanticTokens.MaterialStyle.elevatedGlass)
             .overlay { basePanelFillOverlay }
-            .overlay { showcaseGradientOverlay }
+            .overlay { shape.fill(ShowcaseGlassChrome.gradientOverlay) }
             .overlay {
                 shape.stroke(SemanticTokens.Border.subtle)
             }
             .overlay {
                 shape
                     .inset(by: PrimitiveTokens.Stroke.subtle)
-                    .stroke(SemanticTokens.Border.glassInner)
+                    .stroke(ShowcaseGlassChrome.innerStroke)
             }
             .overlay(alignment: .top) {
                 shape
-                    .stroke(SemanticTokens.Border.glassHighlight, lineWidth: PrimitiveTokens.Stroke.subtle)
+                    .stroke(ShowcaseGlassChrome.topHighlight, lineWidth: PrimitiveTokens.Stroke.subtle)
                     .frame(height: PrimitiveTokens.Space.xxl)
                     .mask(alignment: .top) {
                         Rectangle()
@@ -136,19 +136,5 @@ struct SearchFieldSurface<Content: View>: View {
                 Rectangle()
                     .frame(height: PrimitiveTokens.Space.sm)
             }
-    }
-
-    private var showcaseGradientOverlay: some View {
-        shape.fill(
-            LinearGradient(
-                colors: [
-                    SemanticTokens.Surface.glassSheen,
-                    SemanticTokens.Surface.glassTint,
-                    SemanticTokens.Surface.glassEdge,
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
     }
 }
