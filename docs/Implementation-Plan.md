@@ -32,6 +32,10 @@ The current highest-priority work is tracked in:
 
 - `docs/Quality-Remediation-Plan.md`
 
+The active feature slice for recent execution context is tracked in:
+
+- `docs/Recent-Terminal-Target-Execution-Plan.md`
+
 That remediation lane is now authoritative for:
 
 - multi-card selection and grouped export closure
@@ -40,6 +44,14 @@ That remediation lane is now authoritative for:
 - clipboard reliability for image + text export
 - design-system reconciliation and reuse cleanup
 - app-level verification expansion
+
+The recent terminal target execution plan is now authoritative for:
+
+- recent active terminal tracking
+- hidden suggested-target metadata on cards
+- capture-time debug visibility for target attachment
+- stack-time debug visibility for target attachment
+- future stack-side send-default experiments
 
 ## Phase 0: Research And Decisions
 

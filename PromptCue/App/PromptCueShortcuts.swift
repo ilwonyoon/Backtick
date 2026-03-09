@@ -6,8 +6,8 @@ extension KeyboardShortcuts.Name {
         default: .init(.backtick, modifiers: [.command])
     )
 
-    static let toggleStackPanel = Self(
-        "toggleStackPanel",
+    static let openStackView = Self(
+        "openStackView",
         default: .init(.two, modifiers: [.command])
     )
 }

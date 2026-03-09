@@ -1,10 +1,11 @@
 import KeyboardShortcuts
+import PromptCueCore
 
 @MainActor
 final class HotKeyCenter {
     func registerDefaultShortcuts(
         onCapture: @escaping () -> Void,
-        onToggleStack: @escaping () -> Void
+        onOpenStackView: @escaping () -> Void
     ) {
         KeyboardShortcuts.removeAllHandlers()
 
@@ -12,8 +13,8 @@ final class HotKeyCenter {
             onCapture()
         }
 
-        KeyboardShortcuts.onKeyUp(for: .toggleStackPanel) {
-            onToggleStack()
+        KeyboardShortcuts.onKeyUp(for: .openStackView) {
+            onOpenStackView()
         }
     }
 

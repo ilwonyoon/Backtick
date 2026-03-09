@@ -47,7 +47,7 @@ struct PromptCueCoreTests {
     @Test
     func captureCardBuildsScreenshotURL() {
         let card = CaptureCard(
-            text: "screenshot attached",
+            bodyText: "screenshot attached",
             createdAt: .now,
             screenshotPath: "/tmp/example.png"
         )
@@ -117,5 +117,92 @@ struct PromptCueCoreTests {
             • screenshot attached
             """
         )
+    }
+
+    @Test
+    func captureSuggestedTargetBuildsCompactDisplayLabel() {
+        let target = CaptureSuggestedTarget(
+            appName: "iTerm2",
+            bundleIdentifier: "com.googlecode.iterm2",
+            windowTitle: "feature/login - auth-service - very long detail title that should truncate",
+            capturedAt: .now
+        )
+
+        #expect(target.displayLabel.hasPrefix("iTerm2 · feature/login - auth-service"))
+        #expect(target.displayLabel.contains("…"))
+    }
+
+    @Test
+    func captureSuggestedTargetPrefersRepositorySummaryWhenAvailable() {
+        let target = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "api-shell",
+            currentWorkingDirectory: "/Users/ilwonyoon/projects/auth-service",
+            repositoryRoot: "/Users/ilwonyoon/projects/auth-service",
+            repositoryName: "auth-service",
+            branch: "feature/login",
+            capturedAt: .now
+        )
+
+        #expect(target.projectDisplayName == "auth-service")
+        #expect(target.projectSummaryText == "auth-service · feature/login")
+        #expect(target.displayLabel == "auth-service · feature/login")
+    }
+
+    @Test
+    func captureSuggestedTargetBuildsWorkspaceLabelFromWorktreeLeaf() {
+        let target = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            currentWorkingDirectory: "/Users/ilwonyoon/projects/auth-service/.worktrees/login",
+            repositoryRoot: "/Users/ilwonyoon/projects/auth-service",
+            repositoryName: "auth-service",
+            branch: "feature/login",
+            capturedAt: .now
+        )
+
+        #expect(target.workspaceLabel == "auth-service/login")
+        #expect(target.shortBranchLabel == "login")
+        #expect(target.chooserSecondaryLabel == "Terminal · login")
+    }
+
+    @Test
+    func captureCardPreservesSuggestedTargetAcrossCopyStateUpdates() {
+        let target = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "api-server",
+            capturedAt: .now
+        )
+        let card = CaptureCard(
+            bodyText: "ship it",
+            createdAt: .now,
+            suggestedTarget: target
+        )
+
+        let copied = card.markCopied(at: .now)
+
+        #expect(copied.suggestedTarget == target)
+    }
+
+    @Test
+    func dailyDigestFormatterBuildsStableTitleAndEscapedHTML() {
+        let calendar = Calendar(identifier: .gregorian)
+        let createdAt = Date(timeIntervalSince1970: 1_741_507_600)
+        let exportDate = Date(timeIntervalSince1970: 1_741_511_200)
+        let cards = [
+            CaptureCard(
+                bodyText: "Fix <redirect> & auth",
+                createdAt: createdAt
+            ),
+        ]
+
+        let title = DailyDigestFormatter.noteTitle(for: exportDate, calendar: calendar)
+        let html = DailyDigestFormatter.html(for: cards, date: exportDate, calendar: calendar)
+
+        #expect(title == "Prompt Cue · 2025-03-09")
+        #expect(html.contains("Fix &lt;redirect&gt; &amp; auth"))
+        #expect(html.contains("Prompt Cue · 2025-03-09"))
     }
 }

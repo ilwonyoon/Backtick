@@ -4,6 +4,10 @@
 
 Ship Prompt Cue as a native macOS utility app that gives AI-assisted developers a frictionless buffer for capture, recall, and clipboard export.
 
+The active recent-target slice is tracked in:
+
+- `docs/Recent-Terminal-Target-Execution-Plan.md`
+
 ## Locked Decisions
 
 - Platform shape: standard macOS utility app, not an App Extension
@@ -32,6 +36,7 @@ Ship Prompt Cue as a native macOS utility app that gives AI-assisted developers 
 | Quality audit | Completed | Findings captured and prioritized for remediation |
 | Remediation lane | In progress | Contract lock and phased closure tracked in `docs/Quality-Remediation-Plan.md` |
 | Settings surface | In progress | Shortcut recorders and screenshot folder controls are now implemented |
+| Suggested target experiment | Planned | Recent terminal tracking and debug visibility are defined in `docs/Recent-Terminal-Target-Execution-Plan.md` |
 
 ## Current File Ownership
 

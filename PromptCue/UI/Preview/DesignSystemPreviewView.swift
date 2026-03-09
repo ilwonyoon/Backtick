@@ -36,7 +36,7 @@ struct DesignSystemPreviewView: View {
             name: "PromptCueChip",
             path: "PromptCue/UI/Components/PromptCueChip.swift",
             category: "Primitive",
-            role: "Compact capsule for selection and state tags.",
+            role: "Compact capsule for small actions and selection states.",
             usesGlass: false,
             hasLivePreview: true
         ),
@@ -418,11 +418,14 @@ struct DesignSystemPreviewView: View {
                 previewCard(title: "CaptureCardView") {
                     CaptureCardView(
                         card: sampleCard,
+                        availableSuggestedTargets: sampleCard.suggestedTarget.map { [$0] } ?? [],
                         isSelected: false,
                         selectionMode: false,
                         onCopy: {},
                         onToggleSelection: {},
-                        onDelete: {}
+                        onDelete: {},
+                        onRefreshSuggestedTargets: {},
+                        onAssignSuggestedTarget: { _ in }
                     )
                     .frame(width: DesignSystemPreviewTokens.previewCardWidth, alignment: .leading)
                 }
@@ -685,7 +688,8 @@ private struct CueEditorLivePreview: View {
                 measuredHeight = height
             },
             onSubmit: {},
-            onCancel: {}
+            onCancel: {},
+            onCommand: { _ in false }
         )
         .frame(
             maxWidth: .infinity,

@@ -1,0 +1,194 @@
+import Foundation
+
+public enum CaptureSuggestedTargetConfidence: String, Codable, Equatable, Sendable {
+    case high
+    case low
+}
+
+public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
+    public let appName: String
+    public let bundleIdentifier: String
+    public let windowTitle: String?
+    public let sessionIdentifier: String?
+    public let currentWorkingDirectory: String?
+    public let repositoryRoot: String?
+    public let repositoryName: String?
+    public let branch: String?
+    public let capturedAt: Date
+    public let confidence: CaptureSuggestedTargetConfidence
+
+    public init(
+        appName: String,
+        bundleIdentifier: String,
+        windowTitle: String? = nil,
+        sessionIdentifier: String? = nil,
+        currentWorkingDirectory: String? = nil,
+        repositoryRoot: String? = nil,
+        repositoryName: String? = nil,
+        branch: String? = nil,
+        capturedAt: Date,
+        confidence: CaptureSuggestedTargetConfidence = .high
+    ) {
+        self.appName = appName.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.bundleIdentifier = bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.windowTitle = Self.sanitizedOptional(windowTitle)
+        self.sessionIdentifier = Self.sanitizedOptional(sessionIdentifier)
+        self.currentWorkingDirectory = Self.sanitizedOptional(currentWorkingDirectory)
+        self.repositoryRoot = Self.sanitizedOptional(repositoryRoot)
+        self.repositoryName = Self.sanitizedOptional(repositoryName)
+        self.branch = Self.sanitizedOptional(branch)
+        self.capturedAt = capturedAt
+        self.confidence = confidence
+    }
+
+    public var displayLabel: String {
+        if let projectSummaryText {
+            return projectSummaryText
+        }
+
+        if let windowTitle {
+            return Self.combinedLabel(appName: appName, detail: windowTitle)
+        }
+
+        if let sessionIdentifier {
+            return Self.combinedLabel(appName: appName, detail: sessionIdentifier)
+        }
+
+        return appName
+    }
+
+    public var workspaceLabel: String {
+        if let repositoryName {
+            let repositoryLeaf = repositoryRoot.map {
+                URL(fileURLWithPath: $0).lastPathComponent
+            } ?? repositoryName
+
+            if let currentWorkingDirectory {
+                let workingLeaf = URL(fileURLWithPath: currentWorkingDirectory).lastPathComponent
+                if !workingLeaf.isEmpty,
+                   workingLeaf != repositoryLeaf,
+                   workingLeaf != repositoryName {
+                    return Self.truncate("\(repositoryName)/\(workingLeaf)", maxLength: 28)
+                }
+            }
+
+            return Self.truncate(repositoryName, maxLength: 28)
+        }
+
+        if let currentWorkingDirectory {
+            let leaf = URL(fileURLWithPath: currentWorkingDirectory).lastPathComponent
+            if !leaf.isEmpty {
+                return Self.truncate(leaf, maxLength: 28)
+            }
+        }
+
+        if let windowTitle {
+            return Self.truncate(windowTitle, maxLength: 28)
+        }
+
+        return appName
+    }
+
+    public var shortBranchLabel: String? {
+        guard let branch else {
+            return nil
+        }
+
+        let trimmedBranch = branch.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedBranch.isEmpty else {
+            return nil
+        }
+
+        let branchComponent = trimmedBranch
+            .split(separator: "/")
+            .last
+            .map(String.init) ?? trimmedBranch
+
+        return Self.truncate(branchComponent, maxLength: 18)
+    }
+
+    public var chooserSecondaryLabel: String {
+        if let shortBranchLabel {
+            return Self.combinedLabel(appName: appName, detail: shortBranchLabel)
+        }
+
+        if let windowTitle, windowTitle != workspaceLabel {
+            return Self.combinedLabel(appName: appName, detail: windowTitle)
+        }
+
+        if let sessionIdentifier, sessionIdentifier != workspaceLabel {
+            return Self.combinedLabel(appName: appName, detail: sessionIdentifier)
+        }
+
+        return appName
+    }
+
+    public var projectDisplayName: String? {
+        if let repositoryName {
+            return repositoryName
+        }
+
+        if let currentWorkingDirectory {
+            return URL(fileURLWithPath: currentWorkingDirectory).lastPathComponent
+        }
+
+        return nil
+    }
+
+    public var projectSummaryText: String? {
+        guard let projectDisplayName else {
+            return nil
+        }
+
+        if let branch {
+            return Self.combinedLabel(appName: projectDisplayName, detail: branch)
+        }
+
+        return projectDisplayName
+    }
+
+    public var debugDetailText: String? {
+        if let currentWorkingDirectory {
+            return currentWorkingDirectory
+        }
+
+        if let windowTitle, windowTitle != projectDisplayName {
+            return windowTitle
+        }
+
+        return appName
+    }
+
+    public func isFresh(
+        relativeTo date: Date = Date(),
+        freshness: TimeInterval
+    ) -> Bool {
+        date.timeIntervalSince(capturedAt) <= freshness
+    }
+
+    private static func combinedLabel(appName: String, detail: String) -> String {
+        let truncatedDetail = truncate(detail, maxLength: 36)
+        guard !truncatedDetail.isEmpty else {
+            return appName
+        }
+
+        return "\(appName) · \(truncatedDetail)"
+    }
+
+    private static func truncate(_ value: String, maxLength: Int) -> String {
+        guard value.count > maxLength else {
+            return value
+        }
+
+        return String(value.prefix(maxLength - 1)) + "…"
+    }
+
+    private static func sanitizedOptional(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+
+        return trimmed
+    }
+}

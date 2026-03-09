@@ -18,6 +18,12 @@ struct CaptureComposerView: View {
                     screenshotPreview(for: recentScreenshotAttachment)
                 }
 
+                if let suggestedTarget = model.captureChooserTarget {
+                    captureOriginRow(for: suggestedTarget)
+                } else {
+                    captureOriginFallback
+                }
+
                 cueEditor
             }
         }
@@ -31,6 +37,35 @@ struct CaptureComposerView: View {
         .onExitCommand {
             closePanel()
         }
+    }
+
+    private func captureOriginRow(for suggestedTarget: CaptureSuggestedTarget) -> some View {
+        SuggestedTargetOriginButton(
+            currentTarget: suggestedTarget,
+            availableTargets: model.availableSuggestedTargets,
+            style: .capture,
+            emptyLabel: "No open terminal windows",
+            onRefreshTargets: model.refreshAvailableSuggestedTargets,
+            onSelectTarget: model.chooseDraftSuggestedTarget,
+            automaticTarget: model.automaticSuggestedTarget,
+            isAutomaticSelectionActive: model.isCaptureSuggestedTargetAutomatic,
+            onUseAutomaticTarget: model.clearDraftSuggestedTargetOverride,
+            onActivateInlineChooser: model.toggleCaptureSuggestedTargetChooser
+        )
+        .frame(maxWidth: .infinity, minHeight: AppUIConstants.captureDebugLineHeight, alignment: .leading)
+        .padding(.leading, CueInlineTokenMetrics.editorHorizontalInset)
+        .accessibilityLabel(model.captureDebugSuggestedTargetLine)
+    }
+
+    private var captureOriginFallback: some View {
+        Text(model.captureDebugSuggestedTargetLine)
+            .font(PrimitiveTokens.Typography.meta)
+            .foregroundStyle(SemanticTokens.Text.secondary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, minHeight: AppUIConstants.captureDebugLineHeight, alignment: .leading)
+            .padding(.leading, CueInlineTokenMetrics.editorHorizontalInset)
+            .accessibilityLabel(model.captureDebugSuggestedTargetLine)
     }
 
     private var trimmedDraft: String {
@@ -57,11 +92,17 @@ struct CaptureComposerView: View {
                 }
             },
             onSubmit: {
+                if model.isShowingCaptureSuggestedTargetChooser,
+                   model.completeCaptureSuggestedTargetSelection() {
+                    return
+                }
+
                 if model.submitCapture() {
                     onSubmitSuccess()
                 }
             },
-            onCancel: closePanel
+            onCancel: closePanel,
+            onCommand: handleEditorCommand
         )
         .frame(
             maxWidth: .infinity,
@@ -75,8 +116,40 @@ struct CaptureComposerView: View {
                     .font(PrimitiveTokens.Typography.captureInput)
                     .foregroundStyle(SemanticTokens.Text.secondary)
                     .opacity(PrimitiveTokens.Opacity.soft)
+                    .padding(.leading, CueInlineTokenMetrics.editorHorizontalInset)
+                    .padding(.top, CueInlineTokenMetrics.editorVerticalInset)
                     .allowsHitTesting(false)
             }
+        }
+    }
+
+    private func handleEditorCommand(_ command: CueEditorCommand) -> Bool {
+        if model.isShowingCaptureSuggestedTargetChooser {
+            switch command {
+            case .moveSelectionUp:
+                return model.moveCaptureSuggestedTargetSelection(by: -1)
+            case .moveSelectionDown:
+                return model.moveCaptureSuggestedTargetSelection(by: 1)
+            case .completeSelection:
+                return model.completeCaptureSuggestedTargetSelection()
+            case .cancelSelection:
+                return model.cancelCaptureSuggestedTargetSelection()
+            }
+        }
+
+        switch command {
+        case .moveSelectionUp:
+            if model.canChooseSuggestedTarget {
+                model.toggleCaptureSuggestedTargetChooser()
+                return true
+            }
+            return false
+        case .moveSelectionDown:
+            return false
+        case .completeSelection:
+            return false
+        case .cancelSelection:
+            return false
         }
     }
 
@@ -131,5 +204,38 @@ struct CaptureComposerView: View {
     private func closePanel() {
         model.clearDraft()
         NSApp.keyWindow?.cancelOperation(nil)
+    }
+}
+
+struct CaptureSuggestedTargetListPanelView: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        SearchFieldSurface(contentPadding: AppUIConstants.captureChooserSurfacePadding) {
+            SuggestedTargetChooserListView(
+                selectedTarget: model.captureChooserTarget ?? model.availableSuggestedTargets.first,
+                highlightedTarget: model.highlightedCaptureSuggestedTarget,
+                availableTargets: model.availableSuggestedTargets,
+                emptyLabel: "No open terminal windows",
+                automaticTarget: model.automaticSuggestedTarget,
+                isAutomaticSelectionActive: model.isCaptureSuggestedTargetAutomatic,
+                isAutomaticHighlighted: model.isAutomaticCaptureSuggestedTargetHighlighted,
+                onHighlightTarget: { target in
+                    _ = model.highlightCaptureSuggestedTarget(target)
+                },
+                onHighlightAutomaticTarget: {
+                    _ = model.highlightAutomaticCaptureSuggestedTarget()
+                },
+                fixedWidth: nil,
+                onRefreshTargets: model.refreshAvailableSuggestedTargets,
+                onSelectTarget: model.chooseDraftSuggestedTarget,
+                onUseAutomaticTarget: model.clearDraftSuggestedTargetOverride
+            )
+        }
+        .frame(width: AppUIConstants.captureSurfaceWidth, alignment: .center)
+        .padding(.horizontal, AppUIConstants.capturePanelOuterPadding)
+        .padding(.vertical, AppUIConstants.captureChooserPanelOuterPadding)
+        .frame(width: AppUIConstants.capturePanelWidth, alignment: .center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 }

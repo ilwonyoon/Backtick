@@ -37,6 +37,7 @@ enum PrimitiveTokens {
 
     enum Size {
         static let chipHeight: CGFloat = 30
+        static let compactChipHeight: CGFloat = 24
         static let searchFieldHeight: CGFloat = 70
         static let captureAttachmentPreviewHeight: CGFloat = 64
         static let captureAttachmentPreviewWidth: CGFloat = 92

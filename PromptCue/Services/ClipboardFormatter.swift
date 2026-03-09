@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import PromptCueCore
+import UniformTypeIdentifiers
 
 enum ClipboardFormatter {
     static func string(for cards: [CaptureCard]) -> String {
@@ -49,5 +50,36 @@ enum ClipboardFormatter {
         }
 
         return items
+    }
+
+    static func externalDragItemProvider(cards: [CaptureCard]) -> NSItemProvider {
+        externalDragItemProvider(text: string(for: cards))
+    }
+
+    static func externalDragItemProvider(text: String) -> NSItemProvider {
+        let provider = NSItemProvider(object: NSString(string: text))
+        let utf8Data = Data(text.utf8)
+
+        for type in [UTType.utf8PlainText, UTType.plainText, UTType.text] {
+            provider.registerDataRepresentation(forTypeIdentifier: type.identifier, visibility: .all) { completion in
+                completion(utf8Data, nil)
+                return nil
+            }
+        }
+
+        return provider
+    }
+
+    static func externalDragPasteboardItem(cards: [CaptureCard]) -> NSPasteboardItem {
+        externalDragPasteboardItem(text: string(for: cards))
+    }
+
+    static func externalDragPasteboardItem(text: String) -> NSPasteboardItem {
+        let item = NSPasteboardItem()
+        item.setString(text, forType: .string)
+        item.setString(text, forType: NSPasteboard.PasteboardType(UTType.text.identifier))
+        item.setString(text, forType: NSPasteboard.PasteboardType(UTType.plainText.identifier))
+        item.setString(text, forType: NSPasteboard.PasteboardType(UTType.utf8PlainText.identifier))
+        return item
     }
 }

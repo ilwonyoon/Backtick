@@ -1,5 +1,6 @@
 import AppKit
 import KeyboardShortcuts
+import PromptCueCore
 
 @MainActor
 final class AppCoordinator {
@@ -22,8 +23,8 @@ final class AppCoordinator {
             onCapture: { [weak self] in
                 self?.showCapturePanel()
             },
-            onToggleStack: { [weak self] in
-                self?.toggleStackPanel()
+            onOpenStackView: { [weak self] in
+                self?.showStackPanel()
             }
         )
         configureStatusItem()
@@ -32,6 +33,8 @@ final class AppCoordinator {
         if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_DESIGN_SYSTEM"] == "1" {
             showDesignSystemWindow()
         }
+
+        scheduleAutomationLaunchIfNeeded()
     }
 
     func stop() {
@@ -49,9 +52,9 @@ final class AppCoordinator {
         quickCaptureItem.setShortcut(for: .quickCapture)
         menu.addItem(quickCaptureItem)
 
-        let toggleStackItem = NSMenuItem(title: "Show Stack Panel", action: #selector(handleToggleStack), keyEquivalent: "")
-        toggleStackItem.setShortcut(for: .toggleStackPanel)
-        menu.addItem(toggleStackItem)
+        let stackItem = NSMenuItem(title: "Show Stack View", action: #selector(handleOpenStackView), keyEquivalent: "")
+        stackItem.setShortcut(for: .openStackView)
+        menu.addItem(stackItem)
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Design System…", action: #selector(handleOpenDesignSystem), keyEquivalent: "d"))
@@ -67,8 +70,8 @@ final class AppCoordinator {
         showCapturePanel()
     }
 
-    @objc private func handleToggleStack() {
-        toggleStackPanel()
+    @objc private func handleOpenStackView() {
+        showStackPanel()
     }
 
     @objc private func handleOpenSettings() {
@@ -88,13 +91,9 @@ final class AppCoordinator {
         capturePanelController.show()
     }
 
-    private func toggleStackPanel() {
+    private func showStackPanel() {
         capturePanelController.close()
-        if stackPanelController.isPresentedOrTransitioning {
-            stackPanelController.close()
-        } else {
-            stackPanelController.show()
-        }
+        stackPanelController.show()
     }
 
     private func showDesignSystemWindow() {
@@ -103,6 +102,62 @@ final class AppCoordinator {
 
     private func showSettingsWindow() {
         settingsWindowController.show()
+    }
+
+    private func scheduleAutomationLaunchIfNeeded() {
+        let environment = ProcessInfo.processInfo.environment
+        let requestedCapture = environment["PROMPTCUE_OPEN_CAPTURE"] == "1"
+        let requestedReviewMode = environment["PROMPTCUE_OPEN_REVIEW_MODE"]
+            .flatMap(CaptureReviewMode.init(rawValue:))
+        let automationDraft = environment["PROMPTCUE_AUTOMATION_DRAFT"]
+        let shouldSubmitAutomationDraft = environment["PROMPTCUE_AUTOMATION_SUBMIT_DRAFT"] == "1"
+
+        guard requestedCapture || requestedReviewMode != nil else {
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            guard let self else {
+                return
+            }
+
+            if let requestedReviewMode {
+                guard requestedReviewMode == .stack else {
+                    return
+                }
+
+                self.showStackPanel()
+                return
+            }
+
+            self.showCapturePanel()
+
+            guard let automationDraft else {
+                return
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                guard let self else {
+                    return
+                }
+
+                self.model.draftText = automationDraft
+
+                guard shouldSubmitAutomationDraft else {
+                    return
+                }
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                    guard let self else {
+                        return
+                    }
+
+                    if self.model.submitCapture() {
+                        self.capturePanelController.close()
+                    }
+                }
+            }
+        }
     }
 
     private func terminateDuplicateDebugInstancesIfNeeded() {

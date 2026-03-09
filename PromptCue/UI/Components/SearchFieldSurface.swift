@@ -7,20 +7,23 @@ enum SearchFieldSurfaceStyle {
 
 struct SearchFieldSurface<Content: View>: View {
     let style: SearchFieldSurfaceStyle
+    let contentPadding: CGFloat
     @ViewBuilder private var content: Content
     private let shape = RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.lg, style: .continuous)
 
     init(
         style: SearchFieldSurfaceStyle = .quiet,
+        contentPadding: CGFloat = PrimitiveTokens.Space.xl,
         @ViewBuilder content: () -> Content
     ) {
         self.style = style
+        self.contentPadding = contentPadding
         self.content = content()
     }
 
     var body: some View {
         content
-            .padding(PrimitiveTokens.Space.xl)
+            .padding(contentPadding)
             .frame(minHeight: PrimitiveTokens.Size.searchFieldHeight)
             .background {
                 backgroundSurface

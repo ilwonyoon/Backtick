@@ -35,14 +35,14 @@ struct PromptCueSettingsView: View {
         GroupBox {
             VStack(alignment: .leading, spacing: PrimitiveTokens.Space.md) {
                 KeyboardShortcuts.Recorder("Quick Capture", name: .quickCapture)
-                KeyboardShortcuts.Recorder("Show Stack Panel", name: .toggleStackPanel)
+                KeyboardShortcuts.Recorder("Show Stack View", name: .openStackView)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, PrimitiveTokens.Space.xxs)
         } label: {
             sectionHeader(
                 title: "Shortcuts",
-                subtitle: "Both global shortcuts can be changed here."
+                subtitle: "Capture and stack shortcuts can be changed here."
             )
         }
     }

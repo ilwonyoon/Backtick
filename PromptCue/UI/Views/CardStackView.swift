@@ -1,3 +1,4 @@
+import PromptCueCore
 import SwiftUI
 
 struct CardStackView: View {
@@ -5,7 +6,7 @@ struct CardStackView: View {
     let onCopyCard: (CaptureCard) -> Void
     let onCopySelection: () -> Void
     let onDeleteCard: (CaptureCard) -> Void
-    @State private var isCopiedStackExpanded = false
+    let onExportTodayToNotes: () -> Void
 
     var body: some View {
         ZStack {
@@ -18,15 +19,9 @@ struct CardStackView: View {
                     emptyState
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
-                            if !activeCards.isEmpty {
-                                ForEach(activeCards) { card in
-                                    cardRow(for: card)
-                                }
-                            }
-
-                            if !copiedCards.isEmpty {
-                                copiedSection
+                        LazyVStack(alignment: .leading, spacing: PrimitiveTokens.Size.cardStackSpacing) {
+                            ForEach(model.stackCards) { card in
+                                cardRow(for: card)
                             }
                         }
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
@@ -41,11 +36,39 @@ struct CardStackView: View {
     }
 
     private var header: some View {
-        Group {
+        HStack(alignment: .center, spacing: PrimitiveTokens.Space.sm) {
+            Spacer(minLength: 0)
+
+            exportTodayButton
+
             if selectionMode {
                 selectionHeader
             }
         }
+    }
+
+    private var exportTodayButton: some View {
+        Button(action: onExportTodayToNotes) {
+            PromptCueChip(
+                fill: model.canExportTodayToNotes
+                    ? SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
+                    : SemanticTokens.Surface.cardFill,
+                border: model.canExportTodayToNotes
+                    ? SemanticTokens.Border.emphasis
+                    : SemanticTokens.Border.subtle
+            ) {
+                Label("Notes", systemImage: "note.text")
+                    .font(PrimitiveTokens.Typography.chip)
+                    .foregroundStyle(
+                        model.canExportTodayToNotes
+                            ? SemanticTokens.Text.selection
+                            : SemanticTokens.Text.secondary
+                    )
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(!model.canExportTodayToNotes)
+        .help("Export today's cards to Apple Notes")
     }
 
     private var selectionHeader: some View {
@@ -53,8 +76,6 @@ struct CardStackView: View {
             Text("\(model.selectionCount) selected")
                 .font(PrimitiveTokens.Typography.bodyStrong)
                 .foregroundStyle(SemanticTokens.Text.primary)
-
-            Spacer(minLength: PrimitiveTokens.Space.xs)
 
             Button(action: onCopySelection) {
                 PromptCueChip(
@@ -90,14 +111,6 @@ struct CardStackView: View {
         }
     }
 
-    private var activeCards: [CaptureCard] {
-        model.cards.filter { !$0.isCopied }
-    }
-
-    private var copiedCards: [CaptureCard] {
-        model.cards.filter(\.isCopied)
-    }
-
     private var selectionMode: Bool {
         model.selectionCount > 0
     }
@@ -105,6 +118,7 @@ struct CardStackView: View {
     private func cardRow(for card: CaptureCard) -> some View {
         CaptureCardView(
             card: card,
+            availableSuggestedTargets: model.availableSuggestedTargets,
             isSelected: model.selectedCardIDs.contains(card.id),
             selectionMode: selectionMode,
             onCopy: {
@@ -115,119 +129,14 @@ struct CardStackView: View {
             },
             onDelete: {
                 onDeleteCard(card)
+            },
+            onRefreshSuggestedTargets: {
+                model.refreshAvailableSuggestedTargets()
+            },
+            onAssignSuggestedTarget: { target in
+                model.assignSuggestedTarget(target, to: card)
             }
         )
-    }
-
-    @ViewBuilder
-    private var copiedSection: some View {
-        if isCopiedStackExpanded {
-            VStack(alignment: .leading, spacing: PrimitiveTokens.Size.cardStackSpacing) {
-                copiedSectionHeader
-
-                ForEach(copiedCards) { card in
-                    cardRow(for: card)
-                }
-            }
-            .transition(expandedCopiedSectionTransition)
-        } else {
-            collapsedCopiedStack
-                .transition(collapsedCopiedStackTransition)
-        }
-    }
-
-    private var copiedSectionHeader: some View {
-        HStack(spacing: PrimitiveTokens.Space.xs) {
-            Text("Copied")
-                .font(PrimitiveTokens.Typography.metaStrong)
-                .foregroundStyle(SemanticTokens.Text.secondary)
-
-            Spacer(minLength: PrimitiveTokens.Space.xs)
-
-            Image(systemName: "chevron.down")
-                .font(PrimitiveTokens.Typography.chipIcon)
-                .foregroundStyle(SemanticTokens.Text.secondary)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            withAnimation(.easeOut(duration: PrimitiveTokens.Motion.standard)) {
-                isCopiedStackExpanded = false
-            }
-        }
-    }
-
-    private var collapsedCopiedStack: some View {
-        Button {
-            withAnimation(.easeOut(duration: PrimitiveTokens.Motion.standard)) {
-                isCopiedStackExpanded = true
-            }
-        } label: {
-            ZStack(alignment: .top) {
-                stackedBackPlate(index: 2)
-                stackedBackPlate(index: 1)
-
-                CardSurface(style: .notification) {
-                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                        HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
-                            Text("Copied")
-                                .font(PrimitiveTokens.Typography.metaStrong)
-                                .foregroundStyle(SemanticTokens.Text.secondary)
-
-                            Spacer(minLength: PrimitiveTokens.Space.xs)
-
-                            Text("\(copiedCards.count)")
-                                .font(PrimitiveTokens.Typography.meta)
-                                .foregroundStyle(SemanticTokens.Text.secondary)
-                        }
-
-                        if let card = copiedCards.first {
-                            Text(card.text)
-                                .font(PrimitiveTokens.Typography.body)
-                                .foregroundStyle(
-                                    SemanticTokens.Text.secondary
-                                        .opacity(PrimitiveTokens.Opacity.soft)
-                                )
-                                .lineLimit(2)
-                                .multilineTextAlignment(.leading)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
-                        if copiedCards.count > 1 {
-                            Text("+\(copiedCards.count - 1) more")
-                                .font(PrimitiveTokens.Typography.meta)
-                                .foregroundStyle(SemanticTokens.Text.secondary)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(.top, PrimitiveTokens.Space.sm)
-            }
-            .padding(.bottom, PrimitiveTokens.Space.sm)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var expandedCopiedSectionTransition: AnyTransition {
-        .opacity.combined(with: .scale(scale: 0.985, anchor: .top))
-    }
-
-    private var collapsedCopiedStackTransition: AnyTransition {
-        .opacity.combined(with: .scale(scale: 0.985, anchor: .top))
-    }
-
-    private func stackedBackPlate(index: Int) -> some View {
-        RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-            .fill(
-                SemanticTokens.Surface.notificationStackPlateBase
-                    .opacity(0.56 - (Double(index) * 0.08))
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-                    .stroke(SemanticTokens.Border.notificationCard.opacity(0.72))
-            }
-            .frame(height: PrimitiveTokens.Size.notificationStackPlateHeight)
-            .padding(.top, CGFloat(index) * PrimitiveTokens.Space.xs)
-            .padding(.horizontal, CGFloat(index) * PrimitiveTokens.Space.xs)
     }
 
     private var stackBackdrop: some View {

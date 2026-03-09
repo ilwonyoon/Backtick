@@ -1,11 +1,14 @@
 import AppKit
 import Carbon
+import PromptCueCore
 import QuartzCore
 import SwiftUI
 
 @MainActor
 final class StackPanelController: NSObject, NSWindowDelegate {
     private let model: AppModel
+    private let keepsPanelVisibleForAutomation =
+        ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_REVIEW_MODE"] != nil
     private var panel: StackPanel?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
@@ -26,24 +29,22 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
 
         let panel = panel ?? makePanel()
-        guard !panel.isVisible else {
+        if panel.isVisible {
+            NSApp.activate(ignoringOtherApps: true)
+            panel.makeKeyAndOrderFront(nil)
             return
         }
 
         model.reloadCards()
         let targetFrame = onscreenPanelFrame(for: panel.frame.size)
-        panel.setFrame(offscreenPanelFrame(for: targetFrame.size), display: false)
+        panel.setFrame(targetFrame, display: false)
         panel.alphaValue = 1
         NSApp.activate(ignoringOtherApps: true)
-        panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
+        panel.makeKey()
         isVisible = true
         installDismissMonitors()
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = PrimitiveTokens.Motion.standard
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().setFrame(targetFrame, display: true)
-        }
+        panel.setFrame(targetFrame, display: true, animate: false)
     }
 
     func close() {
@@ -70,13 +71,19 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().setFrame(offscreenPanelFrame(for: panel.frame.size), display: true)
         } completionHandler: { [weak self] in
-            panel.orderOut(nil)
-            panel.alphaValue = 1
-            self?.isAnimatingClose = false
+            Task { @MainActor [weak self] in
+                panel.orderOut(nil)
+                panel.alphaValue = 1
+                self?.isAnimatingClose = false
+            }
         }
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        guard !keepsPanelVisibleForAutomation else {
+            return
+        }
+
         close()
     }
 
@@ -104,7 +111,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isMovableByWindowBackground = false
-        panel.hidesOnDeactivate = true
+        panel.hidesOnDeactivate = false
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
@@ -127,6 +134,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
                 },
                 onDeleteCard: { [weak self] card in
                     self?.model.delete(card: card)
+                },
+                onExportTodayToNotes: { [weak self] in
+                    self?.exportTodayToNotes()
                 }
             )
         )
@@ -146,6 +156,10 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
 
         close()
+    }
+
+    private func exportTodayToNotes() {
+        _ = model.exportTodayToNotes()
     }
 
     private func onscreenPanelFrame(for size: NSSize? = nil) -> NSRect {
