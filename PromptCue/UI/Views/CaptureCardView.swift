@@ -13,6 +13,19 @@ struct CaptureCardView: View {
     @State private var isDeleteHovered = false
     @State private var isShowingCopyFeedback = false
 
+    private var actionStyle: CaptureCardActionStyle {
+        CaptureCardActionStyle.resolve(
+            card: card,
+            isSelected: isSelected,
+            selectionMode: selectionMode,
+            colorScheme: colorScheme,
+            isCardHovered: isCardHovered,
+            isCopyHovered: isCopyHovered,
+            isDeleteHovered: isDeleteHovered,
+            isShowingCopyFeedback: isShowingCopyFeedback
+        )
+    }
+
     var body: some View {
         StackNotificationCardSurface(
             isSelected: isSelected,
@@ -30,7 +43,7 @@ struct CaptureCardView: View {
 
                     Text(card.text)
                         .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(bodyColor)
+                        .foregroundStyle(actionStyle.bodyColor)
                         .multilineTextAlignment(.leading)
                         .lineSpacing(PrimitiveTokens.Space.xxxs)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -40,9 +53,9 @@ struct CaptureCardView: View {
 
                 VStack(spacing: PrimitiveTokens.Space.xs) {
                     iconButton(
-                        systemName: copyIconSystemName,
-                        foregroundColor: copyIconColor,
-                        backgroundColor: copyIconBackground,
+                        systemName: actionStyle.copyIconSystemName,
+                        foregroundColor: actionStyle.copyIconColor,
+                        backgroundColor: actionStyle.copyIconBackground,
                         action: performCopy
                     )
                     .accessibilityLabel("Copy cue")
@@ -55,8 +68,8 @@ struct CaptureCardView: View {
 
                     iconButton(
                         systemName: "trash",
-                        foregroundColor: deleteIconColor,
-                        backgroundColor: deleteIconBackground,
+                        foregroundColor: actionStyle.deleteIconColor,
+                        backgroundColor: actionStyle.deleteIconBackground,
                         action: onDelete
                     )
                     .accessibilityLabel("Delete cue")
@@ -92,100 +105,12 @@ struct CaptureCardView: View {
         return PrimitiveTokens.Space.xxs
     }
 
-    private var bodyColor: Color {
-        if isSelected || isCardHovered || isCopyHovered || isDeleteHovered {
-            return SemanticTokens.Text.primary
-        }
-
-        if card.isCopied {
-            return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
-        }
-
-        return SemanticTokens.Text.primary
-    }
-
-    private var copyIconColor: Color {
-        if isDeleteHovered {
-            return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.subtle)
-        }
-
-        if isShowingCopyFeedback {
-            return SemanticTokens.Text.primary
-        }
-
-        if isCopyHovered || (isCardHovered && !selectionMode) {
-            return SemanticTokens.Text.primary
-        }
-
-        return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
-    }
-
-    private var copyIconSystemName: String {
-        if isShowingCopyFeedback {
-            return "checkmark"
-        }
-
-        if isCopyHovered || (isCardHovered && !selectionMode) {
-            return "doc.on.doc.fill"
-        }
-
-        return "doc.on.doc"
-    }
-
-    private var deleteIconColor: Color {
-        if isDeleteHovered {
-            return SemanticTokens.Text.primary
-        }
-
-        if card.isCopied {
-            return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.subtle)
-        }
-
-        return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
-    }
-
-    private var copyIconBackground: Color {
-        if isDeleteHovered {
-            return .clear
-        }
-
-        if isShowingCopyFeedback {
-            return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
-        }
-
-        if isCopyHovered || (isCardHovered && !selectionMode) {
-            return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
-        }
-
-        if usesPersistentActionBackdrop {
-            return SemanticTokens.Surface.notificationCardBackdrop.opacity(0.72)
-        }
-
-        return .clear
-    }
-
-    private var deleteIconBackground: Color {
-        if isDeleteHovered {
-            return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.medium)
-        }
-
-        if usesPersistentActionBackdrop {
-            return SemanticTokens.Surface.notificationCardBackdrop.opacity(0.6)
-        }
-
-        return .clear
-    }
-
     private var actionColumnWidth: CGFloat {
         PrimitiveTokens.Space.xl
     }
 
     private var actionColumnReservedWidth: CGFloat {
         actionColumnWidth + PrimitiveTokens.Space.sm
-    }
-
-    private var usesPersistentActionBackdrop: Bool {
-        colorScheme == .light && card.screenshotURL != nil
     }
 
     private func performPrimaryAction() {
@@ -230,5 +155,97 @@ struct CaptureCardView: View {
                 )
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct CaptureCardActionStyle {
+    let bodyColor: Color
+    let copyIconColor: Color
+    let copyIconSystemName: String
+    let copyIconBackground: Color
+    let deleteIconColor: Color
+    let deleteIconBackground: Color
+
+    static func resolve(
+        card: CaptureCard,
+        isSelected: Bool,
+        selectionMode: Bool,
+        colorScheme: ColorScheme,
+        isCardHovered: Bool,
+        isCopyHovered: Bool,
+        isDeleteHovered: Bool,
+        isShowingCopyFeedback: Bool
+    ) -> CaptureCardActionStyle {
+        let usesPersistentActionBackdrop = colorScheme == .light && card.screenshotURL != nil
+        let isPrimaryCopyHover = isCopyHovered || (isCardHovered && !selectionMode)
+
+        let bodyColor: Color
+        if isSelected || isCardHovered || isCopyHovered || isDeleteHovered {
+            bodyColor = SemanticTokens.Text.primary
+        } else if card.isCopied {
+            bodyColor = SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
+        } else {
+            bodyColor = SemanticTokens.Text.primary
+        }
+
+        let copyIconColor: Color
+        if isDeleteHovered {
+            copyIconColor = SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.subtle)
+        } else if isShowingCopyFeedback {
+            copyIconColor = SemanticTokens.Text.primary
+        } else if isPrimaryCopyHover {
+            copyIconColor = SemanticTokens.Text.primary
+        } else {
+            copyIconColor = SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
+        }
+
+        let copyIconSystemName: String
+        if isShowingCopyFeedback {
+            copyIconSystemName = "checkmark"
+        } else if isPrimaryCopyHover {
+            copyIconSystemName = "doc.on.doc.fill"
+        } else {
+            copyIconSystemName = "doc.on.doc"
+        }
+
+        let deleteIconColor: Color
+        if isDeleteHovered {
+            deleteIconColor = SemanticTokens.Text.primary
+        } else if card.isCopied {
+            deleteIconColor = SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.subtle)
+        } else {
+            deleteIconColor = SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
+        }
+
+        let copyIconBackground: Color
+        if isDeleteHovered {
+            copyIconBackground = .clear
+        } else if isShowingCopyFeedback {
+            copyIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
+        } else if isPrimaryCopyHover {
+            copyIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
+        } else if usesPersistentActionBackdrop {
+            copyIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.72)
+        } else {
+            copyIconBackground = .clear
+        }
+
+        let deleteIconBackground: Color
+        if isDeleteHovered {
+            deleteIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.medium)
+        } else if usesPersistentActionBackdrop {
+            deleteIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.6)
+        } else {
+            deleteIconBackground = .clear
+        }
+
+        return CaptureCardActionStyle(
+            bodyColor: bodyColor,
+            copyIconColor: copyIconColor,
+            copyIconSystemName: copyIconSystemName,
+            copyIconBackground: copyIconBackground,
+            deleteIconColor: deleteIconColor,
+            deleteIconBackground: deleteIconBackground
+        )
     }
 }

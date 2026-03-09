@@ -3,15 +3,15 @@ import SwiftUI
 extension View {
     func promptCueCaptureSurfaceShadow() -> some View {
         shadow(
-            color: SemanticTokens.Shadow.panelAmbient.opacity(0.72),
+            color: SemanticTokens.Shadow.panelAmbient.opacity(PrimitiveTokens.Shadow.captureAmbientOpacity),
             radius: PrimitiveTokens.Shadow.captureAmbientBlur,
-            x: 0,
+            x: PrimitiveTokens.Shadow.zeroX,
             y: PrimitiveTokens.Shadow.captureAmbientY
         )
         .shadow(
-            color: SemanticTokens.Shadow.panelKey.opacity(0.32),
+            color: SemanticTokens.Shadow.panelKey.opacity(PrimitiveTokens.Shadow.captureKeyOpacity),
             radius: PrimitiveTokens.Shadow.captureKeyBlur,
-            x: 0,
+            x: PrimitiveTokens.Shadow.zeroX,
             y: PrimitiveTokens.Shadow.captureKeyY
         )
     }
@@ -19,45 +19,45 @@ extension View {
     func promptCueGlassShadow() -> some View {
         shadow(
             color: SemanticTokens.Shadow.glassAmbient,
-            radius: 10,
-            x: 0,
-            y: 2
+            radius: PrimitiveTokens.Shadow.glassBlur,
+            x: PrimitiveTokens.Shadow.zeroX,
+            y: PrimitiveTokens.Shadow.glassY
         )
     }
 
     func promptCuePanelShadow() -> some View {
         shadow(
             color: SemanticTokens.Shadow.color,
-            radius: 10,
-            x: 0,
-            y: 2
+            radius: PrimitiveTokens.Shadow.panelBlur,
+            x: PrimitiveTokens.Shadow.zeroX,
+            y: PrimitiveTokens.Shadow.panelY
         )
     }
 
     func promptCueCardShadow() -> some View {
         shadow(
             color: SemanticTokens.Shadow.color,
-            radius: 14,
-            x: 0,
-            y: 8
+            radius: PrimitiveTokens.Shadow.raisedCardBlur,
+            x: PrimitiveTokens.Shadow.zeroX,
+            y: PrimitiveTokens.Shadow.raisedCardY
         )
     }
 
     func promptCueNotificationCardShadow() -> some View {
         shadow(
             color: SemanticTokens.Shadow.color.opacity(PrimitiveTokens.Opacity.soft),
-            radius: 10,
-            x: 0,
-            y: 4
+            radius: PrimitiveTokens.Shadow.notificationCardBlur,
+            x: PrimitiveTokens.Shadow.zeroX,
+            y: PrimitiveTokens.Shadow.notificationCardY
         )
     }
 
     func promptCueFloatingControlShadow() -> some View {
         shadow(
             color: SemanticTokens.Shadow.color,
-            radius: PrimitiveTokens.Space.xs,
-            x: 0,
-            y: PrimitiveTokens.Space.xxxs
+            radius: PrimitiveTokens.Shadow.floatingControlBlur,
+            x: PrimitiveTokens.Shadow.zeroX,
+            y: PrimitiveTokens.Shadow.floatingControlY
         )
     }
 }
