@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import PromptCueCore
 
 enum CardStoreError: Error {
     case unavailable(underlying: Error?)
@@ -67,6 +68,16 @@ final class CardStore {
                     )
                 }
             }
+            migrator.registerMigration("addSuggestedTargetJSON") { db in
+                let existingColumnNames = try db.columns(in: CardRecord.databaseTableName).map(\.name)
+                guard !existingColumnNames.contains("suggestedTargetJSON") else {
+                    return
+                }
+
+                try db.alter(table: CardRecord.databaseTableName) { table in
+                    table.add(column: "suggestedTargetJSON", .text)
+                }
+            }
             try migrator.migrate(queue)
             dbQueue = queue
             setupError = nil
@@ -128,6 +139,7 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
 
     let id: String
     let text: String
+    let suggestedTargetJSON: String?
     let createdAt: Date
     let screenshotPath: String?
     let lastCopiedAt: Date?
@@ -136,6 +148,7 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
     init(captureCard: CaptureCard) {
         id = captureCard.id.uuidString
         text = captureCard.text
+        suggestedTargetJSON = Self.encodeSuggestedTarget(captureCard.suggestedTarget)
         createdAt = captureCard.createdAt
         screenshotPath = captureCard.screenshotPath
         lastCopiedAt = captureCard.lastCopiedAt
@@ -146,11 +159,31 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
         CaptureCard(
             id: UUID(uuidString: id) ?? UUID(),
             text: text,
+            suggestedTarget: Self.decodeSuggestedTarget(suggestedTargetJSON),
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: lastCopiedAt,
             sortOrder: sortOrder
         )
+    }
+
+    private static func encodeSuggestedTarget(_ target: CaptureSuggestedTarget?) -> String? {
+        guard let target,
+              let data = try? JSONEncoder().encode(target) else {
+            return nil
+        }
+
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func decodeSuggestedTarget(_ json: String?) -> CaptureSuggestedTarget? {
+        guard let json,
+              let data = json.data(using: .utf8),
+              let target = try? JSONDecoder().decode(CaptureSuggestedTarget.self, from: data) else {
+            return nil
+        }
+
+        return target
     }
 }
 

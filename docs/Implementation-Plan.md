@@ -31,6 +31,7 @@
 The current highest-priority work is tracked in:
 
 - `docs/Quality-Remediation-Plan.md`
+- `docs/Working-With-Apps-PR-Plan.md`
 
 That remediation lane is now authoritative for:
 

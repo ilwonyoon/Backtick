@@ -105,6 +105,8 @@ struct CardStackView: View {
     private func cardRow(for card: CaptureCard) -> some View {
         CaptureCardView(
             card: card,
+            availableSuggestedTargets: model.availableSuggestedTargets,
+            automaticSuggestedTarget: model.automaticSuggestedTarget,
             isSelected: model.selectedCardIDs.contains(card.id),
             selectionMode: selectionMode,
             onCopy: {
@@ -115,6 +117,12 @@ struct CardStackView: View {
             },
             onDelete: {
                 onDeleteCard(card)
+            },
+            onRefreshSuggestedTargets: {
+                model.refreshAvailableSuggestedTargets()
+            },
+            onAssignSuggestedTarget: { target in
+                model.assignSuggestedTarget(target, to: card)
             }
         )
     }

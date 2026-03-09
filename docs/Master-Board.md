@@ -29,6 +29,7 @@ Ship Prompt Cue as a native macOS utility app that gives AI-assisted developers 
 | Persistence | In progress | SQLite-backed `CardStore` is implemented via GRDB and attachment ownership is app-managed |
 | Screenshot attachment | In progress | Recent screenshot detection now depends on an explicitly approved folder |
 | Core UI | In progress | Capture and stack views now render real MVP UI |
+| Working with apps | In progress | Focused PR lane; must preserve main capture and stack visual standards |
 | Quality audit | Completed | Findings captured and prioritized for remediation |
 | Remediation lane | In progress | Contract lock and phased closure tracked in `docs/Quality-Remediation-Plan.md` |
 | Settings surface | In progress | Shortcut recorders and screenshot folder controls are now implemented |
