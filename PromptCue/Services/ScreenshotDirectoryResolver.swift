@@ -1,10 +1,10 @@
 import Foundation
 
 enum ScreenshotDirectoryResolver {
-    private static let bookmarkDataKey = "preferredScreenshotDirectoryBookmarkData"
-    private static let lastKnownPathKey = "preferredScreenshotDirectoryLastKnownPath"
+    private static let bookmarkDataKey = "com.promptcue.preferredScreenshotDirectoryBookmarkData"
+    private static let lastKnownPathKey = "com.promptcue.preferredScreenshotDirectoryLastKnownPath"
     private static let legacyPreferredPathKey = "preferredScreenshotDirectoryPath"
-    private static let onboardingHandledKey = "preferredScreenshotDirectoryOnboardingHandled"
+    private static let onboardingHandledKey = "com.promptcue.preferredScreenshotDirectoryOnboardingHandled"
 
     static func bootstrapPreferredDirectoryIfNeeded() {
         let defaults = UserDefaults.standard
@@ -200,6 +200,7 @@ enum ScreenshotDirectoryResolver {
             }
 
             if isStale {
+                refreshBookmarkIfPossible(for: resolvedURL)
                 return .needsReconnect(resolvedURL)
             }
 
@@ -207,6 +208,23 @@ enum ScreenshotDirectoryResolver {
         } catch {
             return .needsReconnect(lastKnownDirectoryURL() ?? legacyPreferredDirectoryURL())
         }
+    }
+
+    private static func refreshBookmarkIfPossible(for url: URL) {
+        let started = url.startAccessingSecurityScopedResource()
+        defer {
+            if started { url.stopAccessingSecurityScopedResource() }
+        }
+
+        guard let freshData = try? url.bookmarkData(
+            options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        ) else {
+            return
+        }
+
+        UserDefaults.standard.set(freshData, forKey: bookmarkDataKey)
     }
 
     private static func directoryExists(at url: URL) -> Bool {
