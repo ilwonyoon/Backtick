@@ -46,6 +46,8 @@ struct CaptureCardView: View {
                         backgroundColor: copyIconBackground,
                         action: performCopy
                     )
+                    .accessibilityLabel("Copy cue")
+                    .accessibilityHint("Copies this cue to the clipboard")
                     .onHover { hovered in
                         withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
                             isCopyHovered = hovered
@@ -58,6 +60,8 @@ struct CaptureCardView: View {
                         backgroundColor: deleteIconBackground,
                         action: onDelete
                     )
+                    .accessibilityLabel("Delete cue")
+                    .accessibilityHint("Permanently removes this cue")
                     .onHover { hovered in
                         withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
                             isDeleteHovered = hovered
@@ -69,6 +73,9 @@ struct CaptureCardView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Cue: \(card.text)")
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
             .onTapGesture(perform: performPrimaryAction)
             .onHover { hovered in
                 withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
