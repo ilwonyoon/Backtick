@@ -113,6 +113,58 @@ final class CardStore {
         }
     }
 
+    func upsert(_ card: CaptureCard) throws {
+        guard let dbQueue else {
+            throw CardStoreError.unavailable(underlying: setupError)
+        }
+
+        do {
+            try dbQueue.write { db in
+                try CardRecord(captureCard: card).save(db)
+            }
+        } catch {
+            NSLog("CardStore upsert failed: %@", error.localizedDescription)
+            throw CardStoreError.saveFailed(error)
+        }
+    }
+
+    func delete(id: UUID) throws {
+        guard let dbQueue else {
+            throw CardStoreError.unavailable(underlying: setupError)
+        }
+
+        do {
+            try dbQueue.write { db in
+                try db.execute(
+                    sql: "DELETE FROM \(CardRecord.databaseTableName) WHERE id = ?",
+                    arguments: [id.uuidString]
+                )
+            }
+        } catch {
+            NSLog("CardStore delete by id failed: %@", error.localizedDescription)
+            throw CardStoreError.saveFailed(error)
+        }
+    }
+
+    func allIDs() throws -> Set<UUID> {
+        guard let dbQueue else {
+            throw CardStoreError.unavailable(underlying: setupError)
+        }
+
+        do {
+            return try dbQueue.read { db in
+                let ids = try String.fetchAll(
+                    db,
+                    sql: "SELECT id FROM \(CardRecord.databaseTableName)"
+                )
+                return Set(ids.compactMap { UUID(uuidString: $0) })
+            }
+        } catch {
+            NSLog("CardStore allIDs failed: %@", error.localizedDescription)
+            throw CardStoreError.loadFailed(error)
+        }
+    }
+
     private static func databaseURL(fileManager: FileManager) -> URL {
         let baseDirectory = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)

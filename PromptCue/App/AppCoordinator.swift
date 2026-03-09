@@ -3,7 +3,7 @@ import KeyboardShortcuts
 
 @MainActor
 final class AppCoordinator {
-    private let model = AppModel()
+    let model = AppModel()
     private let hotKeyCenter = HotKeyCenter()
     private let screenshotSettingsModel = ScreenshotSettingsModel()
     private let exportTailSettingsModel = PromptExportTailSettingsModel()

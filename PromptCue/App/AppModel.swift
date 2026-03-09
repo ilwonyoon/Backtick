@@ -1,4 +1,5 @@
 import AppKit
+import CloudKit
 import Combine
 import Foundation
 import PromptCueCore
@@ -30,24 +31,28 @@ final class AppModel: ObservableObject {
     private let cardStore: CardStore
     private let attachmentStore: AttachmentStoring
     private let recentScreenshotCoordinator: RecentScreenshotCoordinating
+    private let cloudSyncEngine: CloudSyncEngine?
     private var cleanupTimer: Timer?
     private var captureSubmissionTask: Task<Bool, Never>?
 
     init(
         cardStore: CardStore,
         attachmentStore: AttachmentStoring,
-        recentScreenshotCoordinator: RecentScreenshotCoordinating
+        recentScreenshotCoordinator: RecentScreenshotCoordinating,
+        cloudSyncEngine: CloudSyncEngine? = nil
     ) {
         self.cardStore = cardStore
         self.attachmentStore = attachmentStore
         self.recentScreenshotCoordinator = recentScreenshotCoordinator
+        self.cloudSyncEngine = cloudSyncEngine
     }
 
     convenience init() {
         self.init(
             cardStore: CardStore(),
             attachmentStore: AttachmentStore(),
-            recentScreenshotCoordinator: RecentScreenshotCoordinator()
+            recentScreenshotCoordinator: RecentScreenshotCoordinator(),
+            cloudSyncEngine: CloudSyncEngine()
         )
     }
 
@@ -100,6 +105,7 @@ final class AppModel: ObservableObject {
                 self?.purgeExpiredCards()
             }
         }
+        startCloudSync()
     }
 
     func stop() {
@@ -242,6 +248,7 @@ final class AppModel: ObservableObject {
             recentScreenshotCoordinator.consumeCurrent()
         }
         syncRecentScreenshotState()
+        cloudSyncEngine?.pushLocalChange(card: newCard)
         return true
     }
 
@@ -347,6 +354,7 @@ final class AppModel: ObservableObject {
         cards = updatedCards
         selectedCardIDs.remove(card.id)
         cleanupManagedAttachments(removedCards: [card], remainingCards: updatedCards)
+        cloudSyncEngine?.pushDeletion(id: card.id)
     }
 
     func purgeExpiredCards() {
@@ -375,6 +383,7 @@ final class AppModel: ObservableObject {
             filtered.contains(where: { $0.id == id })
         }
         cleanupManagedAttachments(removedCards: expiredCards, remainingCards: filtered)
+        cloudSyncEngine?.pushBatch(cards: [], deletions: expiredCards.map(\.id))
     }
 
     private func markCopied(ids: [UUID]) {
@@ -400,6 +409,11 @@ final class AppModel: ObservableObject {
 
         cards = updatedCards
         clearSelection()
+
+        let copiedCards = updatedCards.filter { copiedIDs.contains($0.id) }
+        for card in copiedCards {
+            cloudSyncEngine?.pushLocalChange(card: card)
+        }
     }
 
     private func sortedCards(_ cards: [CaptureCard]) -> [CaptureCard] {
@@ -526,5 +540,82 @@ final class AppModel: ObservableObject {
 
     private func applyRecentScreenshotState(_ state: RecentScreenshotState) {
         recentScreenshotState = state
+    }
+
+    // MARK: - Cloud Sync
+
+    private func startCloudSync() {
+        guard let cloudSyncEngine else { return }
+        cloudSyncEngine.delegate = self
+
+        Task {
+            await cloudSyncEngine.setup()
+            cloudSyncEngine.fetchRemoteChanges()
+        }
+    }
+
+    func handleCloudRemoteNotification() {
+        cloudSyncEngine?.handleRemoteNotification()
+    }
+}
+
+// MARK: - CloudSyncDelegate
+
+extension AppModel: CloudSyncDelegate {
+    func cloudSync(_ engine: CloudSyncEngine, didReceiveChanges changes: [SyncChange]) {
+        let existingIDs = Set(cards.map(\.id))
+        var updatedCards = cards
+        var removedCards: [CaptureCard] = []
+
+        for change in changes {
+            switch change {
+            case .upsert(let remoteCard):
+                if let index = updatedCards.firstIndex(where: { $0.id == remoteCard.id }) {
+                    let local = updatedCards[index]
+                    let merged = mergeCard(local: local, remote: remoteCard)
+                    updatedCards[index] = merged
+                } else {
+                    updatedCards.append(remoteCard)
+                }
+
+            case .delete(let id):
+                if let index = updatedCards.firstIndex(where: { $0.id == id }) {
+                    removedCards.append(updatedCards[index])
+                    updatedCards.remove(at: index)
+                }
+            }
+        }
+
+        let sorted = sortedCards(updatedCards)
+
+        do {
+            try cardStore.save(sorted)
+            storageErrorMessage = nil
+        } catch {
+            logStorageFailure("Cloud sync apply failed", error: error)
+            return
+        }
+
+        cards = sorted
+        selectedCardIDs = selectedCardIDs.filter { id in
+            sorted.contains(where: { $0.id == id })
+        }
+
+        if !removedCards.isEmpty {
+            cleanupManagedAttachments(removedCards: removedCards, remainingCards: sorted)
+        }
+    }
+
+    private func mergeCard(local: CaptureCard, remote: CaptureCard) -> CaptureCard {
+        switch (local.lastCopiedAt, remote.lastCopiedAt) {
+        case (.some(let localDate), .some(let remoteDate)):
+            return localDate >= remoteDate ? local : remote
+        case (.some, .none):
+            return local
+        case (.none, .some):
+            return remote
+        case (.none, .none):
+            return local
+        }
     }
 }

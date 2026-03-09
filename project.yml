@@ -40,6 +40,13 @@ targets:
         product: GRDB
       - package: KeyboardShortcuts
         product: KeyboardShortcuts
+    entitlements:
+      path: PromptCue/PromptCue.entitlements
+      properties:
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.com.promptcue.promptcue
+        com.apple.developer.icloud-services:
+          - CloudKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.promptcue.promptcue
