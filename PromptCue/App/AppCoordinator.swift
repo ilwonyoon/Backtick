@@ -53,6 +53,7 @@ final class AppCoordinator {
         pendingStackToggleTask = nil
         hotKeyCenter.unregisterAll()
         model.stop()
+        statusItem = nil
     }
 
     private func configureStatusItem() {
