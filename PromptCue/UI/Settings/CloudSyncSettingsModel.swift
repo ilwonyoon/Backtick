@@ -4,6 +4,7 @@ import Foundation
 extension Notification.Name {
     static let cloudSyncDidComplete = Notification.Name("cloudSyncDidComplete")
     static let cloudSyncDidFail = Notification.Name("cloudSyncDidFail")
+    static let cloudSyncEnabledChanged = Notification.Name("cloudSyncEnabledChanged")
 }
 
 enum CloudSyncPreferences {
@@ -25,6 +26,11 @@ final class CloudSyncSettingsModel: ObservableObject {
     @Published private(set) var syncError: String?
 
     private var cancellables = Set<AnyCancellable>()
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
 
     init() {
         refresh()
@@ -38,6 +44,11 @@ final class CloudSyncSettingsModel: ObservableObject {
     func updateSyncEnabled(_ isEnabled: Bool) {
         isSyncEnabled = isEnabled
         CloudSyncPreferences.save(enabled: isEnabled)
+        NotificationCenter.default.post(
+            name: .cloudSyncEnabledChanged,
+            object: nil,
+            userInfo: ["enabled": isEnabled]
+        )
     }
 
     func updateLastSynced(_ date: Date) {
@@ -83,8 +94,6 @@ final class CloudSyncSettingsModel: ObservableObject {
             return "Waiting for first sync…"
         }
 
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return "Last synced \(formatter.localizedString(for: lastSyncedAt, relativeTo: Date()))"
+        return "Last synced \(Self.relativeFormatter.localizedString(for: lastSyncedAt, relativeTo: Date()))"
     }
 }

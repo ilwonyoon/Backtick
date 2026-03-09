@@ -24,6 +24,8 @@ final class CloudSyncEngine {
     private let database: CKDatabase
     private let zoneID: CKRecordZone.ID
     private let zone: CKRecordZone
+    private var recentlyPushedIDs = Set<UUID>()
+    private var isFetching = false
 
     weak var delegate: CloudSyncDelegate?
 
@@ -100,10 +102,12 @@ final class CloudSyncEngine {
     // MARK: - Push
 
     func pushLocalChange(card: CaptureCard) {
-        let record = ckRecord(from: card)
+        recentlyPushedIDs.insert(card.id)
 
         Task {
             do {
+                let record = try await fetchOrCreateRecord(for: card)
+                applyCardFields(card, to: record)
                 _ = try await database.save(record)
                 delegate?.cloudSyncDidComplete(self)
             } catch let error as CKError where error.code == .serverRecordChanged {
@@ -116,6 +120,7 @@ final class CloudSyncEngine {
     }
 
     func pushDeletion(id: UUID) {
+        recentlyPushedIDs.insert(id)
         let recordID = CKRecord.ID(recordName: id.uuidString, zoneID: zoneID)
 
         Task {
@@ -123,7 +128,6 @@ final class CloudSyncEngine {
                 try await database.deleteRecord(withID: recordID)
                 delegate?.cloudSyncDidComplete(self)
             } catch let error as CKError where error.code == .unknownItem {
-                // Already deleted remotely
                 delegate?.cloudSyncDidComplete(self)
             } catch {
                 NSLog("CloudSync delete failed for %@: %@", id.uuidString, String(describing: error))
@@ -137,7 +141,14 @@ final class CloudSyncEngine {
             return
         }
 
-        let recordsToSave = cards.map { ckRecord(from: $0) }
+        for card in cards {
+            recentlyPushedIDs.insert(card.id)
+        }
+        for id in deletions {
+            recentlyPushedIDs.insert(id)
+        }
+
+        let recordsToSave = cards.map { newRecord(from: $0) }
         let recordIDsToDelete = deletions.map {
             CKRecord.ID(recordName: $0.uuidString, zoneID: zoneID)
         }
@@ -149,12 +160,16 @@ final class CloudSyncEngine {
         operation.savePolicy = .changedKeys
         operation.qualityOfService = .userInitiated
 
-        operation.modifyRecordsResultBlock = { result in
-            switch result {
-            case .success:
-                break
-            case .failure(let error):
-                NSLog("CloudSync batch push failed: %@", String(describing: error))
+        operation.modifyRecordsResultBlock = { [weak self] result in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                switch result {
+                case .success:
+                    self.delegate?.cloudSyncDidComplete(self)
+                case .failure(let error):
+                    NSLog("CloudSync batch push failed: %@", String(describing: error))
+                    self.delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
+                }
             }
         }
 
@@ -164,6 +179,9 @@ final class CloudSyncEngine {
     // MARK: - Pull
 
     func fetchRemoteChanges() {
+        guard !isFetching else { return }
+        isFetching = true
+
         let options = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
         options.previousServerChangeToken = serverChangeToken
 
@@ -198,6 +216,8 @@ final class CloudSyncEngine {
             Task { @MainActor [weak self] in
                 guard let self else { return }
 
+                self.isFetching = false
+
                 switch result {
                 case .success(let (token, _, _)):
                     self.serverChangeToken = token
@@ -231,19 +251,22 @@ final class CloudSyncEngine {
     // MARK: - Private
 
     private func processRemoteChanges(upserted: [CKRecord], deleted: [CKRecord.ID]) {
+        let echoIDs = recentlyPushedIDs
+        recentlyPushedIDs.removeAll()
+
         var changes: [SyncChange] = []
 
         for record in upserted {
-            if let card = captureCard(from: record) {
-                let assetURL = (record["screenshot"] as? CKAsset)?.fileURL
-                changes.append(.upsert(card, screenshotAssetURL: assetURL))
-            }
+            guard let card = captureCard(from: record) else { continue }
+            guard !echoIDs.contains(card.id) else { continue }
+            let assetURL = (record["screenshot"] as? CKAsset)?.fileURL
+            changes.append(.upsert(card, screenshotAssetURL: assetURL))
         }
 
         for recordID in deleted {
-            if let uuid = UUID(uuidString: recordID.recordName) {
-                changes.append(.delete(uuid))
-            }
+            guard let uuid = UUID(uuidString: recordID.recordName) else { continue }
+            guard !echoIDs.contains(uuid) else { continue }
+            changes.append(.delete(uuid))
         }
 
         guard !changes.isEmpty else { return }
@@ -256,13 +279,15 @@ final class CloudSyncEngine {
         }
 
         let resolved = resolveConflict(local: localCard, remote: serverRecord)
-        let record = ckRecord(from: resolved)
+        applyCardFields(resolved, to: serverRecord)
 
         Task {
             do {
-                _ = try await database.save(record)
+                _ = try await database.save(serverRecord)
+                delegate?.cloudSyncDidComplete(self)
             } catch {
                 NSLog("CloudSync conflict resolution save failed: %@", String(describing: error))
+                delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
             }
         }
     }
@@ -286,9 +311,16 @@ final class CloudSyncEngine {
 
     // MARK: - CKRecord Mapping
 
-    private func ckRecord(from card: CaptureCard) -> CKRecord {
+    private func fetchOrCreateRecord(for card: CaptureCard) async throws -> CKRecord {
         let recordID = CKRecord.ID(recordName: card.id.uuidString, zoneID: zoneID)
-        let record = CKRecord(recordType: Self.recordType, recordID: recordID)
+        do {
+            return try await database.record(for: recordID)
+        } catch let error as CKError where error.code == .unknownItem {
+            return CKRecord(recordType: Self.recordType, recordID: recordID)
+        }
+    }
+
+    private func applyCardFields(_ card: CaptureCard, to record: CKRecord) {
         record["text"] = card.text as NSString
         record["createdAt"] = card.createdAt as NSDate
         record["lastCopiedAt"] = card.lastCopiedAt as NSDate?
@@ -298,7 +330,12 @@ final class CloudSyncEngine {
            FileManager.default.fileExists(atPath: screenshotURL.path) {
             record["screenshot"] = CKAsset(fileURL: screenshotURL)
         }
+    }
 
+    private func newRecord(from card: CaptureCard) -> CKRecord {
+        let recordID = CKRecord.ID(recordName: card.id.uuidString, zoneID: zoneID)
+        let record = CKRecord(recordType: Self.recordType, recordID: recordID)
+        applyCardFields(card, to: record)
         return record
     }
 

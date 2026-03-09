@@ -31,9 +31,10 @@ final class AppModel: ObservableObject {
     private let cardStore: CardStore
     private let attachmentStore: AttachmentStoring
     private let recentScreenshotCoordinator: RecentScreenshotCoordinating
-    private let cloudSyncEngine: CloudSyncEngine?
+    private var cloudSyncEngine: CloudSyncEngine?
     private var cleanupTimer: Timer?
     private var captureSubmissionTask: Task<Bool, Never>?
+    private var syncToggleObserver: NSObjectProtocol?
 
     init(
         cardStore: CardStore,
@@ -115,6 +116,11 @@ final class AppModel: ObservableObject {
         recentScreenshotCoordinator.onStateChange = nil
         recentScreenshotCoordinator.stop()
         applyRecentScreenshotState(.idle)
+        if let syncToggleObserver {
+            NotificationCenter.default.removeObserver(syncToggleObserver)
+        }
+        syncToggleObserver = nil
+        cloudSyncEngine?.delegate = nil
     }
 
     func reloadCards() {
@@ -546,6 +552,17 @@ final class AppModel: ObservableObject {
     // MARK: - Cloud Sync
 
     private func startCloudSync() {
+        syncToggleObserver = NotificationCenter.default.addObserver(
+            forName: .cloudSyncEnabledChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let enabled = notification.userInfo?["enabled"] as? Bool ?? false
+            Task { @MainActor [weak self] in
+                self?.setSyncEnabled(enabled)
+            }
+        }
+
         guard let cloudSyncEngine else { return }
         cloudSyncEngine.delegate = self
 
@@ -557,6 +574,17 @@ final class AppModel: ObservableObject {
 
     func handleCloudRemoteNotification() {
         cloudSyncEngine?.handleRemoteNotification()
+    }
+
+    func setSyncEnabled(_ enabled: Bool) {
+        if enabled, cloudSyncEngine == nil {
+            let engine = CloudSyncEngine()
+            cloudSyncEngine = engine
+            startCloudSync()
+        } else if !enabled {
+            cloudSyncEngine?.delegate = nil
+            cloudSyncEngine = nil
+        }
     }
 }
 
@@ -649,15 +677,30 @@ extension AppModel: CloudSyncDelegate {
     }
 
     private func mergeCard(local: CaptureCard, remote: CaptureCard) -> CaptureCard {
+        let winner: CaptureCard
         switch (local.lastCopiedAt, remote.lastCopiedAt) {
         case (.some(let localDate), .some(let remoteDate)):
-            return localDate >= remoteDate ? local : remote
+            winner = localDate >= remoteDate ? local : remote
         case (.some, .none):
-            return local
+            winner = local
         case (.none, .some):
-            return remote
+            winner = remote
         case (.none, .none):
-            return local
+            winner = local
         }
+
+        let resolvedScreenshotPath = winner.screenshotPath ?? local.screenshotPath ?? remote.screenshotPath
+        guard resolvedScreenshotPath != winner.screenshotPath else {
+            return winner
+        }
+
+        return CaptureCard(
+            id: winner.id,
+            text: winner.text,
+            createdAt: winner.createdAt,
+            screenshotPath: resolvedScreenshotPath,
+            lastCopiedAt: winner.lastCopiedAt,
+            sortOrder: winner.sortOrder
+        )
     }
 }
