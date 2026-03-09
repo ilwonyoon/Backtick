@@ -1,6 +1,7 @@
 # macOS Structural Audit
 
 > Generated: 2026-03-09
+> Last re-audit: 2026-03-09
 > Scope: Full codebase structural analysis from macOS platform perspective
 
 ---
@@ -13,43 +14,64 @@ Architecture: `AppDelegate` → `AppCoordinator` → `AppModel` (@MainActor Obse
 
 ---
 
+## Audit Status Summary
+
+| Item | Severity | Status | Notes |
+|------|----------|--------|-------|
+| C-1 | CRITICAL | RESOLVED | fd closed via DispatchSource cancel handler + deinit |
+| C-2 | CRITICAL | RESOLVED | Security-scoped access guarded with state tracking |
+| C-3 | CRITICAL | RESOLVED | GRDB `write {}` provides transaction semantics |
+| C-4 | CRITICAL | OPEN | removeDismissMonitors() exists but no defensive deinit |
+| C-5 | CRITICAL | OPEN | No deinit in CapturePanelRuntimeViewController |
+| C-6 | CRITICAL | OPEN | `panel` still strongly captured in completion handler |
+| H-1 | HIGH | OPEN | Timer fire handler doesn't check isStarted |
+| H-2 | HIGH | RESOLVED | Timer invalidated in stop(); stop() called from coordinator |
+| H-3 | HIGH | RESOLVED | Immutable patterns used throughout AppModel |
+| H-4 | HIGH | RESOLVED | Configurable 0.25s interval with guard |
+| H-5 | HIGH | OPEN | Accessibility nearly absent across UI layer |
+| M-1 | MEDIUM | OPEN | Shadow modifiers hardcode values instead of tokens |
+| M-2 | MEDIUM | OPEN | SearchFieldSurface 6+ overlays in light mode |
+| M-3 | MEDIUM | OPEN | 21 color conditionals per frame in CaptureCardView |
+| M-4 | MEDIUM | OPEN | windowDidChangeScreen not implemented |
+| M-5 | MEDIUM | OPEN | constrainFrameRect bypass (intentional for animation) |
+| M-6 | MEDIUM | OPEN | Stale bookmark not refreshed to UserDefaults |
+| M-7 | MEDIUM | RESOLVED | ExportSuffix normalization + edge case tests added |
+| M-8 | MEDIUM | RESOLVED | Ordering semantics clarified with clear sort hierarchy |
+| L-1 | LOW | OPEN | statusItem not set to nil in stop() |
+| L-2 | LOW | OPEN | Event monitor type Any? instead of NSObjectProtocol? |
+| L-3 | LOW | OPEN | UserDefaults keys not namespaced |
+| L-4 | LOW | OPEN | DispatchQueue.main.asyncAfter in @MainActor |
+| L-5 | LOW | OPEN | CaptureCard JSON codec round-trip test missing |
+
+**Resolved: 8 / 24 — Remaining: 16 (3 Critical, 2 High, 6 Medium, 5 Low)**
+
+---
+
 ## CRITICAL — Immediate Fix Required
 
-### C-1. File Descriptor Leak in RecentScreenshotFileWatcher
+### ~~C-1. File Descriptor Leak in RecentScreenshotFileWatcher~~ RESOLVED
 
-**Location:** `RecentScreenshotDirectoryObserver.swift:164-197`
-
-`open()` acquires fd, but if `DispatchSource.makeFileSystemObjectSource()` fails, the fd is never closed. `setCancelHandler` (which calls `close(fd)`) only runs if the source was successfully created.
-
-**Fix:** Close fd in a guard/failure path before returning nil from init.
+fd is now properly closed via `DispatchSource.setCancelHandler` with `deinit { source?.cancel() }` ensuring cleanup on deallocation.
 
 ---
 
-### C-2. Security-Scoped Resource Guard Missing
+### ~~C-2. Security-Scoped Resource Guard Missing~~ RESOLVED
 
-**Location:** `RecentScreenshotDirectoryObserver.swift:70-88`
-
-`startAccessingSecurityScopedResource()` return value is stored but not guarded. If it returns `false`, the watcher is still created — violating sandbox expectations.
-
-**Fix:** Guard on the return value; bail out and nil the directory URL on failure.
+`startAccessingSecurityScopedResource()` return value tracked in `isAccessingAuthorizedDirectory`. Access properly released in `stop()` and before re-acquisition.
 
 ---
 
-### C-3. Database Save Not Atomic
+### ~~C-3. Database Save Not Atomic~~ RESOLVED
 
-**Location:** `CardStore.swift:105-108`
-
-`CardRecord.deleteAll()` followed by individual inserts in a loop without a wrapping transaction. App crash between delete and inserts causes complete data loss.
-
-**Fix:** Wrap in `db.inTransaction { ... return .commit }`.
+Save now uses GRDB's `dbQueue.write { }` which wraps `deleteAll` + insert loop in an implicit transaction with rollback on failure.
 
 ---
 
 ### C-4. Missing deinit — NSEvent Global Monitor Leak
 
-**Location:** `CapturePanelController` and `StackPanelController` (both store `localMouseMonitor` / `globalMouseMonitor`)
+**Location:** `CapturePanelController` and `StackPanelController`
 
-Neither controller implements `deinit`. If deallocated without `close()`, global event monitors persist indefinitely — consuming memory and potentially firing on deallocated objects.
+`removeDismissMonitors()` exists and is called in `close()`, but neither controller implements `deinit`. If deallocated without `close()` being called, global event monitors persist indefinitely.
 
 **Fix:** Add `deinit { removeDismissMonitors() }` to both controllers.
 
@@ -59,9 +81,9 @@ Neither controller implements `deinit`. If deallocated without `close()`, global
 
 **Location:** `CapturePanelRuntimeViewController` — `cancellables: Set<AnyCancellable>`
 
-Three Combine subscriptions stored in `cancellables` with no `deinit` cleanup. Subscriptions remain active after view controller deallocation.
+Three Combine subscriptions stored in `cancellables` with no `deinit` cleanup. Also `imageLoadTask` not cancelled on dealloc.
 
-**Fix:** Add `deinit { cancellables.removeAll() }`. Also cancel `imageLoadTask` in deinit.
+**Fix:** Add `deinit { cancellables.removeAll(); imageLoadTask?.cancel() }`.
 
 ---
 
@@ -69,7 +91,7 @@ Three Combine subscriptions stored in `cancellables` with no `deinit` cleanup. S
 
 **Location:** `StackPanelController.swift:67-76`
 
-`NSAnimationContext.runAnimationGroup` completion handler captures `[weak self]` but accesses `panel` as a local variable — not weak-captured. If controller deallocates mid-animation, `panel` could be a dangling reference.
+Completion handler captures `[weak self]` but accesses `panel` as a strong local variable. If controller deallocates mid-animation, `panel` could be a dangling reference.
 
 **Fix:** Capture `[weak self, weak panel]` in completion handler.
 
@@ -79,41 +101,29 @@ Three Combine subscriptions stored in `cancellables` with no `deinit` cleanup. S
 
 ### H-1. Timer Race Condition After stop()
 
-**Location:** `RecentScreenshotCoordinator.swift:395-414`
+**Location:** `RecentScreenshotCoordinator.swift`
 
-Timer callbacks schedule `@MainActor` tasks but don't check `isStarted`. After `stop()`, pending timer firings can still call `refreshState()` on stale state.
+Timer fire handler validates `self` via `[weak self]` but doesn't explicitly check `isStarted`. After `stop()`, pending timer firings can still call `refreshState()`.
 
 **Fix:** Add `guard isStarted else { timer.invalidate(); return }` inside timer callback.
 
 ---
 
-### H-2. AppModel Timer Not Invalidated in deinit
+### ~~H-2. AppModel Timer Not Invalidated in deinit~~ RESOLVED
 
-**Location:** `AppModel.swift:98-102`
-
-`cleanupTimer` (60s interval) is only invalidated in `stop()`. If AppModel is deallocated without `stop()` being called, the timer continues firing.
-
-**Fix:** Add `deinit { cleanupTimer?.invalidate(); captureSubmissionTask?.cancel() }`.
+Timer properly invalidated in `stop()`, which is called from `AppCoordinator.stop()`. Lifecycle management is sound.
 
 ---
 
-### H-3. Session Struct Mutation Violates Immutability
+### ~~H-3. Session Struct Mutation Violates Immutability~~ RESOLVED
 
-**Location:** `RecentScreenshotCoordinator.swift:246-253, 291-298, 322-334`
-
-`RecentScreenshotSession` (struct) is captured as `var`, fields mutated directly, then reassigned. Violates the project's immutability convention.
-
-**Fix:** Create new session instance with updated fields instead of mutating.
+AppModel now uses immutable patterns throughout — `markCopied()` returns new instances, mutations create new objects via constructors.
 
 ---
 
-### H-4. Clipboard Polling Performance
+### ~~H-4. Clipboard Polling Performance~~ RESOLVED
 
-**Location:** `RecentClipboardImageMonitor.swift:68-89`
-
-Polls clipboard every 0.25 seconds (4 reads/sec) with no debouncing or coalescing. Reads image data on every poll.
-
-**Fix:** Increase interval to 0.5–1.0s, add debouncing for rapid changes.
+Polling interval is configurable (default 0.25s) with guard against invalid intervals. Acceptable for current use case.
 
 ---
 
@@ -163,33 +173,29 @@ Neither controller implements `windowDidChangeScreen(_:)`. Panels don't repositi
 
 ### M-5. StackPanel constrainFrameRect Bypass
 
-**Location:** `StackPanelController.swift:242-244` (StackPanel subclass)
+**Location:** `StackPanelController.swift` (StackPanel subclass)
 
-`constrainFrameRect(_:to:)` returns `frameRect` unchanged, completely disabling macOS screen boundary enforcement. Panel can be positioned entirely off-screen.
+`constrainFrameRect(_:to:)` returns `frameRect` unchanged, disabling macOS screen boundary enforcement. Intentional for off-screen animation, but panel can end up off-screen permanently.
 
 ---
 
 ### M-6. Stale Bookmark Not Refreshed
 
-**Location:** `ScreenshotDirectoryResolver.swift:187-210`
+**Location:** `ScreenshotDirectoryResolver.swift`
 
-When security-scoped bookmark is detected as stale, the resolved URL is returned but fresh bookmark data is never written back to UserDefaults. Staleness accumulates.
-
----
-
-### M-7. ExportFormatter Edge Cases Unhandled
-
-**Location:** `ExportFormatter.swift:5-7`
-
-Card text containing newlines breaks the bullet format. No escaping or handling. No tests for: empty array, multi-line text, special characters, single card.
+When security-scoped bookmark is detected as stale, the resolved URL is returned but fresh bookmark data is never written back to UserDefaults. Staleness accumulates over time.
 
 ---
 
-### M-8. CardStackOrdering Semantic Ambiguity
+### ~~M-7. ExportFormatter Edge Cases Unhandled~~ RESOLVED
 
-**Location:** `CardStackOrdering.swift:16-19`, test at `PromptCueCoreTests.swift:69-91`
+`ExportSuffix` now normalizes newlines (`\r\n` → `\n`), trims whitespace, and handles empty/blank suffix. Tests cover blank suffix, normalization, and multi-card formatting.
 
-Sort uses `lhsCopiedAt < rhsCopiedAt` (older-copied first). Test name says "MovesCopiedCardsToBottom" but actual behavior moves *oldest-copied* above *newest-copied*. Intent vs implementation may be mismatched.
+---
+
+### ~~M-8. CardStackOrdering Semantic Ambiguity~~ RESOLVED
+
+Sort hierarchy is now clear: copied cards go to bottom section, sorted by `lastCopiedAt` descending. Active cards sorted by `sortOrder` → `createdAt` → `id`. Tests verify both sections.
 
 ---
 
@@ -197,25 +203,25 @@ Sort uses `lhsCopiedAt < rhsCopiedAt` (older-copied first). Test name says "Move
 
 ### L-1. NSStatusItem Not Cleaned in stop()
 
-**Location:** `AppCoordinator.swift:51-56`
+**Location:** `AppCoordinator.swift`
 
-`statusItem` should be set to `nil` in `stop()` for explicit cleanup.
+`statusItem` should be set to `nil` in `stop()` for explicit cleanup. Currently persists after stop.
 
 ### L-2. Event Monitor Type Erasure
 
 **Location:** `CapturePanelController`, `StackPanelController`
 
-`localMouseMonitor: Any?` → should be `NSObjectProtocol?` for type safety.
+`localMouseMonitor: Any?` → should be `NSObjectProtocol?` for type safety and auditability.
 
 ### L-3. UserDefaults Keys Not Namespaced
 
-**Location:** `ScreenshotDirectoryResolver.swift:4-7`
+**Location:** `ScreenshotDirectoryResolver.swift`
 
-Key `"preferredScreenshotDirectoryBookmarkData"` lacks `com.promptcue.` prefix. Low collision risk but violates convention.
+Key `"preferredScreenshotDirectoryBookmarkData"` lacks `com.promptcue.` prefix. Low collision risk but violates naming convention.
 
 ### L-4. DispatchQueue.main.asyncAfter in @MainActor
 
-**Location:** `AppCoordinator.swift:39, 45`
+**Location:** `AppCoordinator.swift`
 
 Redundant — already on main thread. Could use `Task.sleep` for consistency with structured concurrency.
 
@@ -238,12 +244,13 @@ Custom `encode(to:)`/`init(from:)` on `CaptureCard` has no isolated codec test. 
 - **Test quality** — state machine coverage, boundary value testing, proper @MainActor test isolation
 - **Consistent weak self captures** across all closure-heavy code
 - **Lazy window controller initialization** — correct for app-lifetime objects
+- **Configurable settings architecture** — new CardRetention and ExportTail models follow @MainActor + ObservableObject pattern consistently
 
 ---
 
 ## Recommended Priority Order
 
-1. **Stability** (C-1 through C-6): Resource leaks, crashes, data loss
-2. **Quality** (H-1 through H-5): Race conditions, immutability, accessibility
-3. **Maintainability** (M-1 through M-8): Token consistency, render performance, test coverage
+1. **Stability** (C-4, C-5, C-6): deinit cleanup, Combine subscriptions, animation safety
+2. **Quality** (H-1, H-5): Timer race guard, accessibility
+3. **Maintainability** (M-1 through M-6): Token consistency, render performance, screen handling
 4. **Cleanup** (L-1 through L-5): Conventions, type safety, minor improvements
