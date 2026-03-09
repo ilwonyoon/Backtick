@@ -16,6 +16,8 @@ Use it to answer three questions:
 
 - Design principles and visual direction:
   - `docs/Design-System.md`
+- Architecture and ownership boundaries:
+  - `docs/Design-System-Architecture-Proposal.md`
 - Primitive tokens:
   - `PromptCue/UI/DesignSystem/PrimitiveTokens.swift`
 - Semantic tokens:
@@ -28,8 +30,17 @@ Use it to answer three questions:
   - `PromptCue/UI/Components/PromptCueChip.swift`
   - `PromptCue/UI/Components/SearchFieldSurface.swift`
   - `PromptCue/UI/Components/PanelHeader.swift`
+  - `PromptCue/UI/Components/NotificationCardChromeRecipe.swift`
+  - `PromptCue/UI/Components/TopEdgeStrokeOverlay.swift`
+  - `PromptCue/UI/Components/CaptureShellChromeRecipe.swift`
+  - `PromptCue/UI/Components/CopiedStackRecipe.swift`
+  - `PromptCue/UI/Components/StackNotificationCardChromeRecipe.swift`
+  - `PromptCue/UI/Components/StackPanelBackdropRecipe.swift`
 - Hard-coding guardrail:
   - `scripts/validate_ui_tokens.py`
+- Visual inspection surface:
+  - `PromptCue/UI/Preview/DesignSystemPreviewView.swift`
+  - `PromptCue/UI/WindowControllers/DesignSystemWindowController.swift`
 
 ## Design Principles In Force
 
@@ -177,6 +188,17 @@ Provides:
 - material-backed surface
 - border and panel shadow
 
+### Pattern Owner Helpers
+
+These now exist to keep product-specific or shared chrome math out of feature views:
+
+- `CaptureShellChromeRecipe`
+- `NotificationCardChromeRecipe`
+- `StackNotificationCardChromeRecipe`
+- `CopiedStackRecipe`
+- `StackPanelBackdropRecipe`
+- `TopEdgeStrokeOverlay`
+
 ### `PanelHeader`
 
 Used for:
@@ -267,7 +289,7 @@ Current intent:
 - semantic tokens are still shallow; they do not yet map every UI intent described in the design doc
 - typography tokens exist, but not every view has been re-audited for ideal hierarchy and density
 - materials and shadows are centralized, but not yet split into richer states such as focused, hover, inactive, or reduced-transparency variants
-- there is no component gallery or preview screen yet
+- there is a real component gallery and design-system preview window now
 - stack panel design language is functional but not yet as resolved as the capture panel
 - wording and affordance audits should continue checking that the product does not drift back toward note-taking language
 
@@ -296,3 +318,4 @@ It is a working v1 system with:
 - automated anti-hardcoding checks
 
 What remains is refinement, broader semantic coverage, and a component gallery/previews so the system becomes easier to inspect visually.
+What remains is refinement, broader semantic coverage, and continued audit discipline so the preview/gallery stays trustworthy as implementation evolves.

@@ -49,17 +49,7 @@ struct GlassPanel<Content: View>: View {
                     shape.fill(SemanticTokens.Surface.panelFill)
                 }
                 .overlay {
-                    shape.fill(
-                        LinearGradient(
-                            colors: [
-                                SemanticTokens.Surface.glassSheen,
-                                SemanticTokens.Surface.glassTint,
-                                SemanticTokens.Surface.glassEdge,
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                    shape.fill(ShowcaseGlassChrome.gradientOverlay)
                 }
         }
     }
@@ -75,16 +65,16 @@ struct GlassPanel<Content: View>: View {
                 .overlay {
                     shape
                         .inset(by: PrimitiveTokens.Stroke.subtle)
-                        .stroke(SemanticTokens.Border.glassInner)
+                        .stroke(ShowcaseGlassChrome.innerStroke)
                 }
                 .overlay(alignment: .top) {
-                    shape
-                        .stroke(SemanticTokens.Border.glassHighlight, lineWidth: PrimitiveTokens.Stroke.subtle)
-                        .frame(height: PrimitiveTokens.Space.xxl + PrimitiveTokens.Space.lg)
-                        .mask(alignment: .top) {
-                            Rectangle()
-                                .frame(height: PrimitiveTokens.Space.xxl + PrimitiveTokens.Space.md)
-                        }
+                    TopEdgeStrokeOverlay(
+                        shape: shape,
+                        color: ShowcaseGlassChrome.topHighlight,
+                        lineWidth: PrimitiveTokens.Stroke.subtle,
+                        frameHeight: PrimitiveTokens.Space.xxl + PrimitiveTokens.Space.lg,
+                        maskHeight: PrimitiveTokens.Space.xxl + PrimitiveTokens.Space.md
+                    )
                 }
         }
     }
