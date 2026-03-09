@@ -354,13 +354,17 @@ final class AppModel: ObservableObject {
     }
 
     func purgeExpiredCards() {
+        guard let ttl = CardRetentionPreferences.load().effectiveTTL else {
+            return
+        }
+
         let now = Date()
-        let expiredCards = cards.filter { $0.isExpired(relativeTo: now) }
+        let expiredCards = cards.filter { $0.isExpired(relativeTo: now, ttl: ttl) }
         guard !expiredCards.isEmpty else {
             return
         }
 
-        let filtered = sortedCards(cards.filter { !$0.isExpired(relativeTo: now) })
+        let filtered = sortedCards(cards.filter { !$0.isExpired(relativeTo: now, ttl: ttl) })
 
         do {
             try cardStore.save(filtered)

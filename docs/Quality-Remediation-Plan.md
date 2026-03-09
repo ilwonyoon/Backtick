@@ -1,10 +1,10 @@
-# Prompt Cue Quality Remediation Plan
+# Backtick Quality Remediation Plan
 
 ## Purpose
 
 This document turns the latest quality audit into an execution plan.
 
-The goal is not generic cleanup. The goal is to close the specific gaps that currently block Prompt Cue from feeling release-ready:
+The goal is not generic cleanup. The goal is to close the specific gaps that currently block Backtick from feeling release-ready as an AI coding scratchpad / thought staging tool:
 
 - unreachable MVP behavior
 - fragile screenshot attachment ownership
@@ -32,6 +32,10 @@ The current audit found these primary gaps:
 - Keep release-sensitive changes master-owned unless a track is explicitly opened.
 - Prefer one finished vertical slice over half-finished parallel spikes.
 - Do not treat design-system cleanup as cosmetic work only. It is part of stability because it controls drift.
+- Reject note-app drift:
+  - Capture = frictionless dump
+  - Stack = execution queue
+  - AI compression happens in Stack, not in Capture
 
 ## Parallel Execution Model
 
@@ -122,7 +126,7 @@ Make screenshots durable, app-owned, and cleanup-safe.
 
 ### Goal
 
-Make the stack panel satisfy the actual export contract in the PRD.
+Make the stack panel satisfy the actual export contract for Backtick's execution queue.
 
 ### Tasks
 
@@ -132,6 +136,11 @@ Make the stack panel satisfy the actual export contract in the PRD.
 | Implement grouped copy action without breaking single-click quick copy | Track B | selection contract | Yes | both fast path and grouped export path exist |
 | Redesign pasteboard writing so image + text export is deterministic for supported targets | Track B | attachment ownership from Phase R1 | No | paste behavior is stable in target apps under test |
 | Add copy/export smoke coverage for single-card and multi-card flows | Track B | above tasks | Yes | stack export no longer depends on ad hoc manual checking |
+
+Backtick rule for Phase R2:
+
+- add intelligence and compression affordances in Stack if needed
+- do not push review/organization complexity back into Capture
 
 ### Exit Criteria
 
@@ -242,6 +251,9 @@ Remove the current mismatch between successful capture submission and what the s
 5. Track D, design-system reconciliation
 6. Phase R5 verification pass
 7. Phase R6 stack sync and light-mode readability
+8. Phase R7 capture input system hardening
+9. Phase R8 AI Export Tail / Prompt Suffix
+10. Phase R9 stack card overflow and hover expansion
 
 ## Immediate Next Slice
 
@@ -308,3 +320,82 @@ Rebuild the capture input so it behaves like a production-quality AppKit text sy
 3. Keep app-level tests around `capture -> submit -> immediate stack open` green
 4. Verify grouped export against target apps that consume image + text differently
 5. Reconcile design-system docs and semantic usage before more surface polish
+
+## Phase R8: AI Export Tail / Prompt Suffix
+
+### Goal
+
+Add a user-controlled export suffix that can be appended to copied/exported payloads without modifying stored cue content.
+
+### Product Rules
+
+1. Terminology in product, docs, and code review should prefer `AI Export Tail` or `Prompt Suffix`.
+2. The suffix is export-time only. It must not mutate saved cards, stack previews, or persistence.
+3. The suffix is optional and user-controlled.
+4. The suffix text supports multiline input.
+
+### Tasks
+
+| Task | Owner | Dependency | Parallelizable | Exit Criteria |
+| --- | --- | --- | --- | --- |
+| Add Settings state for `AI Export Tail enabled` and multiline `Prompt Suffix` text | Master + settings track | Existing Settings surface | Yes | toggle and text are persisted and reload correctly |
+| Define export formatter contract for suffix append behavior | Master | None | No | formatter has one explicit append rule for enabled/disabled/empty states |
+| Append suffix only in export/clipboard composition path | Track B + Master wiring | formatter contract | No | copied payload includes suffix only at export time |
+| Keep stack rendering and stored cards suffix-free | Track B | formatter integration | Yes | UI and persistence remain unchanged |
+| Add tests for enabled, disabled, empty, and multiline suffix behavior | Master + Track B | formatter integration | Yes | regression coverage locks the export-only rule |
+| Add an app-level smoke check for `save -> copy -> suffix appended` | Master | above tasks | No | behavior is verified outside unit tests |
+
+### Integration Order
+
+1. freeze names and settings storage shape
+2. wire formatter and clipboard append behavior
+3. wire Settings toggle and multiline text editor
+4. add focused tests and smoke validation
+
+### Exit Criteria
+
+- Users can enable or disable `AI Export Tail` in Settings.
+- Users can enter multiline `Prompt Suffix` text.
+- Exported payloads append the suffix only when enabled and non-empty.
+- Saved cards, card counts, previews, and persistence remain unchanged.
+
+## Phase R9: Stack Card Overflow And Hover Expansion
+
+### Goal
+
+Keep Stack scannable when a saved cue is extremely long, while still letting users read full content on demand.
+
+### Product Rules
+
+1. A single long card must not dominate the queue by default.
+2. Overflow should be legible, not hidden silently.
+3. Reveal behavior should feel temporary and lightweight.
+4. The same overflow system should apply to active cards and copied-stack summaries.
+5. Stack should still read as an execution queue, not a long-form reader.
+6. Initial design target:
+   - active text-only cards expose roughly `3-4` lines at rest
+   - hover/focus reveal exposes roughly `6-8` lines before any deeper interaction
+
+### Tasks
+
+| Task | Owner | Dependency | Parallelizable | Exit Criteria |
+| --- | --- | --- | --- | --- |
+| Define max resting card height and overflow metrics | Master + design-system track | Existing stack card styles | No | one capped-height rule exists for normal stack cards and copied summaries |
+| Add overflow affordance that communicates hidden remaining content | Track B | metrics contract | Yes | long cards clearly indicate more content exists |
+| Implement hover or focus reveal for active stack cards | Track B + Master wiring | metrics contract | No | users can read long text without permanent layout blowout |
+| Make collapsed copied-stack summaries obey the same cap and remain stable | Track B | metrics contract | Yes | copied-stack summary never breaks when the first copied card is very long |
+| Add automated QA fixtures for long text, mixed image+text, and copied-stack long-card cases | Master + Track B | overflow implementation | Yes | long-card behavior is reproducible and regression-tested |
+
+### Integration Order
+
+1. freeze overflow metrics and interaction behavior
+2. update active card rendering
+3. update copied-stack summary rendering
+4. add automated fixtures and verification
+
+### Exit Criteria
+
+- Very long cards do not create unbounded stack rows in the resting state.
+- Users can tell that more text exists.
+- Hover or focus reveal reads smoothly and does not destabilize the stack.
+- Copied-stack collapsed summaries remain visually stable regardless of source card length.

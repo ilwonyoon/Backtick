@@ -1,17 +1,24 @@
-# Prompt Cue Master Board
+# Backtick Master Board
 
 ## Objective
 
-Ship Prompt Cue as a native macOS utility app that gives AI-assisted developers a frictionless buffer for capture, recall, and clipboard export.
+Ship Backtick as a native macOS utility app that gives AI-assisted developers a frictionless scratchpad for capture, execution-queue review, and clipboard export.
 
 ## Locked Decisions
 
+- Product identity: `Backtick`
+- Current repo/app target/core module names remain `PromptCue` / `PromptCueCore` for now
+- Product proposals are judged against Backtick as an AI coding scratchpad / thought staging tool, not a note app
+- Interaction model:
+  - Capture = frictionless dump
+  - Stack = execution queue
+  - AI compression happens in Stack
 - Platform shape: standard macOS utility app, not an App Extension
 - App shell: `LSUIElement` background utility with status item and floating panels
 - UI stack: SwiftUI for view composition, AppKit for windowing and system integration
 - Distribution baseline: Gumroad-backed direct distribution first, Mac App Store compatibility deferred
 - Screenshot strategy: user-selected screenshot folder with security-scoped bookmark support
-- Persistence baseline: local-only storage with 8-hour TTL and automatic pruning
+- Persistence baseline: local-only storage with optional auto-expiration, disabled by default
 - Storage engine baseline: `SQLite + GRDB`
 
 ## Current Status
@@ -34,6 +41,8 @@ Ship Prompt Cue as a native macOS utility app that gives AI-assisted developers 
 | Settings surface | In progress | Shortcut recorders and screenshot folder controls are now implemented |
 | Stack sync and light-mode readability | In progress | `Phase R6` now uses tracked capture submission plus a stronger light-mode veil; real-device QA is still the gate |
 | Capture input system hardening | In progress | `Phase R7A` contract lock and QA harness are complete; `Phase R7B` now rewrites the live capture panel around an AppKit-owned sizing host |
+| AI Export Tail / Prompt Suffix | Planned | export-time-only suffix append with Settings toggle, multiline text, and regression coverage |
+| Stack card overflow and hover expansion | Queued | very long cards need capped resting height, explicit overflow, and stable copied-stack behavior |
 
 ## Current File Ownership
 
@@ -66,7 +75,9 @@ Ship Prompt Cue as a native macOS utility app that gives AI-assisted developers 
 3. Hotkeys and panel shell
 4. Capture UI and stack UI
 5. Launch-at-login, settings, and polish
-6. DMG packaging, Gumroad release prep, and MAS compatibility review
+6. AI Export Tail / Prompt Suffix integration
+7. Stack card overflow and hover expansion
+8. DMG packaging, Gumroad release prep, and MAS compatibility review
 
 ## Remediation Merge Order
 
@@ -75,7 +86,9 @@ Ship Prompt Cue as a native macOS utility app that gives AI-assisted developers 
 3. Track C, screenshot access and settings
 4. Track B, selection and clipboard export
 5. Track D, design-system reconciliation
-6. Full verification pass
+6. Phase R8 AI Export Tail / Prompt Suffix
+7. Phase R9 stack card overflow and hover expansion
+8. Full verification pass
 
 ## Track Gates
 
@@ -108,4 +121,11 @@ Ship Prompt Cue as a native macOS utility app that gives AI-assisted developers 
 3. Close the remaining `Phase R7` follow-up on IME-safe command routing and placeholder ownership
 4. Keep deterministic capture QA and input metrics coverage green
 5. Keep regression coverage for `submit -> immediate stack open` green
-6. Resume grouped export validation against target paste destinations
+6. Land `AI Export Tail / Prompt Suffix` as an export-only formatter + Settings slice
+7. Land long-card overflow handling so Stack remains scannable under extreme text length
+8. Resume grouped export validation against target paste destinations
+
+Guardrail:
+
+- do not accept work that turns Backtick into a general note app
+- prefer raw dump in Capture and structured compression/export in Stack

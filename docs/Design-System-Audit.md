@@ -1,8 +1,10 @@
-# Prompt Cue Design System Audit
+# Backtick Design System Audit
 
 ## Purpose
 
 This file is the fastest way to inspect what the current design system actually covers in code.
+
+User-facing product identity is `Backtick`. Current repository paths and implementation names may still use `PromptCue`.
 
 Use it to answer three questions:
 
@@ -37,9 +39,24 @@ These principles are documented and are intended to constrain implementation:
 - less invasive
 - quiet ambient
 - Spotlight-first capture
+- capture now, act today, forget tomorrow
+- capture mode = frictionless thought dump
+- stack mode = execution queue
+- AI belongs in Stack, not Capture
+- ephemeral by design
 - avoid useless text
 - avoid redundant cues
 - semantic tokens over local one-off styling
+
+## Product Identity Alignment
+
+The design system is expected to preserve this product posture:
+
+- `Backtick` is an AI coding scratchpad and thought staging tool
+- it is not a note-taking app
+- capture should feel disposable and immediate
+- stack should feel actionable and compressive
+- UI should avoid archival or document-like cues
 
 ## Primitive Tokens Implemented
 
@@ -188,6 +205,7 @@ Notes:
 
 - this is the most systematized part of the UI
 - it now uses the `17 / 22` capture lane
+- it should read as a raw dump surface, not a chat field or notebook editor
 
 ### Stack Panel
 
@@ -202,6 +220,7 @@ Notes:
 
 - functionally tokenized
 - visually less refined than capture surface
+- it should continue moving toward an execution-queue feel rather than a note archive feel
 
 ### Settings
 
@@ -241,6 +260,7 @@ Current intent:
 - there are shared surface components
 - typography now has an explicit hierarchy instead of one-off sizes
 - there is a validator to stop regression into hardcoded UI values
+- the docs now define capture and stack as different behavioral modes, not just different windows
 
 ## What Is Still Incomplete
 
@@ -249,6 +269,7 @@ Current intent:
 - materials and shadows are centralized, but not yet split into richer states such as focused, hover, inactive, or reduced-transparency variants
 - there is no component gallery or preview screen yet
 - stack panel design language is functional but not yet as resolved as the capture panel
+- wording and affordance audits should continue checking that the product does not drift back toward note-taking language
 
 ## Verification Checklist
 

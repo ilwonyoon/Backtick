@@ -1,8 +1,10 @@
-# Prompt Cue Design System
+# Backtick Design System
 
 ## Purpose
 
-This document defines the design system for Prompt Cue as a native macOS utility app. The target feel is:
+This document defines the design system for Backtick as a native macOS utility app. Technical file paths and implementation types may still use `PromptCue`, but the product definition is `Backtick`.
+
+The target feel is:
 
 - quiet
 - ambient
@@ -10,7 +12,7 @@ This document defines the design system for Prompt Cue as a native macOS utility
 - Spotlight-first
 - optional Liquid Glass, never decorative by default
 
-The design system should make the app feel like it belongs on macOS while still reading as a focused developer tool rather than a generic productivity app.
+The design system should make the app feel like it belongs on macOS while still reading as an AI coding scratchpad and thought staging tool rather than a generic productivity or note-taking app.
 
 ## Core Principles
 
@@ -26,6 +28,22 @@ The design system should make the app feel like it belongs on macOS while still 
 10. Materials should support focus and depth, not become the visual subject.
 11. Semantic tokens must drive implementation; components should not invent local styles.
 12. If a value will appear twice, it should usually become a token.
+13. `Capture now. Act today. Forget tomorrow.` should remain legible in interaction design, not just in marketing.
+14. Capture mode is a thought dump, not a drafting surface.
+15. Stack mode is an execution queue, not an archive.
+16. AI belongs in Stack, not Capture.
+17. Ephemeral beats organizational.
+
+## Product Posture
+
+Backtick is a scratchpad, not a notebook.
+
+That means:
+
+- capture should feel disposable and low-ceremony
+- stack should feel actionable and compressive
+- stale material should feel safe to forget
+- surfaces should avoid archival cues like notebooks, pages, titles, or document chrome
 
 ## Product Feel
 
@@ -36,6 +54,7 @@ The design system should make the app feel like it belongs on macOS while still 
 - Surfaces should use soft contrast, not harsh black-on-white or white-on-black.
 - Background treatments should imply depth through material, shadow, and edge separation instead of saturated color.
 - Idle surfaces should avoid status chatter, persistent coaching, or decorative framing.
+- Quiet does not mean vague; execution affordances should still read immediately.
 
 ### Spotlight-First
 
@@ -43,6 +62,21 @@ The design system should make the app feel like it belongs on macOS while still 
 - The first readable thing should be the insertion point or the primary content, not decorative framing.
 - Actions should feel implicit: `Enter` saves, `Esc` dismisses, click copies.
 - Prefer no title row, no descriptive subtitle, and no footer instructions in the default capture state.
+- Capture should read like a fast dump zone, not a form.
+
+### Capture Now. Act Today. Forget Tomorrow.
+
+- Capture surfaces should bias toward speed, not correctness.
+- Stack surfaces should bias toward action, compression, and export.
+- The system should not visually imply long-term safekeeping.
+- Expiration and discard should feel natural, not destructive.
+
+### AI Belongs In Stack
+
+- Capture mode should never feel like an AI chat box.
+- Capture mode is for raw user thoughts, screenshots, and fragments.
+- Stack mode is where thoughts can be grouped, shaped, exported, and eventually enhanced.
+- Avoid search icons, chat affordances, assistant framing, or prompt polish cues inside capture.
 
 ### Optional Liquid Glass
 
@@ -51,6 +85,12 @@ The design system should make the app feel like it belongs on macOS while still 
 - The app must still look correct in a non-vibrant or reduced-transparency environment.
 
 ## Visual Direction
+
+The visual system should communicate:
+
+- scratchpad, not notebook
+- staging, not storage
+- execution, not authorship
 
 ### Base Palette
 
@@ -69,6 +109,7 @@ Avoid:
 - neon accents
 - full-bleed gradients inside productivity surfaces
 - deep shadow stacks that feel like iOS marketing art
+- anything that makes the product read like a note-taking or writing app
 
 ## Primitive Tokens
 
@@ -234,6 +275,12 @@ Recommended values:
 - radius: `radius-16`
 - padding: `space-16`
 
+Behavioral intent:
+
+- this is the thought-dump surface
+- no document framing
+- no archival cues
+
 ### Stack Panel Shell
 
 - `shell.stack.background`
@@ -246,6 +293,19 @@ Recommended values:
 
 - slightly denser than capture shell
 - right-side panel may feel heavier than Spotlight-style capture surface
+
+Behavioral intent:
+
+- this is the execution queue
+- cards can feel more structured here than in capture
+- this is the right place for grouping, export shaping, and future AI-assisted compression
+
+Overflow rule:
+
+- a single long card should not dominate the entire stack by default
+- default presentation should be capped and scannable
+- overflow should be discoverable through restrained affordance, not permanent chrome
+- reveal behavior should feel temporary and lightweight
 
 ### Input Surface
 
@@ -265,6 +325,16 @@ Rules:
 - Focused border should change before the shadow does.
 - Placeholder must remain readable on translucent material.
 - Text editor background should not be fully transparent.
+- The field should feel like a scratch surface, not a search field and not a message composer.
+
+### Stack Card Overflow
+
+- very long text should not force unbounded card height in the resting state
+- collapsed copied summaries and active cards should share one overflow system
+- if more text exists, that fact should be legible without turning the stack into a note reader
+- hover or focused reveal should feel smooth and temporary
+- initial target for resting text-only cards: roughly `3-4` visible lines
+- initial target for hover reveal: roughly `6-8` visible lines before any deeper reveal or internal scrolling
 
 ### Text Roles
 
@@ -282,6 +352,7 @@ Rules:
 - Primary text should remain readable at a glance over material.
 - Secondary text should support timestamps and supporting explanations.
 - Tertiary text is for helper chrome only.
+- Avoid verbose explanatory copy in capture mode; words should support action, not narration.
 
 ### Chips And Keycaps
 
@@ -565,7 +636,7 @@ enum SurfaceStyle {
 
 ### Focus And Selection
 
-- Native focus behavior should still read as Prompt Cue, not as a random custom control set.
+- Native focus behavior should still read as Backtick, not as a random custom control set.
 - If AppKit controls are wrapped, override only what is necessary for alignment with tokens.
 
 ## Accessibility And Comfort
@@ -588,4 +659,4 @@ enum SurfaceStyle {
 
 ## Summary
 
-Prompt Cue should feel like a native ambient utility, not a brand showcase. The system should emphasize clarity, soft depth, and keyboard-first utility. Materials and glass are supporting layers; the real visual identity is speed, restraint, and legibility.
+Backtick should feel like a native ambient utility, not a brand showcase. The system should emphasize clarity, soft depth, and keyboard-first utility. Materials and glass are supporting layers; the real visual identity is speed, restraint, and legibility.

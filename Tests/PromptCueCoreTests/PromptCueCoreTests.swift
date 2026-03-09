@@ -67,7 +67,7 @@ struct PromptCueCoreTests {
     }
 
     @Test
-    func cardStackOrderingMovesCopiedCardsToBottom() {
+    func cardStackOrderingMovesCopiedCardsToBottomWithMostRecentlyCopiedFirst() {
         let oldest = Date(timeIntervalSince1970: 1_000)
         let newest = Date(timeIntervalSince1970: 2_000)
         let earlierCopy = Date(timeIntervalSince1970: 3_000)
@@ -87,7 +87,7 @@ struct PromptCueCoreTests {
 
         let ordered = CardStackOrdering.sort([justCopiedCard, olderCopiedCard, freshCard])
 
-        #expect(ordered.map(\.text) == ["fresh", "older copied", "just copied"])
+        #expect(ordered.map(\.text) == ["fresh", "just copied", "older copied"])
     }
 
     @Test
@@ -117,5 +117,88 @@ struct PromptCueCoreTests {
             • screenshot attached
             """
         )
+    }
+
+    @Test
+    func exportFormatterLeavesOutputUnchangedWhenSuffixIsOff() {
+        let cards = [
+            CaptureCard(text: "mobile layout broken", createdAt: .now),
+            CaptureCard(text: "auth redirect incorrect", createdAt: .now),
+        ]
+
+        let payload = ExportFormatter.string(for: cards, suffix: .off)
+
+        #expect(
+            payload == """
+            • mobile layout broken
+            • auth redirect incorrect
+            """
+        )
+    }
+
+    @Test
+    func exportFormatterAppendsSuffixExactlyOnceAfterBlankLine() {
+        let cards = [
+            CaptureCard(text: "mobile layout broken", createdAt: .now),
+            CaptureCard(text: "auth redirect incorrect", createdAt: .now),
+        ]
+
+        let payload = ExportFormatter.string(for: cards, suffix: ExportSuffix("Sent from Prompt Cue"))
+
+        #expect(
+            payload == """
+            • mobile layout broken
+            • auth redirect incorrect
+
+            Sent from Prompt Cue
+            """
+        )
+        #expect(cards.map(\.text) == ["mobile layout broken", "auth redirect incorrect"])
+    }
+
+    @Test
+    func exportFormatterTreatsBlankSuffixAsOff() {
+        let cards = [
+            CaptureCard(text: "mobile layout broken", createdAt: .now),
+        ]
+
+        let payload = ExportFormatter.string(for: cards, suffix: ExportSuffix(" \n \n "))
+
+        #expect(payload == "• mobile layout broken")
+    }
+
+    @Test
+    func exportFormatterNormalizesSuffixSurroundingNewlines() {
+        let cards = [
+            CaptureCard(text: "mobile layout broken", createdAt: .now),
+        ]
+
+        let payload = ExportFormatter.string(
+            for: cards,
+            suffix: ExportSuffix("\n\nFirst line\r\nSecond line\n\n")
+        )
+
+        #expect(
+            payload == """
+            • mobile layout broken
+
+            First line
+            Second line
+            """
+        )
+    }
+
+    @Test
+    func exportFormatterAppendsSuffixOnceForMultiCardExport() {
+        let cards = [
+            CaptureCard(text: "mobile layout broken", createdAt: .now),
+            CaptureCard(text: "auth redirect incorrect", createdAt: .now),
+            CaptureCard(text: "screenshot attached", createdAt: .now),
+        ]
+
+        let payload = ExportFormatter.string(for: cards, suffix: ExportSuffix("Sent from Prompt Cue"))
+
+        #expect(payload.components(separatedBy: "\n\n").count == 2)
+        #expect(payload.hasSuffix("Sent from Prompt Cue"))
     }
 }

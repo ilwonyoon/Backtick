@@ -1,10 +1,21 @@
-# Prompt Cue Execution PRD
+# Backtick Execution PRD
 
 ## Overview
 
-Prompt Cue is a native macOS utility app for developers working in AI-assisted coding loops. It provides a frictionless buffer for capturing thoughts while an LLM is working, then exporting those thoughts into the next prompt with minimal interruption.
+Backtick is a native macOS utility app for developers working in AI-assisted coding loops. It is an AI coding scratchpad and thought staging tool: capture what you notice now, stage it for action, then let it disappear.
 
-This document updates the product concept into an implementation-ready PRD. The core product remains the same, but the delivery shape is now explicit: Prompt Cue is a background macOS utility, not a note app, and not a macOS App Extension.
+This document updates the product concept into an implementation-ready PRD. The product definition is explicit:
+
+- user-facing product name: `Backtick`
+- current repository and code-facing names may still use `PromptCue`
+- product shape: background macOS utility
+- product category: AI coding scratchpad / thought staging tool
+- not a note-taking app
+- not a macOS App Extension
+
+Core product line:
+
+- `Capture now. Act today. Forget tomorrow.`
 
 ## Target User And Job To Be Done
 
@@ -27,15 +38,42 @@ This document updates the product concept into an implementation-ready PRD. The 
 
 1. Capture friction must be near zero.
 2. Export friction must be near zero.
-3. The product is ephemeral, not archival.
+3. The product is ephemeral by design, not archival.
 4. The interface should feel invisible until summoned.
 5. Native macOS behavior is more important than cross-platform reuse.
+6. Capture mode is for frictionless thought dumping, not polishing.
+7. Stack mode is for execution: compress thoughts into tasks, prompts, and next actions.
+8. AI belongs in Stack, not Capture.
+9. The product should help users act today and forget tomorrow.
+
+## Product Identity
+
+Backtick is not a notebook and not a personal knowledge base.
+
+Backtick is:
+
+- a fast scratchpad for AI-assisted coding work
+- a staging surface between noticing something and telling the AI what to do next
+- a temporary execution aid for prompts, bugs, tasks, and follow-ups
+
+Backtick is not:
+
+- a note archive
+- a writing tool
+- a documentation tool
+- a task manager with long-lived structure
+
+The mental model stays simple:
+
+- `Capture mode`: dump the thought now
+- `Stack mode`: decide what to do with it
+- then let old material disappear
 
 ## Architecture Decision
 
 ### Locked Decision
 
-Prompt Cue will be built as a native macOS utility app using a `SwiftUI + AppKit hybrid` stack.
+Backtick will be built as a native macOS utility app using a `SwiftUI + AppKit hybrid` stack.
 
 ### What It Is
 
@@ -49,6 +87,7 @@ Prompt Cue will be built as a native macOS utility app using a `SwiftUI + AppKit
 - Not a macOS App Extension
 - Not a Flutter-first desktop shell
 - Not a general-purpose note-taking app
+- Not a long-term memory product
 
 ### Why Not App Extension
 
@@ -56,7 +95,7 @@ The product needs a persistent process, global shortcuts, local persistence, men
 
 ### Why Not Flutter-First
 
-Flutter can ship a macOS desktop app, but Prompt Cue's hardest problems are macOS-native:
+Flutter can ship a macOS desktop app, but Backtick's hardest problems are macOS-native:
 
 - global shortcuts
 - panel window behavior
@@ -80,6 +119,53 @@ The intended feel is closer to Alfred and Raycast than to Apple Notes.
 - Status bar presence is secondary, not primary.
 - Privacy-sensitive behavior like screenshot access and retention must be explicit.
 
+## Mode Definitions
+
+### Capture Mode
+
+Capture mode is a frictionless thought dump.
+
+Rules:
+
+- open instantly
+- type immediately
+- do not ask the user to organize
+- do not ask the user to think in prompt structure yet
+- avoid AI behavior, summarization, or transformation inside capture
+
+Capture mode should feel like:
+
+- a temporary mental landing pad
+- one fast thought at a time
+- low-chrome and low-commitment
+
+### Stack Mode
+
+Stack mode is an execution queue.
+
+Rules:
+
+- turn raw observations into the next useful export
+- support compression into tasks, prompts, grouped clipboard payloads, and action bundles
+- allow users to review, prioritize, copy, and discard
+- this is the right place for AI-adjacent assistance, formatting, and export shaping
+
+Principle:
+
+- AI belongs in Stack, not Capture
+
+### Long Card Rule
+
+Stack cards should remain scannable even when the saved text is unusually long.
+
+Rules:
+
+- default card height must be capped
+- very long cards should not blow out the stack layout
+- overflow should remain understandable
+- users should be able to read the full card on demand without turning Stack into a document reader
+- copied-stack summaries should obey the same overflow rules and stay visually stable
+
 ## Functional Scope
 
 ### MVP
@@ -92,12 +178,15 @@ The intended feel is closer to Alfred and Raycast than to Apple Notes.
 - Single-card click-to-copy
 - Multi-card selection and grouped clipboard export
 - Optional screenshot attachment when a recent screenshot is detected
-- Local-only storage with automatic expiration
+- Local-only storage with optional automatic expiration
+- Capture mode remains raw and unstructured
+- Stack mode remains the place where export shaping happens
+- Stack cards cap default height and expose overflow deliberately instead of expanding without limit
 
 ### Post-MVP
 
 - Configurable screenshot folder
-- Configurable TTL
+- Configurable auto-expiration
 - Launch at login
 - Keyboard navigation across cards
 - Better copy formatting modes
@@ -112,6 +201,7 @@ The intended feel is closer to Alfred and Raycast than to Apple Notes.
 - Project/task management
 - Rich document editing
 - Cross-platform parity in v1
+- Long-term note retention or archival organization
 
 ## Technical Architecture
 
@@ -174,8 +264,9 @@ Screenshot auto-attach must be designed around a user-approved folder. The app s
 - No cloud dependency in MVP
 - No background scraping of arbitrary folders
 - Screenshot access should be folder-scoped and user-controlled
-- Retention is intentionally short to reduce sensitive data accumulation
+- Retention is user-controlled; auto-expiration is available but disabled by default
 - Sensitive behavior should be surfaced in settings, not hidden
+- Temporary material should be easy to forget and safe to discard
 
 ## Distribution Strategy
 
@@ -213,6 +304,7 @@ The App Sandbox introduces extra complexity around screenshot folder access and 
 - Percentage of saved cards later exported to clipboard
 - Number of prompt cycles supported per day
 - Retention without card accumulation becoming clutter
+- Evidence that capture stays raw while Stack drives action
 
 ## MVP Acceptance Criteria
 
@@ -221,8 +313,11 @@ The App Sandbox introduces extra complexity around screenshot folder access and 
 - User can summon the stack with the configured global shortcut and see newest cards first.
 - User can click a card to copy it immediately.
 - User can select multiple cards and copy a grouped payload.
-- Cards expire automatically after the configured TTL without manual cleanup.
+- When auto-expiration is enabled, cards expire automatically after the configured TTL without manual cleanup.
 - Screenshot attachment behavior is deterministic and understandable.
+- Capture mode does not require titles, tags, folders, or prompt formatting.
+- Stack mode is the place where saved thoughts become exportable execution material.
+- Very long cards do not break stack layout; overflow remains readable and discoverable.
 
 ## Technical Risks
 

@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct CardStackView: View {
@@ -8,6 +7,10 @@ struct CardStackView: View {
     let onCopySelection: () -> Void
     let onDeleteCard: (CaptureCard) -> Void
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
+    @State private var stackBackdropDensity = 4.0
+    @State private var stackBackdropGrayscale = 2.0
+
+    private let stackBackdropDebugEnabled = ProcessInfo.processInfo.environment["BACKTICK_STACK_BLUR_DEBUG"] == "1"
 
     var body: some View {
         ZStack {
@@ -21,6 +24,10 @@ struct CardStackView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
+                            if stackBackdropDebugEnabled {
+                                stackBackdropDebugCard
+                            }
+
                             if !activeCards.isEmpty {
                                 ForEach(activeCards) { card in
                                     cardRow(for: card)
@@ -32,13 +39,16 @@ struct CardStackView: View {
                             }
                         }
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
+                        .frame(width: AppUIConstants.stackCardColumnWidth, alignment: .trailing)
                     }
                     .scrollIndicators(.hidden)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
             .padding(.horizontal, PrimitiveTokens.Space.sm)
             .padding(.top, PrimitiveTokens.Space.sm)
             .padding(.bottom, PrimitiveTokens.Space.md)
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 
@@ -79,6 +89,7 @@ struct CardStackView: View {
             }
             .buttonStyle(.plain)
         }
+        .frame(width: AppUIConstants.stackCardColumnWidth, alignment: .trailing)
     }
 
     private var emptyState: some View {
@@ -90,6 +101,7 @@ struct CardStackView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: PrimitiveTokens.Size.thumbnailHeight)
         }
+        .frame(width: AppUIConstants.stackCardColumnWidth, alignment: .trailing)
     }
 
     private var activeCards: [CaptureCard] {
@@ -167,7 +179,7 @@ struct CardStackView: View {
                         .zIndex(Double(-index))
                 }
 
-                CardSurface(style: .notification) {
+                StackNotificationCardSurface {
                     VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                         HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
                             Text("Copied")
@@ -246,65 +258,46 @@ struct CardStackView: View {
     }
 
     private var stackBackdrop: some View {
-        Group {
-            if colorScheme == .light {
-                VisualEffectBackdrop(material: .sidebar)
-                    .overlay {
-                        Rectangle()
-                            .fill(SemanticTokens.Surface.stackPanelBackdropTint)
+        StackPanelBackdrop(
+            densityScale: stackBackdropDensity,
+            grayscaleBias: stackBackdropGrayscale
+        )
+    }
+
+    private var stackBackdropDebugCard: some View {
+        StackNotificationCardSurface {
+            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.sm) {
+                HStack {
+                    Text("Backdrop Blur Debug")
+                        .font(PrimitiveTokens.Typography.metaStrong)
+                        .foregroundStyle(SemanticTokens.Text.primary)
+
+                    Spacer(minLength: PrimitiveTokens.Space.sm)
+
+                    Text(String(format: "%.2fx", stackBackdropDensity))
+                        .font(PrimitiveTokens.Typography.meta)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                }
+
+                Slider(value: $stackBackdropDensity, in: 0.1 ... 4.0, step: 0.05)
+
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
+                    HStack {
+                        Text("Gray")
+                        Spacer(minLength: PrimitiveTokens.Space.sm)
+                        Text("White")
                     }
-                    .overlay {
-                        LinearGradient(
-                            colors: [
-                                SemanticTokens.Surface.stackPanelGradientTop,
-                                SemanticTokens.Surface.stackPanelBackdropTint.opacity(PrimitiveTokens.Opacity.medium),
-                                SemanticTokens.Surface.stackPanelGradientBottom,
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    }
-                    .overlay(alignment: .leading) {
-                        LinearGradient(
-                            colors: [
-                                SemanticTokens.Surface.stackPanelBackdropTint.opacity(0.92),
-                                SemanticTokens.Surface.stackPanelBackdropTint.opacity(0.72),
-                                .clear,
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                        .frame(width: PrimitiveTokens.Space.xxl * 2.5)
-                    }
-            } else {
-                VisualEffectBackdrop(material: .hudWindow)
-                    .overlay {
-                        LinearGradient(
-                            colors: [
-                                .clear,
-                                Color.black.opacity(0.02),
-                                Color.black.opacity(0.06),
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    }
-                    .mask {
-                        LinearGradient(
-                            stops: [
-                                .init(color: .clear, location: 0),
-                                .init(color: .white.opacity(0.10), location: 0.18),
-                                .init(color: .white.opacity(0.42), location: 0.46),
-                                .init(color: .white.opacity(0.92), location: 0.78),
-                                .init(color: .white, location: 1),
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    }
+                    .font(PrimitiveTokens.Typography.meta)
+                    .foregroundStyle(SemanticTokens.Text.secondary)
+
+                    Slider(value: $stackBackdropGrayscale, in: 0 ... 2, step: 0.02)
+                }
+
+                Text("Adjust density live without changing card styling.")
+                    .font(PrimitiveTokens.Typography.meta)
+                    .foregroundStyle(SemanticTokens.Text.secondary)
             }
         }
-        .ignoresSafeArea()
     }
 
     private var copiedPreviewTextColor: Color {

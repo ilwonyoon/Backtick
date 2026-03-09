@@ -6,11 +6,15 @@ final class AppCoordinator {
     private let model = AppModel()
     private let hotKeyCenter = HotKeyCenter()
     private let screenshotSettingsModel = ScreenshotSettingsModel()
+    private let exportTailSettingsModel = PromptExportTailSettingsModel()
+    private let retentionSettingsModel = CardRetentionSettingsModel()
     private lazy var capturePanelController = CapturePanelController(model: model)
     private lazy var stackPanelController = StackPanelController(model: model)
     private lazy var designSystemWindowController = DesignSystemWindowController()
     private lazy var settingsWindowController = SettingsWindowController(
-        screenshotSettingsModel: screenshotSettingsModel
+        screenshotSettingsModel: screenshotSettingsModel,
+        exportTailSettingsModel: exportTailSettingsModel,
+        retentionSettingsModel: retentionSettingsModel
     )
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?

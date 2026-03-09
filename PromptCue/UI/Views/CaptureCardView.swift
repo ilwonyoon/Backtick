@@ -14,10 +14,9 @@ struct CaptureCardView: View {
     @State private var isShowingCopyFeedback = false
 
     var body: some View {
-        CardSurface(
+        StackNotificationCardSurface(
             isSelected: isSelected,
-            isEmphasized: isCardHovered || isCopyHovered || isDeleteHovered || isShowingCopyFeedback,
-            style: .notification
+            isEmphasized: isCardHovered || isCopyHovered || isDeleteHovered || isShowingCopyFeedback
         ) {
             ZStack(alignment: .topTrailing) {
                 VStack(alignment: .leading, spacing: contentSpacing) {

@@ -1,4 +1,4 @@
-# Prompt Cue Agent Guide
+# Backtick Agent Guide
 
 ## Purpose
 
@@ -6,12 +6,18 @@ This repository defaults to fast, high-quality execution with explicit coordinat
 
 ## Product Context
 
-- Product: `Prompt Cue`
+- Product: `Backtick`
 - Shape: native macOS utility app
 - App stack: `SwiftUI + AppKit hybrid`
 - Distribution baseline: Gumroad-backed direct download first
 - Compatibility lane: Mac App Store later
 - Core shared logic: `PromptCueCore`
+
+Brand note:
+
+- user-facing product identity is `Backtick`
+- current repo name, app target, and core module remain `PromptCue` / `PromptCueCore` for now
+- treat those code-facing names as temporary technical identifiers, not product-direction cues
 
 Source-of-truth docs:
 
@@ -47,6 +53,11 @@ Before editing:
 
 - identify the smallest useful outcome
 - check source-of-truth docs first
+- judge proposals against `Backtick` as an AI coding scratchpad / thought staging tool, not a note app
+- preserve the core interaction model:
+  - Capture = frictionless dump
+  - Stack = execution queue
+  - AI compression happens in Stack, not in Capture
 - define ownership boundaries if more than one agent will edit
 - freeze shared contracts before parallel implementation
 
@@ -140,8 +151,10 @@ Changes in these areas should usually stay master-owned or be reviewed by the ma
 
 ## UI Restraint Rule
 
-- Preserve Prompt Cue's minimal, less invasive, Spotlight-first, and quiet ambient behavior.
+- Preserve Backtick's minimal, less invasive, Spotlight-first, and quiet ambient behavior.
 - Do not add verbose UI chrome, helper copy, subtitles, status rows, or redundant cues unless they resolve a real ambiguity, permission block, error, or destructive consequence.
+- Keep Capture optimized for a frictionless dump, not drafting or organization.
+- Keep Stack optimized as an execution queue where grouping, export, and AI compression can happen without polluting capture.
 - Apply a subtraction test to capture UI changes: if the panel still works after removing a new element, keep it out.
 
 ## Output Standard

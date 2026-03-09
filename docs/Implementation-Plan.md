@@ -1,6 +1,14 @@
-# Prompt Cue Implementation Plan
+# Backtick Implementation Plan
 
 ## Current State
+
+- Product identity is `Backtick`.
+- Current repo name, app target, and core module remain `PromptCue` / `PromptCueCore` for now.
+- Planning decisions should be judged against Backtick as an AI coding scratchpad / thought staging tool, not a note app.
+- Core interaction model:
+  - Capture = frictionless dump
+  - Stack = execution queue
+  - AI compression happens in Stack
 
 - Architecture direction is fixed: `native macOS utility app`, not `App Extension`.
 - UI stack is fixed: `SwiftUI + AppKit hybrid`.
@@ -32,6 +40,8 @@ The immediate implementation slice is:
 
 - `Phase R6: stack sync and light-mode readability`
 - `Phase R7: capture input system hardening`
+- queued next: `Phase R8: AI Export Tail / Prompt Suffix`
+- queued after that: `Phase R9: stack card overflow and hover expansion`
 
 This slice exists because the app currently has a user-visible mismatch between:
 
@@ -45,7 +55,14 @@ That means current work is prioritized in this order:
 2. keep `AppModel` as the source of truth for stack presentation during normal interaction
 3. rework light-mode stack veil and card separation
 4. rebuild the capture input around an AppKit-owned sizing model
-5. then return to grouped export validation and broader release verification
+5. add `AI Export Tail / Prompt Suffix` as an export-time-only setting and formatter slice
+6. then return to grouped export validation and broader release verification
+
+All work in this slice should preserve the product model:
+
+- Capture stays optimized for fast dumping of raw thoughts
+- Stack owns ordering, grouping, export, and AI-facing compression
+- proposals that turn Capture into a note surface should be rejected
 
 Progress on this slice:
 
@@ -68,8 +85,66 @@ That remediation lane is now authoritative for:
 - screenshot attachment ownership and cleanup
 - explicit screenshot folder access and bookmark persistence
 - clipboard reliability for image + text export
+- `AI Export Tail / Prompt Suffix` settings, export-only append behavior, and test coverage
 - design-system reconciliation and reuse cleanup
 - app-level verification expansion
+
+## Queued Next Slice
+
+The next planned remediation slice after `Phase R7` is:
+
+- `Phase R8: AI Export Tail / Prompt Suffix`
+
+This slice exists to add a user-controlled export suffix without polluting stored cue content or capture UI.
+
+Backtick rule for this slice:
+
+- the suffix is export-time compression/output polish
+- it must not turn Capture into a templated note surface
+
+Planned scope:
+
+1. add Settings controls for:
+   - enable/disable toggle
+   - multiline suffix text
+2. append the suffix only at export time
+3. keep stored cards unchanged in persistence and stack rendering
+4. add formatter and app-level regression coverage before UI polish
+
+Planned integration order:
+
+1. freeze the export-tail contract and settings storage shape
+2. update export formatter / clipboard composition path
+3. wire Settings UI and state
+4. add regression tests for enabled, disabled, empty, and multiline behavior
+
+After `Phase R8`, the next planned slice is:
+
+- `Phase R9: stack card overflow and hover expansion`
+
+This slice exists because very long cue content currently turns Stack into a layout outlier instead of a stable execution queue.
+
+Backtick rule for this slice:
+
+- Stack should reveal that a card is long without letting one card dominate the queue by default
+- expansion should feel temporary and lightweight, not like opening a document
+
+Planned scope:
+
+1. define one default max resting card height for active and copied-stack cards
+   - initial target: text-only cards expose roughly `3-4` lines at rest
+2. define one overflow affordance that communicates remaining hidden text
+3. add hover or focus expansion that reveals more text without destabilizing surrounding layout
+   - initial target: reveal roughly `6-8` lines before any deeper interaction
+4. keep copied-stack collapsed summaries visually stable even when the first card is very long
+5. add QA fixtures for short, medium, very long, and screenshot-plus-text cards
+
+Planned integration order:
+
+1. freeze card overflow metrics and interaction rules
+2. update active stack cards
+3. update collapsed copied-stack summaries
+4. add automated visual/behavior verification for long-card fixtures
 
 ## Phase 0: Research And Decisions
 
@@ -134,7 +209,7 @@ Ship the fastest path from hotkey to saved card.
 | --- | --- | --- | --- | --- | --- |
 | Implement global shortcut registration for quick capture and stack toggle | Platform lead | Phase 1 contracts | Yes | Hotkeys fire reliably from any app | In progress |
 | Implement capture panel controller and panel positioning | Windowing lead | Phase 1 contracts | Yes | Panel opens in the intended edge position and accepts focus | In progress |
-| Implement capture composer UI with `Enter` submit and `Esc` cancel | UI lead | Capture panel controller | Yes | User can create a note in under 2 seconds | In progress |
+| Implement capture composer UI with `Enter` submit and `Esc` cancel | UI lead | Capture panel controller | Yes | User can dump a thought in under 2 seconds | In progress |
 | Implement card persistence with TTL cleanup | Data lead | Storage abstraction | Yes | Cards survive relaunch and expired cards are removed | In progress |
 | Implement screenshot lookup/attachment for recent screenshots | Platform lead | Screenshot abstraction | Yes | Recent screenshot attaches automatically when eligible | In progress |
 | Wire model actions: create card, clear draft, reset screenshot state | App state lead | Persistence and screenshot support | No | Capture flow is end-to-end functional | In progress |
@@ -156,7 +231,7 @@ Ship the fastest path from hotkey to saved card.
 
 ### Goal
 
-Make stored thoughts easy to review and export without slowing the workflow.
+Make stored thoughts easy to review, compress, and export from the execution queue without slowing the workflow.
 
 ### Tasks
 
@@ -168,6 +243,11 @@ Make stored thoughts easy to review and export without slowing the workflow.
 | Implement single-card click-to-copy behavior | UX lead | Card stack UI | Yes | Clicking a card copies its payload immediately | In progress |
 | Implement multi-select and grouped clipboard export | UX lead | Card stack UI | Yes | Multiple selected cards copy in display order | In progress |
 | Implement delete/expiry refresh behavior in the stack | App state lead | Persistence | Yes | Stack reflects deletions and TTL cleanup without stale state | In progress |
+
+Backtick judgment rule for this phase:
+
+- Stack can add grouping, selection, and AI compression affordances
+- Capture should not accumulate note-taking features that belong in Stack
 
 ### Parallel Tracks
 

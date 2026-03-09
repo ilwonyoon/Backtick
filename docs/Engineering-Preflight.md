@@ -1,16 +1,18 @@
-# Prompt Cue Engineering Preflight
+# Backtick Engineering Preflight
 
 ## Purpose
 
-This document defines the setup and release baseline that should be in place before Prompt Cue moves into full implementation. The goal is to avoid late-stage churn around signing, permissions, packaging, and distribution.
+This document defines the setup and release baseline that should be in place before Backtick moves into full implementation. The goal is to avoid late-stage churn around signing, permissions, packaging, and distribution.
 
-Prompt Cue is a native macOS utility app with:
+Backtick is a native macOS utility app with:
 
-- user-facing name: `Prompt Cue`
+- user-facing name: `Backtick`
 - code-facing app target name: `PromptCue`
 - code-facing core module name: `PromptCueCore`
 - primary release lane: direct distribution through Gumroad
 - secondary release lane: Mac App Store compatibility later
+
+For now, keep `PromptCue` and `PromptCueCore` as technical names in the repo and Xcode project. Product and planning language should use `Backtick`.
 
 ## 1. Product And Platform Baseline
 
@@ -29,6 +31,9 @@ Prompt Cue is a native macOS utility app with:
 - `Enter` saves
 - `Esc` dismisses
 - One card equals one thought
+- Capture is a frictionless dump, not a note editor
+- Stack is an execution queue, not an archive
+- AI compression happens in Stack, not in Capture
 - Export is clipboard-first, not terminal-integrated
 
 ## 2. Repository And Project Setup
@@ -67,7 +72,7 @@ Prompt Cue is a native macOS utility app with:
 
 ### Naming Rules
 
-- Product name: `Prompt Cue`
+- Product name: `Backtick`
 - App target: `PromptCue`
 - Core package: `PromptCueCore`
 - Bundle identifiers should be stable and lowercase
@@ -76,7 +81,7 @@ Prompt Cue is a native macOS utility app with:
 
 - main app: `com.promptcue.promptcue`
 - login item helper, if added later: `com.promptcue.promptcue.launcher`
-- App Store SKU and Gumroad listing names should also use `Prompt Cue`
+- App Store SKU and Gumroad listing names should use `Backtick`
 
 ### Versioning
 
@@ -226,6 +231,7 @@ Do not let direct-distribution shortcuts make the app architecture impossible to
 - `Enter` submits
 - `Esc` dismisses
 - optionally shows a pending screenshot thumbnail
+- behaves like a fast scratchpad entry point, not like a composed note surface
 
 ### Stack Panel
 
@@ -234,6 +240,7 @@ Do not let direct-distribution shortcuts make the app architecture impossible to
 - newest cards first
 - single click copies
 - multi-select should not feel modal or heavy
+- acts as the execution queue where selection, export grouping, and AI compression can happen
 
 ### Windowing Checklist
 
@@ -314,7 +321,7 @@ Do not let direct-distribution shortcuts make the app architecture impossible to
   - stack open
   - relaunch persistence
 
-### Test Pyramid For Prompt Cue
+### Test Pyramid For Backtick
 
 - package tests
   - draft validation
@@ -373,7 +380,7 @@ Do not let direct-distribution shortcuts make the app architecture impossible to
 
 ### DMG Expectations
 
-- app icon and branding match Prompt Cue
+- app icon and branding match Backtick
 - `/Applications` shortcut included
 - drag-to-install layout is obvious
 - background is lightweight and not distracting
@@ -405,7 +412,7 @@ Start simple:
 
 ### Why
 
-- Prompt Cue is a utility tool
+- Backtick is a utility tool
 - friction at install or launch directly fights the product promise
 - early users are better served by easy access than DRM
 
@@ -420,7 +427,7 @@ Start simple:
 
 ### Treat As A Separate Lane
 
-The App Store should not be the first ship target for Prompt Cue. It should be planned as a compatibility lane with its own acceptance checklist.
+The App Store should not be the first ship target for Backtick. It should be planned as a compatibility lane with its own acceptance checklist.
 
 ### Main Constraint Areas
 
@@ -477,7 +484,7 @@ The App Store should not be the first ship target for Prompt Cue. It should be p
 
 Before serious feature implementation, confirm all of the following:
 
-- app name is `Prompt Cue` everywhere user-facing
+- app name is `Backtick` everywhere user-facing
 - bundle identifier strategy is locked
 - Apple team and signing identities are available
 - XcodeGen is the source of truth for project generation

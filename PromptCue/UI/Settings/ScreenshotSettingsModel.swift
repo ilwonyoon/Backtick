@@ -19,7 +19,7 @@ final class ScreenshotSettingsModel: ObservableObject {
 
     @discardableResult
     func chooseFolder(
-        message: String = "Choose the folder Prompt Cue should watch for recent screenshots."
+        message: String = "Choose the folder Backtick should watch for recent screenshots."
     ) -> Bool {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false

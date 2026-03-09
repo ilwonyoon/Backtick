@@ -1,10 +1,10 @@
-# Prompt Cue Input System Remediation
+# Backtick Input System Remediation
 
 ## Purpose
 
 This document defines the diagnosis and remediation plan for the capture input box.
 
-The current input works for simple typing, but it is not yet engineered for the real workload Prompt Cue needs to support:
+The current input works for simple typing, but it is not yet engineered for the real workload Backtick needs to support:
 
 - slow manual typing
 - rapid typing bursts
@@ -13,7 +13,14 @@ The current input works for simple typing, but it is not yet engineered for the 
 - placeholder + screenshot slot layout changes
 - expansion into internal scrolling without visual jump
 
-The goal is not just to patch visible glitches. The goal is to give Prompt Cue a durable input architecture.
+The goal is not just to patch visible glitches. The goal is to give Backtick a durable input architecture.
+
+Identity note:
+
+- user-facing product identity is `Backtick`
+- current repo/app target/core module names remain `PromptCue` / `PromptCueCore` for now
+- Capture is a frictionless dump surface, not a note editor
+- Stack is the execution queue where AI compression can happen
 
 ## Current Symptoms
 
@@ -64,7 +71,7 @@ The latest fixes added more inset and a bottom breathing-room constant, but thos
 
 That means bottom padding is still not a separate visual guarantee. It only appears after the outer frame has consumed the new measured height. When the second line first appears, the text can still render before the shell has fully claimed the extra space.
 
-For Prompt Cue, these need to be separate values:
+For Backtick, these need to be separate values:
 
 - text content height
 - visible editor height
@@ -150,7 +157,7 @@ Paste should be treated as a transaction with:
 
 ## Input Quality Bar
 
-Prompt Cue should treat the capture editor as a first-class system component.
+Backtick should treat the capture editor as a first-class system component.
 
 The input box should support all of these reliably:
 
@@ -244,7 +251,7 @@ The editor host should know:
 
 The text view should enable undo and preserve selection/caret state through external model sync.
 
-Prompt Cue is small, but users still expect paste, undo, and rapid correction to behave like a real native editor.
+Backtick is small, but users still expect paste, undo, and rapid correction to behave like a real native editor.
 
 ## Proposed Implementation Plan
 
@@ -338,7 +345,7 @@ Define a stable model for the editor before more polish lands.
 
 ## QA Automation
 
-Prompt Cue now has a local capture-input QA harness:
+Backtick now has a local capture-input QA harness:
 
 - [qa_capture_input.sh](/Users/ilwonyoon/Documents/PromptCue/scripts/qa_capture_input.sh)
 
@@ -472,9 +479,10 @@ The harness does not change app behavior by itself. It launches the app with the
 The script will:
 
 1. locate a local Debug build of `Prompt Cue.app` unless `--app` is provided
+   - current debug bundle name may still be `Prompt Cue.app` until the app target rename is completed
 2. create a timestamped output folder under `/tmp/promptcue-qa/capture-input/`
 3. create a sample multiline draft file unless `--draft-file` is provided
-4. launch Prompt Cue with stdout and stderr redirected into that run folder
+4. launch the current app bundle with stdout and stderr redirected into that run folder
 5. wait for the requested settle time
 6. capture a full-screen screenshot
 7. print a concise summary with paths to the screenshot, logs, and metadata
@@ -488,6 +496,7 @@ scripts/qa_capture_input.sh --wait 3.0
 Useful options:
 
 - `--app /path/to/Prompt Cue.app`
+  - current technical bundle name example, even though the product identity is `Backtick`
 - `--draft-file /path/to/draft.txt`
 - `--out-dir /tmp/promptcue-qa/manual-run`
 - `--keep-running`

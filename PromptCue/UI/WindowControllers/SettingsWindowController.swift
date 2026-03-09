@@ -5,15 +5,25 @@ import SwiftUI
 final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private let screenshotSettingsModel: ScreenshotSettingsModel
+    private let exportTailSettingsModel: PromptExportTailSettingsModel
+    private let retentionSettingsModel: CardRetentionSettingsModel
 
-    init(screenshotSettingsModel: ScreenshotSettingsModel) {
+    init(
+        screenshotSettingsModel: ScreenshotSettingsModel,
+        exportTailSettingsModel: PromptExportTailSettingsModel,
+        retentionSettingsModel: CardRetentionSettingsModel
+    ) {
         self.screenshotSettingsModel = screenshotSettingsModel
+        self.exportTailSettingsModel = exportTailSettingsModel
+        self.retentionSettingsModel = retentionSettingsModel
         super.init()
     }
 
     func show() {
         let window = window ?? makeWindow()
         screenshotSettingsModel.refresh()
+        exportTailSettingsModel.refresh()
+        retentionSettingsModel.refresh()
         window.setContentSize(
             NSSize(
                 width: AppUIConstants.settingsPanelWidth,
@@ -39,9 +49,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             defer: false
         )
 
-        window.title = "Prompt Cue Settings"
+        window.title = "Backtick Settings"
         window.titlebarAppearsTransparent = false
+        window.toolbarStyle = .preference
         window.isReleasedWhenClosed = false
+        window.tabbingMode = .disallowed
         window.center()
         window.minSize = NSSize(
             width: AppUIConstants.settingsPanelWidth,
@@ -49,7 +61,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         )
         window.delegate = self
         window.contentViewController = NSHostingController(
-            rootView: PromptCueSettingsView(screenshotSettingsModel: screenshotSettingsModel)
+            rootView: PromptCueSettingsView(
+                screenshotSettingsModel: screenshotSettingsModel,
+                exportTailSettingsModel: exportTailSettingsModel,
+                retentionSettingsModel: retentionSettingsModel
+            )
         )
 
         self.window = window
