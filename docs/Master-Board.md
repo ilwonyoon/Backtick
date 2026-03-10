@@ -45,6 +45,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Capture input system hardening | In progress | `Phase R7A` contract lock and QA harness are complete; `Phase R7B` now rewrites the live capture panel around an AppKit-owned sizing host |
 | AI Export Tail / Prompt Suffix | Planned | export-time-only suffix append with Settings toggle, multiline text, and regression coverage |
 | Stack card overflow and click expansion | In progress | long cards need capped resting height, `+N lines` affordance, click-to-expand, and stable copied-stack behavior |
+| Backtick MCP lane | Planned | additive execution-map lane with separate work-item contracts, storage, and merge strategy in `docs/Backtick-MCP-Execution-Plan.md` |
 | Design-system architecture alignment | In progress in strategy branch | `docs/Design-System-Architecture-Proposal.md` defines a five-layer model that preserves runtime and pattern ownership |
 | Design-system execution planning | In progress in strategy branch | `docs/Design-System-Execution-Plan.md` breaks the strategy into DS1-DS5; DS1, DS2, and DS3 are implemented, DS4 has started, and DS5 remains pending |
 
@@ -84,6 +85,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 8. DMG packaging, Gumroad release prep, and MAS compatibility review
 9. Continue design-system strategy execution in the strategy branch: finish DS3, expand DS4 conservatively, then run DS5 native-alignment pass
 10. Run the bounded capture/stack polish lane: `DP0 -> DP4`, with review packets per slice
+11. Land the Backtick MCP lane as additive, flag-gated slices from `origin/main` according to `docs/Backtick-MCP-Execution-Plan.md`
 
 ## Remediation Merge Order
 

@@ -24,6 +24,7 @@
 - A current-main-aligned design-system boundary proposal now exists in `docs/Design-System-Architecture-Proposal.md`.
 - A design-system execution document now exists in `docs/Design-System-Execution-Plan.md`.
 - A bounded capture/stack design-polish plan now exists in `docs/Design-Polish-Execution-Plan.md`.
+- A dedicated Backtick MCP execution document now exists in `docs/Backtick-MCP-Execution-Plan.md`.
 - `Phase DS1`, `Phase DS2`, and `Phase DS3` are now implemented in the design-system strategy branch, and `Phase DS4` has started where reuse is already proven.
 - a dedicated performance remediation lane now exists in `docs/Performance-Remediation-Plan.md`
 
@@ -43,6 +44,7 @@
 | Phase DS3 | Pattern recipe centralization | Completed in strategy branch | Capture shell chrome, stack card chrome, copied-stack recipe, and stack backdrop recipe now live in owner files |
 | Phase DS4 | Reusable surface rationalization | In progress in strategy branch | Shared notification-card chrome and top-edge highlight helpers are now extracted where reuse is proven; broader reusable-surface cleanup is still pending |
 | Phase DP | Capture and stack design polish | In progress | `DP0` review lock is complete; `DP1` capture elevation and `DP2` stack brightness are now in implementation with review still pending |
+| Phase MCP | Backtick MCP execution layer | Planned | Land as additive, flag-gated slices from `origin/main`; see `docs/Backtick-MCP-Execution-Plan.md` |
 
 ## Current Hot Slice
 
@@ -127,6 +129,22 @@ Design-system rule for all future polish work:
 - generic tokenization must not collapse runtime-owned AppKit behavior or Backtick-specific pattern surfaces
 - visual polish must follow the review gates in `docs/Design-Polish-Execution-Plan.md`, not ad hoc local tuning
 - `Phase DP0` is now complete in docs; the first code slice should be `DP1` capture elevation with master-owned token changes
+
+## Strategic Lane: Backtick MCP
+
+Backtick MCP is now tracked as its own structural lane in:
+
+- `docs/Backtick-MCP-Execution-Plan.md`
+
+This lane is intentionally separate from the current capture/stack remediation slice because it introduces derived execution objects and a new execution surface, not just a polish or remediation change.
+
+Rule for this lane:
+
+- keep raw capture and Stack behavior stable
+- add MCP as a separate derived layer
+- merge the lane in small, flag-gated slices instead of one long-running PR
+
+Recommended merge order for this lane lives in `docs/Backtick-MCP-Execution-Plan.md` and should be treated as authoritative for MCP work.
 
 ## Queued Next Slice
 
