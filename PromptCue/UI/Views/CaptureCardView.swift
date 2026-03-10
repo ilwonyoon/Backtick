@@ -1,8 +1,11 @@
+import AppKit
+import PromptCueCore
 import SwiftUI
 
 struct CaptureCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let card: CaptureCard
+    let classification: ContentClassification
     let isSelected: Bool
     let selectionMode: Bool
     let isExpanded: Bool
@@ -50,15 +53,19 @@ struct CaptureCardView: View {
                         .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }
 
-                    Text(card.text)
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(actionStyle.bodyColor)
-                        .multilineTextAlignment(.leading)
-                        .lineSpacing(PrimitiveTokens.Space.xxxs)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .frame(height: visibleTextHeight(for: overflowMetrics), alignment: .top)
-                        .clipped()
+                    InteractiveDetectedTextView(
+                        text: card.text,
+                        classification: classification,
+                        baseColor: actionStyle.bodyColor,
+                        onOpenDetected: openDetectedContent
+                    )
+                    .frame(height: visibleTextHeight(for: overflowMetrics), alignment: .top)
+                    .clipped()
+                    .accessibilityAddTraits(interactiveAccessibilityTraits)
+                    .accessibilityHint(interactiveAccessibilityHint)
+                    .accessibilityAction(named: interactiveAccessibilityActionName) {
+                        openDetectedContent()
+                    }
 
                     if overflowMetrics.overflowsAtRest {
                         overflowAffordance(metrics: overflowMetrics)
@@ -104,7 +111,7 @@ struct CaptureCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Cue: \(card.text)")
+            .accessibilityLabel("Cue: \(accessibleText)")
             .accessibilityAddTraits(isSelected ? .isSelected : [])
             .onTapGesture(perform: performPrimaryAction)
             .onHover { hovered in
@@ -112,6 +119,79 @@ struct CaptureCardView: View {
                     isCardHovered = hovered
                 }
             }
+        }
+    }
+
+    private func openDetectedContent() {
+        guard let span = classification.span else {
+            return
+        }
+
+        switch classification.primaryType {
+        case .link:
+            guard let url = URL(string: span.matchedText),
+                  let scheme = url.scheme?.lowercased(),
+                  ["http", "https"].contains(scheme) else {
+                return
+            }
+            Task { @MainActor in
+                NSWorkspace.shared.open(url)
+            }
+        case .path:
+            let expanded = NSString(string: span.matchedText).expandingTildeInPath
+            let resolved = URL(fileURLWithPath: expanded).standardized.path
+            let home = FileManager.default.homeDirectoryForCurrentUser.path
+            let allowedPrefixes = [home, "/tmp", "/Applications", "/usr/local", "/opt/homebrew", "/Library"]
+            guard allowedPrefixes.contains(where: { resolved.hasPrefix($0) }) else {
+                return
+            }
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: resolved, isDirectory: &isDir) {
+                if isDir.boolValue {
+                    Task { @MainActor in
+                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: resolved)
+                    }
+                } else {
+                    Task { @MainActor in
+                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: resolved)])
+                    }
+                }
+            } else {
+                NSSound.beep()
+            }
+        case .secret, .plain:
+            break
+        }
+    }
+
+    private var accessibleText: String {
+        if classification.primaryType == .secret, let span = classification.span {
+            return SecretMasker.mask(span.matchedText)
+        }
+        return card.text
+    }
+
+    private var interactiveAccessibilityTraits: AccessibilityTraits {
+        switch classification.primaryType {
+        case .link: return .isLink
+        case .path: return .isButton
+        default: return []
+        }
+    }
+
+    private var interactiveAccessibilityHint: String {
+        switch classification.primaryType {
+        case .link: return "Double tap to open link in browser"
+        case .path: return "Double tap to reveal in Finder"
+        default: return ""
+        }
+    }
+
+    private var interactiveAccessibilityActionName: String {
+        switch classification.primaryType {
+        case .link: return "Open link"
+        case .path: return "Reveal in Finder"
+        default: return "Open"
         }
     }
 

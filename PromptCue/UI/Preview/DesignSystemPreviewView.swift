@@ -418,6 +418,7 @@ struct DesignSystemPreviewView: View {
                 previewCard(title: "CaptureCardView") {
                     CaptureCardView(
                         card: sampleCard,
+                        classification: .plain,
                         isSelected: false,
                         selectionMode: false,
                         isExpanded: false,

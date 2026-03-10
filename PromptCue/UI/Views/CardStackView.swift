@@ -1,3 +1,4 @@
+import PromptCueCore
 import SwiftUI
 
 struct CardStackView: View {
@@ -8,10 +9,10 @@ struct CardStackView: View {
     let onDeleteCard: (CaptureCard) -> Void
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
     @State private var expandedCardIDs = Set<CaptureCard.ID>()
+    @State private var classificationCache: [CaptureCard.ID: ContentClassification] = [:]
+    @State private var sections = CardSections(active: [], copied: [])
 
     var body: some View {
-        let sections = partitionedCards(from: model.cards)
-
         ZStack {
             stackBackdrop
 
@@ -44,6 +45,15 @@ struct CardStackView: View {
             .padding(.top, PrimitiveTokens.Space.sm)
             .padding(.bottom, PrimitiveTokens.Space.md)
             .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .onAppear {
+            classificationCache = buildClassificationCache(for: model.cards)
+            sections = partitionedCards(from: model.cards)
+        }
+        .onChange(of: model.cards) { _, newCards in
+            let currentIDs = Set(newCards.map(\.id))
+            classificationCache = classificationCache.filter { currentIDs.contains($0.key) }
+            sections = partitionedCards(from: newCards)
         }
     }
 
@@ -109,6 +119,7 @@ struct CardStackView: View {
     private func cardRow(for card: CaptureCard) -> some View {
         CaptureCardView(
             card: card,
+            classification: resolveClassification(for: card),
             isSelected: model.selectedCardIDs.contains(card.id),
             selectionMode: selectionMode,
             isExpanded: expandedCardIDs.contains(card.id),
@@ -125,6 +136,22 @@ struct CardStackView: View {
                 onDeleteCard(card)
             }
         )
+    }
+
+    private func resolveClassification(for card: CaptureCard) -> ContentClassification {
+        if let cached = classificationCache[card.id] {
+            return cached
+        }
+        return ContentClassifier.classify(card.text)
+    }
+
+    private func buildClassificationCache(for cards: [CaptureCard]) -> [CaptureCard.ID: ContentClassification] {
+        var cache: [CaptureCard.ID: ContentClassification] = [:]
+        cache.reserveCapacity(cards.count)
+        for card in cards {
+            cache[card.id] = ContentClassifier.classify(card.text)
+        }
+        return cache
     }
 
     @ViewBuilder
@@ -190,7 +217,11 @@ struct CardStackView: View {
                         }
 
                         if let card = copiedCards.first {
-                            Text(card.text)
+                            let classification = resolveClassification(for: card)
+                            let displayText = classification.primaryType == .secret
+                                ? SecretMasker.mask(classification.span?.matchedText ?? card.text)
+                                : card.text
+                            Text(displayText)
                                 .font(PrimitiveTokens.Typography.body)
                                 .foregroundStyle(copiedPreviewTextColor)
                                 .lineLimit(StackCardOverflowPolicy.collapsedCopiedLineLimit)
