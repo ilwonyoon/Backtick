@@ -102,15 +102,22 @@ struct CaptureCardView: View {
                 .zIndex(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Cue: \(card.text)")
             .accessibilityAddTraits(isSelected ? .isSelected : [])
             .onTapGesture(perform: performPrimaryAction)
-            .onHover { hovered in
-                withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
-                    isCardHovered = hovered
-                }
+        }
+        .contentShape(Rectangle())
+        .onContinuousHover { phase in
+            let hovered: Bool
+            switch phase {
+            case .active:
+                hovered = true
+            case .ended:
+                hovered = false
+            }
+            withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
+                isCardHovered = hovered
             }
         }
     }
