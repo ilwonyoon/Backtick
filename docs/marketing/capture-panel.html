@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PromptCue – Capture Panel</title>
+<style>
+  /* ── Reset ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ── Primitive Tokens ── */
+  :root {
+    /* Font Sizes */
+    --font-capture: 17px;
+    --font-body: 15px;
+    --font-meta: 13px;
+    --font-micro: 11px;
+    --font-chip: 12px;
+    --font-accessory-icon: 14px;
+
+    /* Line Heights */
+    --lh-capture: 22px;
+    --lh-body: 20px;
+    --lh-meta: 18px;
+    --lh-micro: 14px;
+
+    /* Spacing */
+    --space-xxxs: 2px;
+    --space-xxs: 4px;
+    --space-xs: 8px;
+    --space-sm: 12px;
+    --space-md: 16px;
+    --space-lg: 20px;
+    --space-xl: 24px;
+    --space-xxl: 32px;
+
+    /* Radius */
+    --radius-sm: 12px;
+    --radius-md: 18px;
+    --radius-lg: 26px;
+    --radius-xl: 30px;
+
+    /* Opacity */
+    --opacity-faint: 0.12;
+    --opacity-subtle: 0.32;
+    --opacity-soft: 0.65;
+    --opacity-medium: 0.75;
+    --opacity-strong: 0.85;
+    --opacity-shell: 0.84;
+    --opacity-surface: 0.90;
+    --opacity-raised-surface: 0.92;
+
+    /* Stroke */
+    --stroke-subtle: 1px;
+    --stroke-emphasis: 1.5px;
+
+    /* Shadows – Capture */
+    --capture-ambient-opacity: 0.62;
+    --capture-ambient-blur: 28px;
+    --capture-ambient-y: 6px;
+    --capture-key-opacity: 0.52;
+    --capture-key-blur: 18px;
+    --capture-key-y: 12px;
+
+    /* Motion */
+    --motion-quick: 0.14s;
+    --motion-standard: 0.2s;
+
+    /* Panel Metrics */
+    --capture-panel-width: 448px;
+    --capture-surface-width: 400px;
+    --capture-surface-inner-padding: 24px;
+    --capture-surface-top-padding: 12px;
+    --capture-surface-bottom-padding: 4px;
+    --capture-panel-outer-padding: 24px;
+    --capture-panel-shadow-top-inset: 28px;
+    --capture-panel-shadow-bottom-inset: 42px;
+    --search-field-height: 70px;
+    --capture-attachment-preview-size: 72px;
+
+    /* Editor Metrics */
+    --editor-vertical-inset: 12px;
+    --editor-bottom-breathing: 8px;
+    --editor-max-height: 176px;
+    --editor-min-visible: 54px; /* 22 + 24 + 8 */
+
+    /* Sizes */
+    --icon-search: 28px;
+
+    /* ── Light Semantic Tokens ── */
+    --surface-capture-shell-fill: rgba(247, 247, 247, 0.92);
+    --surface-capture-shell-stroke: rgba(0, 0, 0, 0.10);
+    --surface-capture-shell-top-highlight: rgba(255, 255, 255, 0.80);
+    --surface-capture-screenshot-fill: rgba(255, 255, 255, 0.68);
+    --surface-capture-screenshot-border: rgba(0, 0, 0, 0.10);
+
+    --text-primary: rgba(0, 0, 0, 0.85);
+    --text-secondary: rgba(0, 0, 0, 0.50);
+    --text-accent: #007AFF;
+
+    --shadow-capture-ambient: rgba(0, 0, 0, 0.16);
+    --shadow-capture-key: rgba(0, 0, 0, 0.22);
+
+    --border-subtle: rgba(0, 0, 0, 0.08);
+  }
+
+  /* ── Dark Mode Tokens ── */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-capture-shell-fill: rgba(43, 43, 43, 0.94);
+      --surface-capture-shell-stroke: rgba(255, 255, 255, 0.08);
+      --surface-capture-shell-top-highlight: rgba(255, 255, 255, 0.05);
+      --surface-capture-screenshot-fill: rgba(255, 255, 255, 0.08);
+      --surface-capture-screenshot-border: rgba(255, 255, 255, 0.12);
+
+      --text-primary: rgba(255, 255, 255, 0.85);
+      --text-secondary: rgba(255, 255, 255, 0.55);
+      --text-accent: #0A84FF;
+
+      --shadow-capture-ambient: rgba(0, 0, 0, 0.28);
+      --shadow-capture-key: rgba(0, 0, 0, 0.36);
+
+      --border-subtle: rgba(255, 255, 255, 0.06);
+    }
+  }
+
+  /* ── Page ── */
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 60px 20px;
+    background: transparent;
+  }
+
+  /* ── Capture Panel Container ── */
+  .capture-panel {
+    width: var(--capture-panel-width);
+    padding-top: var(--capture-panel-shadow-top-inset);
+    padding-bottom: var(--capture-panel-shadow-bottom-inset);
+    padding-left: var(--capture-panel-outer-padding);
+    padding-right: var(--capture-panel-outer-padding);
+  }
+
+  /* ── Capture Shell (the glass surface) ── */
+  .capture-shell {
+    width: var(--capture-surface-width);
+    border-radius: var(--radius-lg);
+    background: var(--surface-capture-shell-fill);
+    backdrop-filter: blur(40px) saturate(1.6);
+    -webkit-backdrop-filter: blur(40px) saturate(1.6);
+    border: var(--stroke-subtle) solid var(--surface-capture-shell-stroke);
+    position: relative;
+    overflow: hidden;
+
+    /* Dual shadow: ambient + key */
+    box-shadow:
+      0 var(--capture-ambient-y) var(--capture-ambient-blur) rgba(0, 0, 0, calc(0.16 * var(--capture-ambient-opacity))),
+      0 var(--capture-key-y) var(--capture-key-blur) rgba(0, 0, 0, calc(0.22 * var(--capture-key-opacity)));
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .capture-shell {
+      box-shadow:
+        0 var(--capture-ambient-y) var(--capture-ambient-blur) rgba(0, 0, 0, calc(0.28 * var(--capture-ambient-opacity))),
+        0 var(--capture-key-y) var(--capture-key-blur) rgba(0, 0, 0, calc(0.36 * var(--capture-key-opacity)));
+    }
+  }
+
+  /* Top highlight */
+  .capture-shell::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--space-lg);
+    border-top: var(--stroke-subtle) solid var(--surface-capture-shell-top-highlight);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* ── Content Stack ── */
+  .capture-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding: var(--capture-surface-top-padding) var(--capture-surface-inner-padding) var(--capture-surface-bottom-padding);
+  }
+
+  /* ── Screenshot Preview ── */
+  .capture-screenshot {
+    width: var(--capture-attachment-preview-size);
+    height: var(--capture-attachment-preview-size);
+    border-radius: var(--radius-md);
+    background: var(--surface-capture-screenshot-fill);
+    border: 1px solid var(--surface-capture-screenshot-border);
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .capture-screenshot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+  }
+
+  .capture-screenshot .remove-btn {
+    position: absolute;
+    top: var(--space-xs);
+    right: var(--space-xs);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.35);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    backdrop-filter: blur(8px);
+    transition: background var(--motion-quick) ease-out;
+    z-index: 2;
+  }
+
+  .capture-screenshot .remove-btn:hover {
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .capture-screenshot .remove-btn {
+      background: rgba(255, 255, 255, 0.25);
+      color: white;
+    }
+    .capture-screenshot .remove-btn:hover {
+      background: rgba(255, 255, 255, 0.40);
+    }
+  }
+
+  /* ── Editor / Text Input ── */
+  .capture-editor {
+    width: 100%;
+    position: relative;
+    min-height: var(--editor-min-visible);
+  }
+
+  .capture-editor textarea {
+    width: 100%;
+    min-height: calc(var(--lh-capture) + var(--editor-vertical-inset) * 2);
+    max-height: var(--editor-max-height);
+    padding: var(--editor-vertical-inset) 0;
+    font-family: inherit;
+    font-size: var(--font-capture);
+    line-height: var(--lh-capture);
+    color: var(--text-primary);
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .capture-editor textarea::-webkit-scrollbar {
+    display: none;
+  }
+
+  .capture-editor textarea::placeholder {
+    color: var(--text-secondary);
+    opacity: var(--opacity-soft);
+  }
+
+  /* ── Variants (for showcase) ── */
+  .variant-label {
+    font-size: var(--font-meta);
+    line-height: var(--lh-meta);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xs);
+    font-weight: 500;
+    text-align: center;
+    width: var(--capture-panel-width);
+  }
+
+  .showcase {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+  }
+
+  .showcase-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+</style>
+</head>
+<body>
+<div class="showcase">
+
+  <!-- Variant 1: Empty / Placeholder State -->
+  <div class="showcase-item">
+    <div class="variant-label">Resting State</div>
+    <div class="capture-panel">
+      <div class="capture-shell">
+        <div class="capture-content">
+          <div class="capture-editor">
+            <textarea placeholder="Type and press Enter to save" rows="1"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Variant 2: With Text -->
+  <div class="showcase-item">
+    <div class="variant-label">Active Draft</div>
+    <div class="capture-panel">
+      <div class="capture-shell">
+        <div class="capture-content">
+          <div class="capture-editor">
+            <textarea rows="2">Explain the trade-offs between server-side rendering and client-side rendering for a React dashboard application</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Variant 3: With Screenshot -->
+  <div class="showcase-item">
+    <div class="variant-label">With Screenshot Attachment</div>
+    <div class="capture-panel">
+      <div class="capture-shell">
+        <div class="capture-content">
+          <div class="capture-screenshot">
+            <div style="width:100%;height:100%;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </div>
+            <button class="remove-btn" aria-label="Remove screenshot">✕</button>
+          </div>
+          <div class="capture-editor">
+            <textarea rows="2">Analyze the architecture shown in this diagram and suggest improvements for scalability</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Variant 4: Multi-line (scrollable) -->
+  <div class="showcase-item">
+    <div class="variant-label">Multi-line Draft</div>
+    <div class="capture-panel">
+      <div class="capture-shell">
+        <div class="capture-content">
+          <div class="capture-editor">
+            <textarea rows="5" style="height: 132px;">You are a senior software architect. Review the following code and provide:
+
+1. Security vulnerabilities (OWASP Top 10)
+2. Performance bottlenecks
+3. Design pattern violations
+4. Suggested refactoring steps
+
+Focus on actionable feedback with code examples.</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Auto-resize textareas to content
+  document.querySelectorAll('.capture-editor textarea').forEach(textarea => {
+    const autoResize = () => {
+      textarea.style.height = 'auto';
+      const maxHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--editor-max-height'));
+      textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + 'px';
+    };
+    textarea.addEventListener('input', autoResize);
+    // Initial size
+    setTimeout(autoResize, 0);
+  });
+</script>
+</body>
+</html>
