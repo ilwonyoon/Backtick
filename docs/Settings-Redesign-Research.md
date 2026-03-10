@@ -357,6 +357,53 @@ SettingsView (NavigationSplitView)
 
 ---
 
+## Cursor IDE
+
+> Research date: 2026-03-10
+> Cursor is an AI-powered code editor built on VS Code (Electron). It maintains two distinct settings surfaces: the inherited VS Code Settings and a custom "Cursor Settings" panel for AI-specific configuration.
+
+### 1.7 Cursor IDE
+
+| Attribute | Detail |
+|---|---|
+| **Layout pattern** | **Dual settings system.** (1) VS Code Settings: inherited JSON/GUI search-based settings editor. (2) Cursor Settings: a custom single-page scrollable panel with grouped sections, accessed via a dedicated shortcut (Cmd+Shift+J) or gear icon in the sidebar. The Cursor Settings panel is the more interesting design to study |
+| **Cursor Settings structure** | Single scrollable page divided into clearly labeled sections with horizontal dividers. No sidebar navigation within the Cursor Settings panel itself — it relies on vertical scrolling through all sections sequentially. Sections are stacked top-to-bottom in a single column |
+| **Sections (top to bottom)** | **General** (account info, theme, telemetry), **Models** (model selection checkboxes for available AI models like GPT-4, Claude, etc.), **Features** (granular toggles for Cursor Tab/autocomplete, Chat, Cmd-K, copilot++, and other AI features with per-feature enable/disable), **Beta** (experimental feature flags), **Privacy** (privacy mode toggle, codebase indexing preferences) |
+| **Iconography** | Minimal to none within the Cursor Settings panel. Section headers are text-only with no icons. The VS Code Settings side uses the standard VS Code gear icon in the activity bar. The Cursor Settings entry point uses a small gear/cursor icon in the sidebar |
+| **Section organization** | Logical grouping by concern: identity/account first, then model configuration, then feature toggles, then experimental flags, then privacy. This mirrors a "general to specific" progression. AI-related settings dominate since that is Cursor's differentiator — standard editor settings remain in VS Code Settings |
+| **Typography** | Inherits VS Code's system font stack (platform sans-serif). Section headers are bold/semibold at ~14-15pt. Setting labels are regular weight at ~13pt. Descriptions below toggles are smaller (~11-12pt) in a secondary/muted color. Monospace font used for model names and technical values |
+| **Interactive elements** | **Toggle switches** for feature enable/disable (custom styled, not native OS toggles — pill-shaped with smooth animation). **Checkboxes** for model selection (grid/list of available models with checkboxes). **Dropdown selects** for default model choice. **Text inputs** for API keys and custom endpoints. **Radio buttons** for mutually exclusive options (e.g., privacy mode levels). **Destructive buttons** styled in red for actions like "Clear conversation history" |
+| **Visual treatment** | Dark theme dominant (matches VS Code dark default). Settings panel uses the editor's background color with subtle card-like grouping through spacing rather than explicit card borders. Divider lines (1px, low-opacity) separate major sections. Generous vertical spacing between groups (~20-24px). Toggle rows use a consistent left-label, right-control alignment with description text below the label |
+| **Window sizing** | Not a separate window — renders as a full tab/panel within the editor window, occupying the same space as an editor tab. Scrollable vertically. Width adapts to the editor pane width (typically 600-900px depending on sidebar state) |
+| **Unique patterns** | (1) **Model grid**: AI models displayed as a selectable list with checkboxes, showing model name + provider, letting users enable/disable which models appear in the model picker. (2) **Feature-level granularity**: Each AI feature (Tab completion, Chat, Cmd-K inline editing) has its own toggle with a description, rather than a single "enable AI" switch. (3) **Beta section**: Dedicated area for experimental features with clear "beta" labeling, setting expectations about stability. (4) **Dual settings surfaces**: Deliberately separating AI settings (Cursor Settings) from editor settings (VS Code Settings) to avoid overwhelming users and to keep the AI configuration discoverable |
+| **Key takeaway** | Cursor's most notable design decision is the **separation of AI-specific settings into their own dedicated panel** rather than mixing them into the existing VS Code settings search interface. The single-scroll approach works because there are relatively few sections (~5) with moderate depth. The lack of sidebar navigation within Cursor Settings is a deliberate simplicity choice — with only 5 sections, scrolling is faster than clicking. The model selection grid is a unique pattern worth noting for any app that lets users choose between multiple AI providers/models |
+
+### Comparison with Previously Researched Apps
+
+| Dimension | Cursor | vs. Other Apps |
+|---|---|---|
+| **Navigation** | Single scroll, no sidebar | Differs from Alfred/System Settings (sidebar) and Raycast/CleanShot (tabs). Closest to a simplified Linear approach but without even Linear's sidebar |
+| **Settings separation** | Two distinct settings surfaces (inherited + custom) | Unique among researched apps. Others have a single unified settings interface. This split is a consequence of being built on VS Code but is an interesting pattern for apps that extend a platform |
+| **AI settings treatment** | Dedicated panel with per-feature toggles and model grid | No direct comparison in other apps (none are AI-focused). However, the granular per-feature toggle pattern is similar to CleanShot's per-feature tabs |
+| **Toggle style** | Custom pill-shaped toggles (web/Electron) | Similar to Linear (custom toggles). Differs from Alfred (checkboxes) and System Settings (native SwiftUI toggles) |
+| **Information density** | Medium — generous spacing, descriptions under every toggle | Less dense than Alfred, similar to System Settings, less sparse than Linear |
+| **Section identification** | Text headers with dividers, no icons | Similar to Linear's text-only approach. Differs from Alfred (colored icons) and System Settings (SF Symbol badges) |
+| **Platform feel** | Web/Electron — does not feel native macOS | Least native of all researched apps. PromptCue should NOT follow this approach for platform feel, but CAN adopt the logical organization patterns |
+
+### Relevance to PromptCue
+
+1. **Section ordering pattern is worth adopting**: General > domain-specific features > experimental > privacy/sync mirrors a logical user mental model. PromptCue's proposed order (General > Capture > Stack > Screenshots > Sync) follows a similar "general to specific" progression.
+
+2. **Per-feature toggle with description text** is a strong pattern: Each setting having a label + toggle + small description below keeps the interface self-documenting without needing a separate help system.
+
+3. **Dedicated AI/specialized settings**: If PromptCue ever adds AI features (AI-powered prompt suggestions, smart categorization), Cursor's pattern of giving AI its own section rather than scattering AI toggles across other sections is a good precedent.
+
+4. **What NOT to copy**: The single-scroll-no-sidebar approach works for Cursor because it lives inside an already-navigated editor window. For a standalone macOS settings panel, the sidebar + detail pattern (as already recommended) remains the better choice. Cursor's Electron-based toggle styles should also not be copied — native SwiftUI toggles are more appropriate for PromptCue.
+
+5. **Model/provider selection grid**: Not directly applicable now, but if PromptCue adds support for multiple AI backends, Cursor's checkbox grid for model selection is a clean pattern to reference.
+
+---
+
 ## Sources
 
 - [Raycast Manual - Settings](https://manual.raycast.com/preferences)
@@ -371,3 +418,7 @@ SettingsView (NavigationSplitView)
 - [Bartender 3 Preferences](https://www.macbartender.com/b3gettingstarted/bartender-preferences/)
 - [Ice Menu Bar Manager - GitHub](https://github.com/jordanbaird/Ice)
 - [Linear Design - The SaaS Design Trend](https://blog.logrocket.com/ux-design/linear-design/)
+- [Cursor Documentation - VS Code Migration](https://cursor.com/docs/configuration/migrations/vscode)
+- [Cursor Help - Customization](https://cursor.com/help/customization/themes)
+- [Cursor CLI Configuration Reference](https://cursor.com/docs/cli/reference/configuration)
+- [Cursor GitHub Repository](https://github.com/getcursor/cursor)
