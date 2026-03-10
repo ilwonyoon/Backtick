@@ -50,12 +50,15 @@ final class AppModel: ObservableObject {
     @Published private(set) var recentScreenshotState: RecentScreenshotState = .idle
     @Published var draftText = ""
     @Published var draftEditorMetrics: CaptureEditorMetrics = .empty
+    @Published private(set) var availableSuggestedTargets: [CaptureSuggestedTarget] = []
+    @Published private(set) var draftSuggestedTargetOverride: CaptureSuggestedTarget?
     @Published var selectedCardIDs: Set<UUID> = []
     @Published private(set) var isSubmittingCapture = false
 
     private let cardStore: CardStore
     private let attachmentStore: AttachmentStoring
     private let recentScreenshotCoordinator: RecentScreenshotCoordinating
+    private let suggestedTargetProvider: any SuggestedTargetProviding
     private var cloudSyncEngine: (any CloudSyncControlling)?
     private var cleanupTimer: Timer?
     private var captureSubmissionTask: Task<Bool, Never>?
@@ -69,12 +72,19 @@ final class AppModel: ObservableObject {
         cardStore: CardStore,
         attachmentStore: AttachmentStoring,
         recentScreenshotCoordinator: RecentScreenshotCoordinating,
+        suggestedTargetProvider: (any SuggestedTargetProviding)? = nil,
         cloudSyncEngine: (any CloudSyncControlling)? = nil
     ) {
         self.cardStore = cardStore
         self.attachmentStore = attachmentStore
         self.recentScreenshotCoordinator = recentScreenshotCoordinator
+        self.suggestedTargetProvider = suggestedTargetProvider ?? NoopSuggestedTargetProvider()
         self.cloudSyncEngine = cloudSyncEngine
+        self.suggestedTargetProvider.onChange = { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.syncAvailableSuggestedTargets()
+            }
+        }
     }
 
     convenience init() {
@@ -84,6 +94,7 @@ final class AppModel: ObservableObject {
             cardStore: CardStore(),
             attachmentStore: AttachmentStore(),
             recentScreenshotCoordinator: RecentScreenshotCoordinator(),
+            suggestedTargetProvider: RecentSuggestedAppTargetTracker(),
             cloudSyncEngine: syncEnabled ? CloudSyncEngine() : nil
         )
     }
@@ -94,6 +105,29 @@ final class AppModel: ObservableObject {
 
     var selectedCardsInDisplayOrder: [CaptureCard] {
         cards.filter { selectedCardIDs.contains($0.id) }
+    }
+
+    var automaticSuggestedTarget: CaptureSuggestedTarget? {
+        suggestedTargetProvider.currentFreshSuggestedTarget(
+            relativeTo: Date(),
+            freshness: AppUIConstants.suggestedTargetFreshness
+        )
+    }
+
+    var effectiveCaptureSuggestedTarget: CaptureSuggestedTarget? {
+        draftSuggestedTargetOverride ?? automaticSuggestedTarget
+    }
+
+    var isCaptureSuggestedTargetAutomatic: Bool {
+        draftSuggestedTargetOverride == nil
+    }
+
+    var captureChooserTarget: CaptureSuggestedTarget? {
+        effectiveCaptureSuggestedTarget ?? captureSuggestedTargetChoices.first
+    }
+
+    var captureSuggestedTargetChoiceCount: Int {
+        captureSuggestedTargetChoices.count
     }
 
     var showsRecentScreenshotSlot: Bool {
@@ -124,6 +158,8 @@ final class AppModel: ObservableObject {
     }
 
     func start(startupMode: AppStartupMode = .immediateMaintenance) {
+        suggestedTargetProvider.start()
+        syncAvailableSuggestedTargets()
         recentScreenshotCoordinator.onStateChange = { [weak self] state in
             Task { @MainActor [weak self] in
                 self?.applyRecentScreenshotState(state)
@@ -155,9 +191,12 @@ final class AppModel: ObservableObject {
         pendingRemoteChanges.removeAll()
         cleanupTimer?.invalidate()
         cleanupTimer = nil
+        suggestedTargetProvider.stop()
         recentScreenshotCoordinator.onStateChange = nil
         recentScreenshotCoordinator.stop()
         applyRecentScreenshotState(.idle)
+        availableSuggestedTargets = []
+        draftSuggestedTargetOverride = nil
         if let syncToggleObserver {
             NotificationCenter.default.removeObserver(syncToggleObserver)
         }
@@ -183,6 +222,8 @@ final class AppModel: ObservableObject {
 
     func beginCaptureSession() {
         prepareDraftMetricsForPresentation()
+        draftSuggestedTargetOverride = nil
+        refreshAvailableSuggestedTargets()
         recentScreenshotCoordinator.prepareForCaptureSession()
         syncRecentScreenshotState()
     }
@@ -193,12 +234,26 @@ final class AppModel: ObservableObject {
     }
 
     func endCaptureSession() {
+        draftSuggestedTargetOverride = nil
         syncRecentScreenshotState()
     }
 
     func refreshPendingScreenshot() {
         recentScreenshotCoordinator.prepareForCaptureSession()
         syncRecentScreenshotState()
+    }
+
+    func refreshAvailableSuggestedTargets() {
+        suggestedTargetProvider.refreshAvailableSuggestedTargets()
+        syncAvailableSuggestedTargets()
+    }
+
+    func chooseDraftSuggestedTarget(_ target: CaptureSuggestedTarget) {
+        draftSuggestedTargetOverride = target
+    }
+
+    func clearDraftSuggestedTargetOverride() {
+        draftSuggestedTargetOverride = nil
     }
 
     func beginCaptureSubmission(onSuccess: @escaping @MainActor () -> Void = {}) {
@@ -282,6 +337,7 @@ final class AppModel: ObservableObject {
         let newCard = CaptureCard(
             id: newCardID,
             text: trimmed.isEmpty ? "Screenshot attached" : trimmed,
+            suggestedTarget: effectiveCaptureSuggestedTarget,
             createdAt: Date(),
             screenshotPath: importedScreenshotPath,
             sortOrder: nextTopSortOrder(in: .active)
@@ -300,6 +356,7 @@ final class AppModel: ObservableObject {
         cards = updatedCards
         draftText = ""
         draftEditorMetrics = .empty
+        draftSuggestedTargetOverride = nil
         if attachment != nil {
             recentScreenshotCoordinator.consumeCurrent()
         }
@@ -311,6 +368,7 @@ final class AppModel: ObservableObject {
     func clearDraft() {
         draftText = ""
         draftEditorMetrics = .empty
+        draftSuggestedTargetOverride = nil
     }
 
     func updateDraftEditorMetrics(_ metrics: CaptureEditorMetrics) {
@@ -568,6 +626,7 @@ final class AppModel: ObservableObject {
                 migratedCards[index] = CaptureCard(
                     id: card.id,
                     text: card.text,
+                    suggestedTarget: card.suggestedTarget,
                     createdAt: card.createdAt,
                     screenshotPath: migratedPath,
                     lastCopiedAt: card.lastCopiedAt,
@@ -642,6 +701,28 @@ final class AppModel: ObservableObject {
             .max() ?? 0
 
         return maximum + 1
+    }
+
+    private var captureSuggestedTargetChoices: [CaptureSuggestedTarget] {
+        var choices: [CaptureSuggestedTarget] = []
+
+        if let automaticSuggestedTarget {
+            choices.append(automaticSuggestedTarget)
+        }
+
+        for target in availableSuggestedTargets {
+            if choices.contains(where: { $0.canonicalIdentityKey == target.canonicalIdentityKey }) {
+                continue
+            }
+
+            choices.append(target)
+        }
+
+        return choices
+    }
+
+    private func syncAvailableSuggestedTargets() {
+        availableSuggestedTargets = suggestedTargetProvider.availableSuggestedTargets()
     }
 
     private func syncRecentScreenshotState() {
@@ -867,6 +948,7 @@ extension AppModel: CloudSyncDelegate {
         return CaptureCard(
             id: card.id,
             text: card.text,
+            suggestedTarget: card.suggestedTarget,
             createdAt: card.createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: card.lastCopiedAt,

@@ -15,6 +15,7 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
     public let bundleIdentifier: String
     public let windowTitle: String?
     public let sessionIdentifier: String?
+    public let terminalTTY: String?
     public let currentWorkingDirectory: String?
     public let repositoryRoot: String?
     public let repositoryName: String?
@@ -27,6 +28,7 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
         bundleIdentifier: String,
         windowTitle: String? = nil,
         sessionIdentifier: String? = nil,
+        terminalTTY: String? = nil,
         currentWorkingDirectory: String? = nil,
         repositoryRoot: String? = nil,
         repositoryName: String? = nil,
@@ -38,6 +40,7 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
         self.bundleIdentifier = bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
         self.windowTitle = Self.sanitizedOptional(windowTitle)
         self.sessionIdentifier = Self.sanitizedOptional(sessionIdentifier)
+        self.terminalTTY = Self.sanitizedOptional(terminalTTY)
         self.currentWorkingDirectory = Self.sanitizedOptional(currentWorkingDirectory)
         self.repositoryRoot = Self.sanitizedOptional(repositoryRoot)
         self.repositoryName = Self.sanitizedOptional(repositoryName)
@@ -104,6 +107,31 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
             workspaceLabel,
         ]
         .joined(separator: "|")
+    }
+
+    public var canonicalIdentityKey: String {
+        switch sourceKind {
+        case .terminal:
+            return [
+                bundleIdentifier,
+                terminalTTY
+                    ?? sessionIdentifier
+                    ?? currentWorkingDirectory
+                    ?? windowTitle
+                    ?? workspaceLabel,
+            ]
+            .joined(separator: "|")
+
+        case .ide:
+            return [
+                bundleIdentifier,
+                sessionIdentifier ?? "",
+                repositoryRoot ?? "",
+                currentWorkingDirectory ?? "",
+                windowTitle ?? "",
+            ]
+            .joined(separator: "|")
+        }
     }
 
     public var shortBranchLabel: String? {

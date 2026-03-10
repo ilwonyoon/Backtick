@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import SwiftUI
 
 struct CapturePanelPreferredHeightUpdateMetrics {
     let totalMilliseconds: Double
@@ -64,6 +65,7 @@ enum CapturePanelPreferredHeightGuard {
 // This file coordinates the live AppKit capture shell and must not be flattened into token-only styling work.
 final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDelegate {
     private static let previewImageCache = CapturePreviewImageCache()
+    private static let suggestedTargetAccessoryHeight: CGFloat = 30
 
     private let model: AppModel
     private let shadowHostView = CapturePanelShadowHostView()
@@ -75,6 +77,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private let screenshotImageView = NSImageView()
     private let screenshotSpinner = NSProgressIndicator()
     private let removeScreenshotButton = NSButton()
+    private let suggestedTargetAccessoryView: NSHostingView<CaptureSuggestedTargetAccessoryView>
     private let editorHost = CaptureEditorRuntimeHostView()
     private let bootstrapSurfaceHeight: CGFloat
 
@@ -95,9 +98,13 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     init(model: AppModel) {
         self.model = model
+        self.suggestedTargetAccessoryView = NSHostingView(
+            rootView: CaptureSuggestedTargetAccessoryView(model: model)
+        )
         self.bootstrapSurfaceHeight = Self.minimumSurfaceHeight(
             editorHeight: CaptureRuntimeMetrics.editorMinimumVisibleHeight,
-            screenshotHeight: 0
+            screenshotHeight: 0,
+            suggestedTargetHeight: Self.suggestedTargetAccessoryHeight + PrimitiveTokens.Space.sm
         )
         self.preferredPanelHeight = Self.preferredPanelHeight(
             forSurfaceHeight: self.bootstrapSurfaceHeight
@@ -182,6 +189,12 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             contentStack.trailingAnchor.constraint(equalTo: shellView.trailingAnchor, constant: -PanelMetrics.captureSurfaceInnerPadding),
             contentStack.topAnchor.constraint(equalTo: shellView.topAnchor, constant: PanelMetrics.captureSurfaceTopPadding),
             contentStack.bottomAnchor.constraint(equalTo: shellView.bottomAnchor, constant: -PanelMetrics.captureSurfaceBottomPadding),
+        ])
+
+        suggestedTargetAccessoryView.translatesAutoresizingMaskIntoConstraints = false
+        contentStack.addArrangedSubview(suggestedTargetAccessoryView)
+        NSLayoutConstraint.activate([
+            suggestedTargetAccessoryView.widthAnchor.constraint(equalTo: contentStack.widthAnchor),
         ])
 
         editorHost.translatesAutoresizingMaskIntoConstraints = false
@@ -405,10 +418,12 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     private func recomputePreferredPanelHeight() {
         let screenshotHeight = screenshotContainer.isHidden ? 0 : (PrimitiveTokens.Size.captureAttachmentPreviewSize + PrimitiveTokens.Space.sm)
+        let suggestedTargetHeight = Self.suggestedTargetAccessoryHeight + PrimitiveTokens.Space.sm
         let editorHeight = max(editorHost.currentMetrics.visibleHeight, CaptureRuntimeMetrics.editorMinimumVisibleHeight)
         let surfaceHeight = Self.minimumSurfaceHeight(
             editorHeight: editorHeight,
-            screenshotHeight: screenshotHeight
+            screenshotHeight: screenshotHeight,
+            suggestedTargetHeight: suggestedTargetHeight
         )
 
         let nextPreferredPanelHeight = Self.preferredPanelHeight(forSurfaceHeight: surfaceHeight)
@@ -429,12 +444,14 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     private static func minimumSurfaceHeight(
         editorHeight: CGFloat,
-        screenshotHeight: CGFloat
+        screenshotHeight: CGFloat,
+        suggestedTargetHeight: CGFloat
     ) -> CGFloat {
         max(
             PrimitiveTokens.Size.searchFieldHeight,
             editorHeight
                 + screenshotHeight
+                + suggestedTargetHeight
                 + PanelMetrics.captureSurfaceTopPadding
                 + PanelMetrics.captureSurfaceBottomPadding
         )

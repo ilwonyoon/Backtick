@@ -84,6 +84,18 @@ enum SemanticTokens {
         static let previewBackdropBottom = Color(nsColor: .windowBackgroundColor)
         static let previewOrbPrimary = Accent.primary.opacity(0.18)
         static let previewOrbSecondary = Accent.selection.opacity(0.12)
+        static let captureChooserRowFill = adaptiveColor(
+            light: NSColor.black.withAlphaComponent(0.028),
+            dark: NSColor.black.withAlphaComponent(0.028)
+        )
+        static let captureChooserRowHoverFill = adaptiveColor(
+            light: NSColor.white,
+            dark: NSColor.white
+        )
+        static let captureChooserRowSelectedFill = adaptiveColor(
+            light: NSColor.white,
+            dark: NSColor.white
+        )
     }
 
     enum Text {
@@ -114,6 +126,18 @@ enum SemanticTokens {
         static let glassInner = adaptiveColor(
             light: NSColor.white.withAlphaComponent(0.38),
             dark: NSColor.white.withAlphaComponent(0.18)
+        )
+        static let captureChooserRow = adaptiveColor(
+            light: NSColor.separatorColor.withAlphaComponent(0.18),
+            dark: NSColor.separatorColor.withAlphaComponent(0.18)
+        )
+        static let captureChooserRowHover = adaptiveColor(
+            light: NSColor.separatorColor.withAlphaComponent(0.50),
+            dark: NSColor.separatorColor.withAlphaComponent(0.50)
+        )
+        static let captureChooserRowSelected = adaptiveColor(
+            light: NSColor.separatorColor.withAlphaComponent(0.64),
+            dark: NSColor.separatorColor.withAlphaComponent(0.64)
         )
     }
 

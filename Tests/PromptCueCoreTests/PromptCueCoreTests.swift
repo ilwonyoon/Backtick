@@ -214,6 +214,37 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func suggestedTargetCanonicalIdentityUsesTTYForTerminalTargets() {
+        let firstTarget = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "PromptCue — codex",
+            sessionIdentifier: "front-window",
+            terminalTTY: "/dev/ttys003",
+            currentWorkingDirectory: "/Users/ilwon/dev/PromptCue",
+            repositoryRoot: "/Users/ilwon/dev/PromptCue",
+            repositoryName: "PromptCue",
+            branch: "main",
+            capturedAt: referenceDate
+        )
+        let secondTarget = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "PromptCue — codex",
+            sessionIdentifier: "window-482",
+            terminalTTY: "/dev/ttys003",
+            currentWorkingDirectory: "/Users/ilwon/dev/PromptCue",
+            repositoryRoot: "/Users/ilwon/dev/PromptCue",
+            repositoryName: "PromptCue",
+            branch: "main",
+            capturedAt: referenceDate
+        )
+
+        #expect(firstTarget.choiceKey != secondTarget.choiceKey)
+        #expect(firstTarget.canonicalIdentityKey == secondTarget.canonicalIdentityKey)
+    }
+
+    @Test
     func suggestedTargetShortBranchLabelUsesLeafAndTruncatesToEighteenCharacters() {
         let target = makeSuggestedTarget(branch: "feature/12345678901234567890")
 
