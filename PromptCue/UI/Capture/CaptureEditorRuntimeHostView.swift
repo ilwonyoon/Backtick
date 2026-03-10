@@ -434,7 +434,12 @@ final class CaptureEditorRuntimeHostView: NSView {
     }
 
     private var stableViewportWidth: CGFloat {
-        max(scrollView.frame.width, bounds.width, 1)
+        let resolvedWidth = max(scrollView.frame.width, bounds.width)
+        if resolvedWidth > 1 {
+            return resolvedWidth
+        }
+
+        return CaptureRuntimeMetrics.editorViewportWidth
     }
 
     private func handleScrollBoundsDidChange() {
