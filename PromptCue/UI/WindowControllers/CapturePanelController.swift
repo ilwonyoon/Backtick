@@ -106,8 +106,12 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         installDismissMonitors()
     }
 
-    func close() {
-        runtimeViewController?.persistDraftIfNeeded()
+    func close(persistDraft: Bool = true) {
+        if persistDraft {
+            runtimeViewController?.persistDraftIfNeeded()
+        } else {
+            runtimeViewController?.discardPendingDraftSync()
+        }
         model.endCaptureSession()
         panel?.orderOut(nil)
         removeDismissMonitors()
@@ -139,7 +143,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
             self.resizePanelIfNeeded()
         }
         controller.onSubmitSuccess = { [weak self] in
-            self?.close()
+            self?.close(persistDraft: false)
         }
         controller.onCancelRequest = { [weak self] in
             self?.close()

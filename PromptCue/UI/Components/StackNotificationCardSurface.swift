@@ -21,7 +21,7 @@ struct StackNotificationCardSurface<Content: View>: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
 
-        content
+        let cardBody = content
             .padding(PrimitiveTokens.Size.notificationCardPadding)
             .background {
                 shape
@@ -49,14 +49,20 @@ struct StackNotificationCardSurface<Content: View>: View {
                     .stroke(borderColor, lineWidth: isSelected ? PrimitiveTokens.Stroke.emphasis : PrimitiveTokens.Stroke.subtle)
             }
             .clipShape(shape)
-            .shadow(
-                color: showsElevatedChrome
-                    ? SemanticTokens.Shadow.color.opacity(PrimitiveTokens.Opacity.soft)
-                    : .clear,
-                radius: PrimitiveTokens.Shadow.notificationCardBlur,
-                x: PrimitiveTokens.Shadow.zeroX,
-                y: PrimitiveTokens.Shadow.notificationCardY
-            )
+
+        if showsElevatedChrome {
+            cardBody
+                .compositingGroup()
+                .shadow(
+                    color: SemanticTokens.Shadow.color.opacity(PrimitiveTokens.Opacity.soft),
+                    radius: PrimitiveTokens.Shadow.notificationCardBlur,
+                    x: PrimitiveTokens.Shadow.zeroX,
+                    y: PrimitiveTokens.Shadow.notificationCardY
+                )
+        } else {
+            cardBody
+                .drawingGroup()
+        }
     }
 
     private var backgroundFill: Color {

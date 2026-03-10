@@ -76,14 +76,12 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private let screenshotSpinner = NSProgressIndicator()
     private let removeScreenshotButton = NSButton()
     private let editorHost = CaptureEditorRuntimeHostView()
+    private let bootstrapSurfaceHeight: CGFloat
 
     private var shellHeightConstraint: NSLayoutConstraint!
     private var screenshotHeightConstraint: NSLayoutConstraint!
     private var editorHeightConstraint: NSLayoutConstraint!
-    private var preferredPanelHeight: CGFloat =
-        PanelMetrics.capturePanelShadowTopInset
-        + PrimitiveTokens.Size.searchFieldHeight
-        + PanelMetrics.capturePanelShadowBottomInset
+    private var preferredPanelHeight: CGFloat
     private var cancellables = Set<AnyCancellable>()
     private var isApplyingDraftExternally = false
     private var imageLoadTask: Task<Void, Never>?
@@ -97,6 +95,13 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     init(model: AppModel) {
         self.model = model
+        self.bootstrapSurfaceHeight = Self.minimumSurfaceHeight(
+            editorHeight: CaptureRuntimeMetrics.editorMinimumVisibleHeight,
+            screenshotHeight: 0
+        )
+        self.preferredPanelHeight = Self.preferredPanelHeight(
+            forSurfaceHeight: self.bootstrapSurfaceHeight
+        )
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -111,7 +116,14 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     override func loadView() {
-        view = NSView()
+        view = NSView(
+            frame: NSRect(
+                x: 0,
+                y: 0,
+                width: AppUIConstants.capturePanelWidth,
+                height: preferredPanelHeight
+            )
+        )
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.clear.cgColor
         buildViewHierarchy()
@@ -142,7 +154,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         shadowHostView.addSubview(shadowCasterView)
         shadowHostView.addSubview(shellView)
 
-        shellHeightConstraint = shadowHostView.heightAnchor.constraint(equalToConstant: PrimitiveTokens.Size.searchFieldHeight)
+        shellHeightConstraint = shadowHostView.heightAnchor.constraint(equalToConstant: bootstrapSurfaceHeight)
 
         NSLayoutConstraint.activate([
             shadowHostView.topAnchor.constraint(equalTo: view.topAnchor, constant: PanelMetrics.capturePanelShadowTopInset),
@@ -174,6 +186,9 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
         editorHost.translatesAutoresizingMaskIntoConstraints = false
         editorHost.textView.delegate = self
+        contentStack.addArrangedSubview(editorHost)
+        editorHeightConstraint = editorHost.heightAnchor.constraint(equalToConstant: CaptureRuntimeMetrics.editorMinimumVisibleHeight)
+        editorHeightConstraint.isActive = true
         editorHost.configureRuntime(
             text: model.draftText,
             placeholder: "Type and press Enter to save",
@@ -188,7 +203,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
                 self?.onCancelRequest?()
             }
         )
-        contentStack.addArrangedSubview(editorHost)
 
         screenshotContainer.translatesAutoresizingMaskIntoConstraints = false
         screenshotContainer.isHidden = true
@@ -243,8 +257,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             removeScreenshotButton.topAnchor.constraint(equalTo: screenshotContainer.topAnchor, constant: PrimitiveTokens.Space.xs),
             removeScreenshotButton.trailingAnchor.constraint(equalTo: screenshotContainer.trailingAnchor, constant: -PrimitiveTokens.Space.xs),
         ])
-        editorHeightConstraint = editorHost.heightAnchor.constraint(equalToConstant: CaptureRuntimeMetrics.editorMinimumVisibleHeight)
-        editorHeightConstraint.isActive = true
+        recomputePreferredPanelHeight()
     }
 
     private func bindModel() {
@@ -280,6 +293,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             return
         }
 
+        discardPendingDraftSync()
         isApplyingDraftExternally = true
         editorHost.applyExternalText(text, forceScrollToSelection: forceScrollToSelection, forceMeasure: true)
         isApplyingDraftExternally = false
@@ -392,16 +406,12 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private func recomputePreferredPanelHeight() {
         let screenshotHeight = screenshotContainer.isHidden ? 0 : (PrimitiveTokens.Size.captureAttachmentPreviewSize + PrimitiveTokens.Space.sm)
         let editorHeight = max(editorHost.currentMetrics.visibleHeight, CaptureRuntimeMetrics.editorMinimumVisibleHeight)
-        let surfaceHeight = max(
-            PrimitiveTokens.Size.searchFieldHeight,
-            editorHeight + screenshotHeight + PanelMetrics.captureSurfaceTopPadding + PanelMetrics.captureSurfaceBottomPadding
+        let surfaceHeight = Self.minimumSurfaceHeight(
+            editorHeight: editorHeight,
+            screenshotHeight: screenshotHeight
         )
 
-        let nextPreferredPanelHeight = ceil(
-            PanelMetrics.capturePanelShadowTopInset
-            + surfaceHeight
-            + PanelMetrics.capturePanelShadowBottomInset
-        )
+        let nextPreferredPanelHeight = Self.preferredPanelHeight(forSurfaceHeight: surfaceHeight)
         if abs(shellHeightConstraint.constant - surfaceHeight) > CapturePanelPreferredHeightGuard.tolerance {
             shellHeightConstraint.constant = surfaceHeight
         }
@@ -415,6 +425,27 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
         preferredPanelHeight = nextPreferredPanelHeight
         onPreferredPanelHeightChange?(preferredPanelHeight)
+    }
+
+    private static func minimumSurfaceHeight(
+        editorHeight: CGFloat,
+        screenshotHeight: CGFloat
+    ) -> CGFloat {
+        max(
+            PrimitiveTokens.Size.searchFieldHeight,
+            editorHeight
+                + screenshotHeight
+                + PanelMetrics.captureSurfaceTopPadding
+                + PanelMetrics.captureSurfaceBottomPadding
+        )
+    }
+
+    private static func preferredPanelHeight(forSurfaceHeight surfaceHeight: CGFloat) -> CGFloat {
+        ceil(
+            PanelMetrics.capturePanelShadowTopInset
+                + surfaceHeight
+                + PanelMetrics.capturePanelShadowBottomInset
+        )
     }
 
     private func handleSubmit() {
@@ -431,6 +462,12 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     func persistDraftIfNeeded() {
         flushDraftSyncIfNeeded(forceText: editorHost.textView.string)
+    }
+
+    func discardPendingDraftSync() {
+        pendingDraftSyncWorkItem?.cancel()
+        pendingDraftSyncWorkItem = nil
+        pendingDraftSyncText = nil
     }
 
     func textDidChange(_ notification: Notification) {
@@ -485,8 +522,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     private func flushDraftSyncIfNeeded(forceText: String? = nil) {
-        pendingDraftSyncWorkItem?.cancel()
-        pendingDraftSyncWorkItem = nil
+        discardPendingDraftSync()
 
         let resolvedText = forceText ?? pendingDraftSyncText ?? editorHost.textView.string
         pendingDraftSyncText = nil
@@ -496,6 +532,19 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         }
     }
 }
+
+#if DEBUG
+extension CapturePanelRuntimeViewController {
+    var debugEditorText: String {
+        get { editorHost.textView.string }
+        set { editorHost.textView.string = newValue }
+    }
+
+    func debugScheduleDraftSync(_ text: String) {
+        scheduleDraftSync(text)
+    }
+}
+#endif
 
 final class CapturePreviewImageCache {
     private let storage = NSCache<NSString, NSImage>()
