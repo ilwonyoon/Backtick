@@ -20,7 +20,8 @@ struct StackNotificationCardSurface<Content: View>: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-        let cardBody = content
+
+        content
             .padding(PrimitiveTokens.Size.notificationCardPadding)
             .background {
                 shape
@@ -29,20 +30,18 @@ struct StackNotificationCardSurface<Content: View>: View {
                         shape.fill(chromeOverlay)
                     }
                     .overlay {
-                        if isEmphasized {
-                            shape.fill(SemanticTokens.Surface.notificationCardHoverFill)
-                        }
+                        shape.fill(SemanticTokens.Surface.notificationCardHoverFill)
+                            .opacity(isEmphasized ? 1 : 0)
                     }
                     .overlay(alignment: .top) {
-                        if showsElevatedChrome {
-                            TopEdgeStrokeOverlay(
-                                shape: shape,
-                                color: topHighlight,
-                                lineWidth: PrimitiveTokens.Stroke.subtle,
-                                frameHeight: PrimitiveTokens.Space.sm,
-                                maskHeight: PrimitiveTokens.Space.sm
-                            )
-                        }
+                        TopEdgeStrokeOverlay(
+                            shape: shape,
+                            color: topHighlight,
+                            lineWidth: PrimitiveTokens.Stroke.subtle,
+                            frameHeight: PrimitiveTokens.Space.sm,
+                            maskHeight: PrimitiveTokens.Space.sm
+                        )
+                        .opacity(showsElevatedChrome ? 1 : 0)
                     }
             }
             .overlay {
@@ -50,12 +49,14 @@ struct StackNotificationCardSurface<Content: View>: View {
                     .stroke(borderColor, lineWidth: isSelected ? PrimitiveTokens.Stroke.emphasis : PrimitiveTokens.Stroke.subtle)
             }
             .clipShape(shape)
-
-        if showsElevatedChrome {
-            cardBody.promptCueNotificationCardShadow()
-        } else {
-            cardBody
-        }
+            .shadow(
+                color: showsElevatedChrome
+                    ? SemanticTokens.Shadow.color.opacity(PrimitiveTokens.Opacity.soft)
+                    : .clear,
+                radius: PrimitiveTokens.Shadow.notificationCardBlur,
+                x: PrimitiveTokens.Shadow.zeroX,
+                y: PrimitiveTokens.Shadow.notificationCardY
+            )
     }
 
     private var backgroundFill: Color {
