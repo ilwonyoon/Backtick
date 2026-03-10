@@ -52,9 +52,12 @@ struct StackNotificationCardSurface<Content: View>: View {
             .clipShape(shape)
 
         if showsElevatedChrome {
-            cardBody.promptCueNotificationCardShadow()
+            cardBody
+                .compositingGroup()
+                .promptCueNotificationCardShadow()
         } else {
             cardBody
+                .drawingGroup()
         }
     }
 

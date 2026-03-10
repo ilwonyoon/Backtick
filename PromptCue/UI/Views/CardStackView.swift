@@ -130,7 +130,7 @@ struct CardStackView: View {
     @ViewBuilder
     private func copiedSection(copiedCards: [CaptureCard]) -> some View {
         if isCopiedStackExpanded {
-            VStack(alignment: .leading, spacing: PrimitiveTokens.Size.cardStackSpacing) {
+            LazyVStack(alignment: .leading, spacing: PrimitiveTokens.Size.cardStackSpacing) {
                 copiedSectionHeader(copiedCards: copiedCards)
 
                 ForEach(copiedCards) { card in
