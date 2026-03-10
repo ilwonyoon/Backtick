@@ -65,7 +65,7 @@ enum CapturePanelPreferredHeightGuard {
 // This file coordinates the live AppKit capture shell and must not be flattened into token-only styling work.
 final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDelegate {
     private static let previewImageCache = CapturePreviewImageCache()
-    private static let suggestedTargetAccessoryHeight: CGFloat = 30
+    private static let captureSurfaceVerticalInset = AppUIConstants.captureSurfaceInnerPadding
 
     private let model: AppModel
     private let shadowHostView = CapturePanelShadowHostView()
@@ -99,12 +99,16 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     init(model: AppModel) {
         self.model = model
         self.suggestedTargetAccessoryView = NSHostingView(
-            rootView: CaptureSuggestedTargetAccessoryView(model: model)
+            rootView: Self.makeSuggestedTargetAccessoryView(model: model)
+        )
+        let bootstrapAccessoryHeight = max(
+            self.suggestedTargetAccessoryView.fittingSize.height,
+            AppUIConstants.captureDebugLineHeight
         )
         self.bootstrapSurfaceHeight = Self.minimumSurfaceHeight(
             editorHeight: CaptureRuntimeMetrics.editorMinimumVisibleHeight,
-            screenshotHeight: 0,
-            suggestedTargetHeight: Self.suggestedTargetAccessoryHeight + PrimitiveTokens.Space.sm
+            suggestedTargetHeight: bootstrapAccessoryHeight + PrimitiveTokens.Space.sm,
+            screenshotHeight: 0
         )
         self.preferredPanelHeight = Self.preferredPanelHeight(
             forSurfaceHeight: self.bootstrapSurfaceHeight
@@ -187,35 +191,9 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         NSLayoutConstraint.activate([
             contentStack.leadingAnchor.constraint(equalTo: shellView.leadingAnchor, constant: PanelMetrics.captureSurfaceInnerPadding),
             contentStack.trailingAnchor.constraint(equalTo: shellView.trailingAnchor, constant: -PanelMetrics.captureSurfaceInnerPadding),
-            contentStack.topAnchor.constraint(equalTo: shellView.topAnchor, constant: PanelMetrics.captureSurfaceTopPadding),
-            contentStack.bottomAnchor.constraint(equalTo: shellView.bottomAnchor, constant: -PanelMetrics.captureSurfaceBottomPadding),
+            contentStack.topAnchor.constraint(equalTo: shellView.topAnchor, constant: Self.captureSurfaceVerticalInset),
+            contentStack.bottomAnchor.constraint(equalTo: shellView.bottomAnchor, constant: -Self.captureSurfaceVerticalInset),
         ])
-
-        suggestedTargetAccessoryView.translatesAutoresizingMaskIntoConstraints = false
-        contentStack.addArrangedSubview(suggestedTargetAccessoryView)
-        NSLayoutConstraint.activate([
-            suggestedTargetAccessoryView.widthAnchor.constraint(equalTo: contentStack.widthAnchor),
-        ])
-
-        editorHost.translatesAutoresizingMaskIntoConstraints = false
-        editorHost.textView.delegate = self
-        contentStack.addArrangedSubview(editorHost)
-        editorHeightConstraint = editorHost.heightAnchor.constraint(equalToConstant: CaptureRuntimeMetrics.editorMinimumVisibleHeight)
-        editorHeightConstraint.isActive = true
-        editorHost.configureRuntime(
-            text: model.draftText,
-            placeholder: "Type and press Enter to save",
-            maxContentHeight: CaptureRuntimeMetrics.editorMaxHeight,
-            onMetricsChange: { [weak self] metrics in
-                self?.applyEditorMetrics(metrics)
-            },
-            onSubmit: { [weak self] in
-                self?.handleSubmit()
-            },
-            onCancel: { [weak self] in
-                self?.onCancelRequest?()
-            }
-        )
 
         screenshotContainer.translatesAutoresizingMaskIntoConstraints = false
         screenshotContainer.isHidden = true
@@ -270,10 +248,54 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             removeScreenshotButton.topAnchor.constraint(equalTo: screenshotContainer.topAnchor, constant: PrimitiveTokens.Space.xs),
             removeScreenshotButton.trailingAnchor.constraint(equalTo: screenshotContainer.trailingAnchor, constant: -PrimitiveTokens.Space.xs),
         ])
+
+        suggestedTargetAccessoryView.translatesAutoresizingMaskIntoConstraints = false
+        contentStack.addArrangedSubview(suggestedTargetAccessoryView)
+        NSLayoutConstraint.activate([
+            suggestedTargetAccessoryView.widthAnchor.constraint(equalTo: contentStack.widthAnchor),
+        ])
+
+        editorHost.translatesAutoresizingMaskIntoConstraints = false
+        editorHost.textView.delegate = self
+        contentStack.addArrangedSubview(editorHost)
+        editorHeightConstraint = editorHost.heightAnchor.constraint(equalToConstant: CaptureRuntimeMetrics.editorMinimumVisibleHeight)
+        editorHeightConstraint.isActive = true
+        editorHost.configureRuntime(
+            text: model.draftText,
+            placeholder: "Type and press Enter to save",
+            maxContentHeight: CaptureRuntimeMetrics.editorMaxHeight,
+            onMetricsChange: { [weak self] metrics in
+                self?.applyEditorMetrics(metrics)
+            },
+            onSubmit: { [weak self] in
+                self?.handleSubmit()
+            },
+            onCancel: { [weak self] in
+                self?.onCancelRequest?()
+            },
+            onCommand: { [weak self] command in
+                self?.handleEditorCommand(command) ?? false
+            }
+        )
+
         recomputePreferredPanelHeight()
     }
 
     private func bindModel() {
+        model.$availableSuggestedTargets
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.updateSuggestedTargetAccessory()
+            }
+            .store(in: &cancellables)
+
+        model.$isShowingCaptureSuggestedTargetChooser
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.updateSuggestedTargetAccessory()
+            }
+            .store(in: &cancellables)
+
         model.$recentScreenshotState
             .receive(on: RunLoop.main)
             .sink { [weak self] state in
@@ -295,6 +317,8 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
                 self?.applySubmittingState(isSubmitting)
             }
             .store(in: &cancellables)
+
+        updateSuggestedTargetAccessory()
     }
 
     private func applyDraftText(_ text: String, forceScrollToSelection: Bool = false) {
@@ -418,12 +442,16 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     private func recomputePreferredPanelHeight() {
         let screenshotHeight = screenshotContainer.isHidden ? 0 : (PrimitiveTokens.Size.captureAttachmentPreviewSize + PrimitiveTokens.Space.sm)
-        let suggestedTargetHeight = Self.suggestedTargetAccessoryHeight + PrimitiveTokens.Space.sm
+        suggestedTargetAccessoryView.layoutSubtreeIfNeeded()
+        let suggestedTargetHeight = max(
+            suggestedTargetAccessoryView.fittingSize.height,
+            AppUIConstants.captureDebugLineHeight
+        ) + PrimitiveTokens.Space.sm
         let editorHeight = max(editorHost.currentMetrics.visibleHeight, CaptureRuntimeMetrics.editorMinimumVisibleHeight)
         let surfaceHeight = Self.minimumSurfaceHeight(
             editorHeight: editorHeight,
-            screenshotHeight: screenshotHeight,
-            suggestedTargetHeight: suggestedTargetHeight
+            suggestedTargetHeight: suggestedTargetHeight,
+            screenshotHeight: screenshotHeight
         )
 
         let nextPreferredPanelHeight = Self.preferredPanelHeight(forSurfaceHeight: surfaceHeight)
@@ -444,16 +472,15 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     private static func minimumSurfaceHeight(
         editorHeight: CGFloat,
-        screenshotHeight: CGFloat,
-        suggestedTargetHeight: CGFloat
+        suggestedTargetHeight: CGFloat,
+        screenshotHeight: CGFloat
     ) -> CGFloat {
         max(
             PrimitiveTokens.Size.searchFieldHeight,
             editorHeight
                 + screenshotHeight
                 + suggestedTargetHeight
-                + PanelMetrics.captureSurfaceTopPadding
-                + PanelMetrics.captureSurfaceBottomPadding
+                + (captureSurfaceVerticalInset * 2)
         )
     }
 
@@ -470,6 +497,63 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         model.beginCaptureSubmission { [weak self] in
             self?.onSubmitSuccess?()
         }
+    }
+
+    private func handleEditorCommand(_ command: CueEditorCommand) -> Bool {
+        if model.isShowingCaptureSuggestedTargetChooser {
+            switch command {
+            case .moveSelectionUp:
+                return model.moveCaptureSuggestedTargetSelection(by: -1)
+            case .moveSelectionDown:
+                return model.moveCaptureSuggestedTargetSelection(by: 1)
+            case .completeSelection:
+                return model.completeCaptureSuggestedTargetSelection()
+            case .cancelSelection:
+                return model.cancelCaptureSuggestedTargetSelection()
+            }
+        }
+
+        switch command {
+        case .moveSelectionUp:
+            guard model.canChooseSuggestedTarget,
+                  shouldPromoteUpArrowToChooserOpen() else {
+                return false
+            }
+            model.toggleCaptureSuggestedTargetChooser()
+            return true
+        case .moveSelectionDown, .completeSelection, .cancelSelection:
+            return false
+        }
+    }
+
+    private func shouldPromoteUpArrowToChooserOpen() -> Bool {
+        let selectedRange = editorHost.textView.selectedRange()
+        guard selectedRange.length == 0 else {
+            return false
+        }
+
+        let text = editorHost.textView.string as NSString
+        let caretLocation = max(0, min(selectedRange.location, text.length))
+        let lineRange = text.lineRange(for: NSRange(location: caretLocation, length: 0))
+        return lineRange.location == 0
+    }
+
+    private func updateSuggestedTargetAccessory() {
+        suggestedTargetAccessoryView.rootView = Self.makeSuggestedTargetAccessoryView(model: model)
+        recomputePreferredPanelHeight()
+    }
+
+    private static func makeSuggestedTargetAccessoryView(model: AppModel) -> CaptureSuggestedTargetAccessoryView {
+        CaptureSuggestedTargetAccessoryView(
+            currentTarget: model.captureChooserTarget,
+            availableTargets: model.availableSuggestedTargets,
+            automaticTarget: model.automaticSuggestedTarget,
+            isAutomaticSelectionActive: model.isCaptureSuggestedTargetAutomatic,
+            onRefreshTargets: model.refreshAvailableSuggestedTargets,
+            onSelectTarget: model.chooseDraftSuggestedTarget,
+            onUseAutomaticTarget: model.clearDraftSuggestedTargetOverride,
+            onActivateInlineChooser: model.toggleCaptureSuggestedTargetChooser
+        )
     }
 
     @objc
@@ -540,9 +624,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     private func flushDraftSyncIfNeeded(forceText: String? = nil) {
         discardPendingDraftSync()
-
         let resolvedText = forceText ?? pendingDraftSyncText ?? editorHost.textView.string
-        pendingDraftSyncText = nil
 
         if !isApplyingDraftExternally, model.draftText != resolvedText {
             model.draftText = resolvedText

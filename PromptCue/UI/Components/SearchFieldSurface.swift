@@ -2,6 +2,7 @@ import SwiftUI
 
 enum SearchFieldSurfaceStyle {
     case quiet
+    case captureShell
     case showcase
 }
 
@@ -10,25 +11,34 @@ enum SearchFieldSurfaceStyle {
 struct SearchFieldSurface<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     let style: SearchFieldSurfaceStyle
+    let contentPadding: EdgeInsets
     @ViewBuilder private var content: Content
     private let shape = RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.lg, style: .continuous)
 
     init(
         style: SearchFieldSurfaceStyle = .quiet,
+        contentPadding: EdgeInsets = EdgeInsets(
+            top: PrimitiveTokens.Space.xl,
+            leading: PrimitiveTokens.Space.xl,
+            bottom: PrimitiveTokens.Space.xl,
+            trailing: PrimitiveTokens.Space.xl
+        ),
         @ViewBuilder content: () -> Content
     ) {
         self.style = style
+        self.contentPadding = contentPadding
         self.content = content()
     }
 
     var body: some View {
-        content
-            .padding(PrimitiveTokens.Space.xl)
-            .frame(minHeight: PrimitiveTokens.Size.searchFieldHeight, alignment: .topLeading)
-            .background {
-                backgroundSurface
-            }
-            .clipShape(shape)
+        ZStack(alignment: .topLeading) {
+            backgroundSurface
+
+            content
+                .padding(contentPadding)
+                .frame(minHeight: PrimitiveTokens.Size.searchFieldHeight, alignment: .topLeading)
+                .clipShape(shape)
+        }
     }
 
     @ViewBuilder
@@ -36,9 +46,36 @@ struct SearchFieldSurface<Content: View>: View {
         switch style {
         case .quiet:
             quietBackground
+        case .captureShell:
+            captureShellBackground
         case .showcase:
             showcaseBackground
         }
+    }
+
+    private var captureShellBackground: some View {
+        ZStack {
+            VisualEffectBackdrop(
+                material: colorScheme == .dark ? .menu : .hudWindow,
+                blendingMode: .withinWindow
+            )
+            .clipShape(shape)
+
+            shape
+                .fill(SemanticTokens.Surface.captureShellFill)
+
+            shape
+                .stroke(SemanticTokens.Surface.captureShellStroke, lineWidth: PrimitiveTokens.Stroke.subtle)
+
+            TopEdgeStrokeOverlay(
+                shape: shape,
+                color: SemanticTokens.Surface.captureShellTopHighlight,
+                lineWidth: PrimitiveTokens.Stroke.subtle,
+                frameHeight: PrimitiveTokens.Space.lg,
+                maskHeight: PrimitiveTokens.Space.sm
+            )
+        }
+        .promptCueCaptureSurfaceShadow()
     }
 
     private var quietBackground: some View {

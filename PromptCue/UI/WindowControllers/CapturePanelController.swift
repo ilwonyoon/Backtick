@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Carbon
 import SwiftUI
 
@@ -67,7 +68,9 @@ enum CapturePanelFrameUpdateGuard {
 final class CapturePanelController: NSObject, NSWindowDelegate {
     private let model: AppModel
     private var panel: CapturePanel?
+    private var suggestedTargetPanel: CaptureSuggestedTargetPanel?
     private var runtimeViewController: CapturePanelRuntimeViewController?
+    private var suggestedTargetObserver: AnyCancellable?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
     private var anchoredTopY: CGFloat?
@@ -77,6 +80,14 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     init(model: AppModel) {
         self.model = model
         super.init()
+        suggestedTargetObserver = Publishers.CombineLatest(
+            model.$isShowingCaptureSuggestedTargetChooser,
+            model.$availableSuggestedTargets
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _, _ in
+            self?.updateSuggestedTargetPanelIfNeeded()
+        }
     }
 
     deinit {
@@ -104,6 +115,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         panel.makeKeyAndOrderFront(nil)
         runtimeViewController.focusEditorIfPossible()
         installDismissMonitors()
+        updateSuggestedTargetPanelIfNeeded()
     }
 
     func close(persistDraft: Bool = true) {
@@ -112,6 +124,8 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         } else {
             runtimeViewController?.discardPendingDraftSync()
         }
+        detachAuxiliaryPanel(suggestedTargetPanel)
+        suggestedTargetPanel?.orderOut(nil)
         model.endCaptureSession()
         panel?.orderOut(nil)
         removeDismissMonitors()
@@ -150,6 +164,38 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         }
         runtimeViewController = controller
         return controller
+    }
+
+    private func makeSuggestedTargetPanel() -> CaptureSuggestedTargetPanel {
+        let panel = CaptureSuggestedTargetPanel(
+            contentRect: initialPanelFrame(),
+            styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        panel.isMovableByWindowBackground = false
+        panel.hidesOnDeactivate = false
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = false
+        panel.animationBehavior = .none
+        panel.standardWindowButton(.closeButton)?.isHidden = true
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
+        panel.onCancel = { [weak self] in
+            self?.model.hideCaptureSuggestedTargetChooser()
+            self?.refocusCaptureEditor()
+        }
+        panel.contentViewController = CaptureSuggestedTargetPanelViewController(model: model)
+
+        suggestedTargetPanel = panel
+        return panel
     }
 
     private func makePanel(contentViewController: NSViewController) -> CapturePanel {
@@ -219,6 +265,27 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         )
     }
 
+    private func suggestedTargetPanelFrame(above captureFrame: NSRect) -> NSRect {
+        let visibleFrame = screenVisibleFrame()
+        let size = NSSize(
+            width: PanelMetrics.capturePanelWidth,
+            height: min(desiredSuggestedTargetPanelHeight(), visibleFrame.height - (PrimitiveTokens.Space.xl * 2))
+        )
+        let maximumOriginY = visibleFrame.maxY - PrimitiveTokens.Space.xl - size.height
+        let preferredOriginY = captureFrame.maxY
+            - PanelMetrics.capturePanelShadowTopInset
+            + AppUIConstants.captureChooserPanelVerticalSpacing
+            - AppUIConstants.captureChooserPanelShadowBottomInset
+        let originY = min(maximumOriginY, preferredOriginY)
+
+        return NSRect(
+            x: captureFrame.minX,
+            y: originY,
+            width: size.width,
+            height: size.height
+        )
+    }
+
     private func screenVisibleFrame() -> NSRect {
         NSApp.keyWindow?.screen?.visibleFrame
             ?? NSScreen.main?.visibleFrame
@@ -245,6 +312,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         }
 
         applyFrameIfNeeded(anchoredPanelFrame(), to: panel, display: true, animate: false)
+        updateSuggestedTargetPanelIfNeeded()
     }
 
     private func primePanelLayout(_ panel: CapturePanel) {
@@ -270,6 +338,66 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         }
 
         panel.setFrame(targetFrame, display: display, animate: animate)
+    }
+
+    private func updateSuggestedTargetPanelIfNeeded() {
+        guard let panel, isVisible, model.isShowingCaptureSuggestedTargetChooser else {
+            let wasVisible = suggestedTargetPanel?.isVisible == true
+            detachAuxiliaryPanel(suggestedTargetPanel)
+            suggestedTargetPanel?.orderOut(nil)
+            if wasVisible {
+                refocusCaptureEditor()
+            }
+            return
+        }
+
+        let suggestedTargetPanel = suggestedTargetPanel ?? makeSuggestedTargetPanel()
+
+        let targetFrame = suggestedTargetPanelFrame(above: panel.frame)
+        if CapturePanelFrameUpdateGuard.shouldApply(
+            currentFrame: suggestedTargetPanel.frame,
+            targetFrame: targetFrame
+        ) {
+            suggestedTargetPanel.setFrame(targetFrame, display: true, animate: false)
+        }
+
+        attachAuxiliaryPanel(suggestedTargetPanel, to: panel)
+        if !suggestedTargetPanel.isVisible {
+            suggestedTargetPanel.orderFrontRegardless()
+            refocusCaptureEditor()
+        }
+    }
+
+    private func desiredSuggestedTargetPanelHeight() -> CGFloat {
+        let visibleRowUnits = suggestedTargetVisibleRowUnits(allowsPeekRow: false)
+        let fullRowCount = max(Int(floor(visibleRowUnits)), 1)
+        let partialRowUnits = max(visibleRowUnits - CGFloat(fullRowCount), 0)
+        let interRowSpacing = AppUIConstants.captureChooserSectionSpacing
+        let rowsHeight = (CGFloat(fullRowCount) * AppUIConstants.captureChooserRowHeight)
+            + (CGFloat(max(0, fullRowCount - 1)) * interRowSpacing)
+            + (partialRowUnits * AppUIConstants.captureChooserRowHeight)
+        let contentHeight = AppUIConstants.captureChooserPanelSurfaceTopPadding
+            + AppUIConstants.captureChooserPanelHeaderTopPadding
+            + AppUIConstants.captureChooserPromptLineHeight
+            + AppUIConstants.captureChooserPanelHeaderBottomPadding
+            + AppUIConstants.captureChooserPromptBottomSpacing
+            + rowsHeight
+            + AppUIConstants.captureChooserPanelSurfaceBottomPadding
+        let surfaceHeight = max(PrimitiveTokens.Size.searchFieldHeight, contentHeight)
+
+        return ceil(
+            surfaceHeight
+                + AppUIConstants.captureChooserPanelShadowTopInset
+                + AppUIConstants.captureChooserPanelShadowBottomInset
+        )
+    }
+
+    private func suggestedTargetVisibleRowUnits(allowsPeekRow: Bool) -> CGFloat {
+        let totalRows = model.captureSuggestedTargetChoiceCount
+        return AppUIConstants.captureChooserVisibleRowUnits(
+            for: totalRows,
+            allowsPeekRow: allowsPeekRow
+        )
     }
 
     private func installDismissMonitors() {
@@ -303,33 +431,82 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     }
 
     private func closeIfNeeded(for event: NSEvent) {
-        guard let panel, isVisible else {
+        guard isVisible else {
             return
         }
 
-        if event.window !== panel {
-            close()
-            return
-        }
-
-        closeIfMouseOutsidePanel()
+        let screenPoint = event.window?.convertPoint(toScreen: event.locationInWindow) ?? NSEvent.mouseLocation
+        closeIfMouseOutsidePanels(at: screenPoint)
     }
 
     private func closeIfMouseOutsidePanel() {
-        guard let panel, isVisible else {
+        closeIfMouseOutsidePanels(at: NSEvent.mouseLocation)
+    }
+
+    private func closeIfMouseOutsidePanels(at point: NSPoint) {
+        guard isVisible else {
             return
         }
 
-        if !panel.frame.contains(NSEvent.mouseLocation) {
+        let didClickInsideVisiblePanel = visiblePanels().contains { panel in
+            panel.frame.contains(point)
+        }
+
+        if !didClickInsideVisiblePanel {
+            if model.isShowingCaptureSuggestedTargetChooser {
+                model.hideCaptureSuggestedTargetChooser()
+                return
+            }
+
             close()
         }
     }
+
+    private func visiblePanels() -> [NSPanel] {
+        [panel, suggestedTargetPanel].compactMap { panel in
+            guard let panel, panel.isVisible else {
+                return nil
+            }
+
+            return panel
+        }
+    }
+
+    private func refocusCaptureEditor() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let panel = self.panel, panel.isVisible else {
+                return
+            }
+
+            panel.makeKeyAndOrderFront(nil)
+            self.runtimeViewController?.focusEditorIfPossible()
+        }
+    }
+
+    private func attachAuxiliaryPanel(_ auxiliaryPanel: NSPanel?, to parentPanel: NSPanel) {
+        guard let auxiliaryPanel else {
+            return
+        }
+
+        let childWindows = parentPanel.childWindows ?? []
+        if !childWindows.contains(auxiliaryPanel) {
+            parentPanel.addChildWindow(auxiliaryPanel, ordered: .below)
+        }
+    }
+
+    private func detachAuxiliaryPanel(_ auxiliaryPanel: NSPanel?) {
+        guard let auxiliaryPanel,
+              let parentWindow = auxiliaryPanel.parent else {
+            return
+        }
+
+        parentWindow.removeChildWindow(auxiliaryPanel)
+    }
 }
 
-private final class CapturePanel: NSPanel {
+private class CaptureFloatingPanel: NSPanel {
     var onCancel: (() -> Void)?
 
-    override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -353,4 +530,241 @@ private final class CapturePanel: NSPanel {
     override func cancelOperation(_ sender: Any?) {
         onCancel?()
     }
+}
+
+private final class CaptureSuggestedTargetPanelViewController: NSViewController {
+    private let model: AppModel
+    private let shadowHostView = CaptureSuggestedTargetShadowHostView()
+    private let shadowCasterView = CaptureSuggestedTargetShadowCasterView()
+    private let shellView = CaptureSuggestedTargetShellView()
+    private let hostingView: NSHostingView<CaptureSuggestedTargetChooserPanelView>
+
+    init(model: AppModel) {
+        self.model = model
+        self.hostingView = NSHostingView(rootView: CaptureSuggestedTargetChooserPanelView(model: model))
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func loadView() {
+        view = NSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.clear.cgColor
+        buildViewHierarchy()
+    }
+
+    private func buildViewHierarchy() {
+        shadowHostView.translatesAutoresizingMaskIntoConstraints = false
+        shadowCasterView.translatesAutoresizingMaskIntoConstraints = false
+        shellView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+
+        view.addSubview(shadowHostView)
+        shadowHostView.addSubview(shadowCasterView)
+        shadowHostView.addSubview(shellView)
+        shellView.addSubview(hostingView)
+
+        NSLayoutConstraint.activate([
+            shadowHostView.topAnchor.constraint(equalTo: view.topAnchor, constant: AppUIConstants.captureChooserPanelShadowTopInset),
+            shadowHostView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: AppUIConstants.capturePanelOuterPadding),
+            shadowHostView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -AppUIConstants.capturePanelOuterPadding),
+            shadowHostView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -AppUIConstants.captureChooserPanelShadowBottomInset),
+
+            shadowCasterView.leadingAnchor.constraint(equalTo: shadowHostView.leadingAnchor),
+            shadowCasterView.trailingAnchor.constraint(equalTo: shadowHostView.trailingAnchor),
+            shadowCasterView.topAnchor.constraint(equalTo: shadowHostView.topAnchor),
+            shadowCasterView.bottomAnchor.constraint(equalTo: shadowHostView.bottomAnchor),
+
+            shellView.leadingAnchor.constraint(equalTo: shadowHostView.leadingAnchor),
+            shellView.trailingAnchor.constraint(equalTo: shadowHostView.trailingAnchor),
+            shellView.topAnchor.constraint(equalTo: shadowHostView.topAnchor),
+            shellView.bottomAnchor.constraint(equalTo: shadowHostView.bottomAnchor),
+
+            hostingView.leadingAnchor.constraint(equalTo: shellView.leadingAnchor, constant: PrimitiveTokens.Space.xl),
+            hostingView.trailingAnchor.constraint(equalTo: shellView.trailingAnchor, constant: -PrimitiveTokens.Space.xl),
+            hostingView.topAnchor.constraint(equalTo: shellView.topAnchor, constant: AppUIConstants.captureChooserPanelSurfaceTopPadding),
+            hostingView.bottomAnchor.constraint(equalTo: shellView.bottomAnchor, constant: -AppUIConstants.captureChooserPanelSurfaceBottomPadding),
+        ])
+    }
+}
+
+private final class CaptureSuggestedTargetShadowHostView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.masksToBounds = false
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+private final class CaptureSuggestedTargetShadowCasterView: NSView {
+    private let ambientLayer = CAShapeLayer()
+    private let keyLayer = CAShapeLayer()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.masksToBounds = false
+        layer?.addSublayer(ambientLayer)
+        layer?.addSublayer(keyLayer)
+        updateAppearance()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateAppearance()
+    }
+
+    override func layout() {
+        super.layout()
+        updateShape()
+    }
+
+    private func updateAppearance() {
+        ambientLayer.fillColor = NSColor.white.withAlphaComponent(0.02).cgColor
+        ambientLayer.shadowColor = NSColor(SemanticTokens.Shadow.captureShellAmbient).cgColor
+        ambientLayer.shadowOpacity = Float(PrimitiveTokens.Shadow.captureAmbientOpacity)
+        ambientLayer.shadowRadius = PrimitiveTokens.Shadow.captureAmbientBlur / 2
+        ambientLayer.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.captureAmbientY)
+
+        keyLayer.fillColor = NSColor.white.withAlphaComponent(0.02).cgColor
+        keyLayer.shadowColor = NSColor(SemanticTokens.Shadow.captureShellKey).cgColor
+        keyLayer.shadowOpacity = Float(PrimitiveTokens.Shadow.captureKeyOpacity)
+        keyLayer.shadowRadius = PrimitiveTokens.Shadow.captureKeyBlur / 2
+        keyLayer.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.captureKeyY)
+
+        updateShape()
+    }
+
+    private func updateShape() {
+        let path = CGPath(
+            roundedRect: bounds,
+            cornerWidth: PrimitiveTokens.Radius.lg,
+            cornerHeight: PrimitiveTokens.Radius.lg,
+            transform: nil
+        )
+        ambientLayer.frame = bounds
+        ambientLayer.path = path
+        ambientLayer.shadowPath = path
+
+        keyLayer.frame = bounds
+        keyLayer.path = path
+        keyLayer.shadowPath = path
+    }
+}
+
+private final class CaptureSuggestedTargetShellView: NSVisualEffectView {
+    private let fillLayer = CAShapeLayer()
+    private let borderLayer = CAShapeLayer()
+    private let topHighlightLayer = CAShapeLayer()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        state = .active
+        blendingMode = .withinWindow
+        material = .menu
+        wantsLayer = true
+        layer?.masksToBounds = true
+        layer?.addSublayer(fillLayer)
+        layer?.addSublayer(borderLayer)
+        layer?.addSublayer(topHighlightLayer)
+        updateAppearance()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateAppearance()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateAppearance()
+    }
+
+    override func layout() {
+        super.layout()
+        updateShape()
+    }
+
+    private func updateAppearance() {
+        guard let layer else { return }
+
+        material = usesDarkAppearance ? .menu : .hudWindow
+        fillLayer.fillColor = NSColor(SemanticTokens.Surface.captureShellFill).cgColor
+        borderLayer.strokeColor = NSColor(SemanticTokens.Surface.captureShellStroke).cgColor
+        borderLayer.lineWidth = PrimitiveTokens.Stroke.subtle
+        borderLayer.fillColor = NSColor.clear.cgColor
+        topHighlightLayer.strokeColor = NSColor(SemanticTokens.Surface.captureShellTopHighlight).cgColor
+        topHighlightLayer.lineWidth = PrimitiveTokens.Stroke.subtle
+        topHighlightLayer.fillColor = NSColor.clear.cgColor
+        layer.cornerRadius = PrimitiveTokens.Radius.lg
+        layer.backgroundColor = NSColor.clear.cgColor
+        updateShape()
+    }
+
+    private func updateShape() {
+        guard let layer else { return }
+
+        let boundsRect = bounds
+        let radius = PrimitiveTokens.Radius.lg
+        let fullPath = CGPath(
+            roundedRect: boundsRect,
+            cornerWidth: radius,
+            cornerHeight: radius,
+            transform: nil
+        )
+
+        fillLayer.frame = boundsRect
+        fillLayer.path = fullPath
+
+        borderLayer.frame = boundsRect
+        borderLayer.path = fullPath
+
+        let topRect = CGRect(
+            x: 0,
+            y: max(0, boundsRect.height - PrimitiveTokens.Space.lg),
+            width: boundsRect.width,
+            height: PrimitiveTokens.Space.lg
+        )
+        topHighlightLayer.frame = boundsRect
+        topHighlightLayer.path = fullPath
+        topHighlightLayer.mask = {
+            let maskLayer = CALayer()
+            maskLayer.frame = topRect
+            maskLayer.backgroundColor = NSColor.white.cgColor
+            return maskLayer
+        }()
+
+        layer.cornerRadius = radius
+    }
+
+    private var usesDarkAppearance: Bool {
+        let resolvedAppearance = window?.effectiveAppearance ?? NSApp.effectiveAppearance
+        let bestMatch = resolvedAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
+        return bestMatch == .darkAqua || bestMatch == .vibrantDark
+    }
+}
+
+private final class CapturePanel: CaptureFloatingPanel {
+    override var canBecomeKey: Bool { true }
+}
+
+private final class CaptureSuggestedTargetPanel: CaptureFloatingPanel {
+    override var canBecomeKey: Bool { true }
 }

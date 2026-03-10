@@ -52,6 +52,7 @@ final class AppModelSuggestedTargetTests: XCTestCase {
 
         XCTAssertEqual(model.captureSuggestedTargetChoiceCount, 2)
         XCTAssertEqual(model.captureChooserTarget?.workspaceLabel, "Backtick")
+        XCTAssertEqual(model.selectedCaptureSuggestedTargetIndex, 0)
         XCTAssertTrue(model.isCaptureSuggestedTargetAutomatic)
     }
 
@@ -76,7 +77,10 @@ final class AppModelSuggestedTargetTests: XCTestCase {
 
         model.start()
         model.beginCaptureSession()
-        model.chooseDraftSuggestedTarget(explicitTarget)
+        model.toggleCaptureSuggestedTargetChooser()
+
+        XCTAssertTrue(model.moveCaptureSuggestedTargetSelection(by: 1))
+        XCTAssertTrue(model.completeCaptureSuggestedTargetSelection())
 
         model.draftText = "Ship the chooser safely"
         let didSubmit = await model.submitCapture()
@@ -84,6 +88,7 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         XCTAssertTrue(didSubmit)
         XCTAssertEqual(model.cards.count, 1)
         XCTAssertEqual(model.cards.first?.suggestedTarget, explicitTarget)
+        XCTAssertFalse(model.isShowingCaptureSuggestedTargetChooser)
         XCTAssertEqual(model.captureChooserTarget, automaticTarget)
     }
 
@@ -140,7 +145,7 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         XCTAssertEqual(model.captureChooserTarget?.canonicalIdentityKey, automaticTarget.canonicalIdentityKey)
     }
 
-    func testClearingSuggestedTargetOverrideFallsBackToAutomaticTarget() {
+    func testCancelCaptureSuggestedTargetSelectionOnlyHidesChooser() {
         let automaticTarget = makeTarget(
             appName: "Terminal",
             bundleIdentifier: "com.apple.Terminal",
@@ -155,45 +160,44 @@ final class AppModelSuggestedTargetTests: XCTestCase {
 
         model.start()
         model.beginCaptureSession()
-        let explicitTarget = makeTarget(
+        model.toggleCaptureSuggestedTargetChooser()
+
+        XCTAssertTrue(model.cancelCaptureSuggestedTargetSelection())
+        XCTAssertFalse(model.isShowingCaptureSuggestedTargetChooser)
+        XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+    }
+
+    func testAssignSuggestedTargetUpdatesExistingCard() async {
+        let initialTarget = makeTarget(
+            appName: "Cursor",
+            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+            repo: "Backtick",
+            branch: "main"
+        )
+        let reassignedTarget = makeTarget(
             appName: "Xcode",
             bundleIdentifier: "com.apple.dt.Xcode",
             repo: "PromptCue",
             branch: "feature/reassign"
         )
-
-        model.chooseDraftSuggestedTarget(explicitTarget)
-        XCTAssertEqual(model.captureChooserTarget, explicitTarget)
-
-        model.clearDraftSuggestedTargetOverride()
-        XCTAssertEqual(model.captureChooserTarget, automaticTarget)
-    }
-
-    func testAssignSuggestedTargetUpdatesCardAndPersistsIt() throws {
-        let provider = TestSuggestedTargetProvider(latestTarget: nil, availableTargets: [])
+        let provider = TestSuggestedTargetProvider(
+            latestTarget: initialTarget,
+            availableTargets: [initialTarget, reassignedTarget]
+        )
         let model = makeModel(provider: provider)
-        let cardStore = CardStore(databaseURL: tempDirectoryURL.appendingPathComponent("PromptCue.sqlite"))
-        let card = CaptureCard(
-            id: UUID(),
-            text: "Ship reassignment",
-            createdAt: Date(),
-            sortOrder: 1
-        )
-        try cardStore.save([card])
 
-        model.reloadCards()
-        let target = makeTarget(
-            appName: "Xcode",
-            bundleIdentifier: "com.apple.dt.Xcode",
-            repo: "PromptCue",
-            branch: "main"
-        )
+        model.start()
+        model.draftText = "Card to reassign"
+        let didSubmit = await model.submitCapture()
 
-        model.assignSuggestedTarget(target, to: card)
+        XCTAssertTrue(didSubmit)
+        guard let savedCard = model.cards.first else {
+            return XCTFail("Expected saved card")
+        }
 
-        XCTAssertEqual(model.cards.first?.suggestedTarget, target)
-        let reloaded = try cardStore.load()
-        XCTAssertEqual(reloaded.first?.suggestedTarget, target)
+        model.assignSuggestedTarget(reassignedTarget, to: savedCard)
+
+        XCTAssertEqual(model.cards.first?.suggestedTarget, reassignedTarget)
     }
 
     private func makeModel(provider: TestSuggestedTargetProvider) -> AppModel {

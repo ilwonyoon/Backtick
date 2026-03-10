@@ -109,13 +109,15 @@ final class CaptureEditorRuntimeHostView: NSView {
         maxContentHeight: CGFloat,
         onMetricsChange: ((CaptureEditorMetrics) -> Void)?,
         onSubmit: @escaping () -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping () -> Void,
+        onCommand: @escaping (CueEditorCommand) -> Bool = { _ in false }
     ) {
         self.maxMeasuredHeight = maxContentHeight
         self.onMetricsChange = onMetricsChange
         self.placeholderText = placeholder
         textView.onSubmit = onSubmit
         textView.onCancel = onCancel
+        textView.onCommand = onCommand
         textView.onPaste = { [weak self] in
             self?.requestScrollToSelectionOnNextMeasurement()
         }

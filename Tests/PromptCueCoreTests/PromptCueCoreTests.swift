@@ -218,8 +218,8 @@ struct PromptCueCoreTests {
         let firstTarget = CaptureSuggestedTarget(
             appName: "Terminal",
             bundleIdentifier: "com.apple.Terminal",
-            windowTitle: "PromptCue — codex",
-            sessionIdentifier: "front-window",
+            windowTitle: "PromptCue",
+            sessionIdentifier: "window-17",
             terminalTTY: "/dev/ttys003",
             currentWorkingDirectory: "/Users/ilwon/dev/PromptCue",
             repositoryRoot: "/Users/ilwon/dev/PromptCue",
@@ -230,13 +230,13 @@ struct PromptCueCoreTests {
         let secondTarget = CaptureSuggestedTarget(
             appName: "Terminal",
             bundleIdentifier: "com.apple.Terminal",
-            windowTitle: "PromptCue — codex",
-            sessionIdentifier: "window-482",
+            windowTitle: "Other title",
+            sessionIdentifier: "window-98",
             terminalTTY: "/dev/ttys003",
-            currentWorkingDirectory: "/Users/ilwon/dev/PromptCue",
-            repositoryRoot: "/Users/ilwon/dev/PromptCue",
-            repositoryName: "PromptCue",
-            branch: "main",
+            currentWorkingDirectory: "/tmp",
+            repositoryRoot: nil,
+            repositoryName: nil,
+            branch: nil,
             capturedAt: referenceDate
         )
 

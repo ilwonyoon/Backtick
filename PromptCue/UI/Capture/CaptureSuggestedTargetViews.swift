@@ -3,19 +3,26 @@ import PromptCueCore
 import SwiftUI
 
 struct CaptureSuggestedTargetAccessoryView: View {
-    @ObservedObject var model: AppModel
+    let currentTarget: CaptureSuggestedTarget?
+    let availableTargets: [CaptureSuggestedTarget]
+    let automaticTarget: CaptureSuggestedTarget?
+    let isAutomaticSelectionActive: Bool
+    let onRefreshTargets: () -> Void
+    let onSelectTarget: (CaptureSuggestedTarget) -> Void
+    let onUseAutomaticTarget: () -> Void
+    let onActivateInlineChooser: () -> Void
 
     var body: some View {
         SuggestedTargetOriginControl(
-            currentTarget: model.captureChooserTarget,
-            availableTargets: model.availableSuggestedTargets,
+            currentTarget: currentTarget,
+            availableTargets: availableTargets,
             emptyLabel: "Choose working app",
-            onRefreshTargets: model.refreshAvailableSuggestedTargets,
-            onSelectTarget: model.chooseDraftSuggestedTarget,
-            automaticTarget: model.automaticSuggestedTarget,
-            isAutomaticSelectionActive: model.isCaptureSuggestedTargetAutomatic,
-            onUseAutomaticTarget: model.clearDraftSuggestedTargetOverride,
-            onActivateInlineChooser: nil,
+            onRefreshTargets: onRefreshTargets,
+            onSelectTarget: onSelectTarget,
+            automaticTarget: automaticTarget,
+            isAutomaticSelectionActive: isAutomaticSelectionActive,
+            onUseAutomaticTarget: onUseAutomaticTarget,
+            onActivateInlineChooser: onActivateInlineChooser,
             controlWidth: AppUIConstants.captureSelectorControlWidth
         )
         .frame(
@@ -56,20 +63,24 @@ struct CaptureSuggestedTargetChooserPanelView: View {
     var body: some View {
         SuggestedTargetChooserListView(
             selectedTarget: model.captureChooserTarget ?? model.availableSuggestedTargets.first,
-            highlightedTarget: nil,
+            highlightedTarget: model.highlightedCaptureSuggestedTarget,
             availableTargets: model.availableSuggestedTargets,
             emptyLabel: "No open supported apps",
             automaticTarget: model.automaticSuggestedTarget,
             isAutomaticSelectionActive: model.isCaptureSuggestedTargetAutomatic,
-            isAutomaticHighlighted: false,
-            onHighlightTarget: nil,
-            onHighlightAutomaticTarget: nil,
+            isAutomaticHighlighted: model.isAutomaticCaptureSuggestedTargetHighlighted,
+            onHighlightTarget: { target in
+                _ = model.highlightCaptureSuggestedTarget(target)
+            },
+            onHighlightAutomaticTarget: {
+                _ = model.highlightAutomaticCaptureSuggestedTarget()
+            },
             controlWidth: AppUIConstants.captureSelectorControlWidth,
             fixedWidth: nil,
-            surfaceTopPadding: AppUIConstants.captureChooserSurfaceVerticalPadding,
-            surfaceBottomPadding: AppUIConstants.captureChooserSurfaceVerticalPadding,
-            headerTopPadding: AppUIConstants.captureChooserPromptVerticalPadding,
-            headerBottomPadding: AppUIConstants.captureChooserPromptVerticalPadding,
+            surfaceTopPadding: 0,
+            surfaceBottomPadding: 0,
+            headerTopPadding: AppUIConstants.captureChooserPanelHeaderTopPadding,
+            headerBottomPadding: AppUIConstants.captureChooserPanelHeaderBottomPadding,
             allowsPeekRow: false,
             onRefreshTargets: model.refreshAvailableSuggestedTargets,
             onSelectTarget: model.chooseDraftSuggestedTarget,
@@ -404,6 +415,11 @@ private struct SuggestedTargetChooserListView: View {
             }
 
             Spacer(minLength: PrimitiveTokens.Space.md)
+
+            Text("tab to select")
+                .font(.system(size: PrimitiveTokens.FontSize.micro, weight: .regular))
+                .foregroundStyle(SemanticTokens.Text.secondary.opacity(0.72))
+                .accessibilityLabel("Tab to select")
         }
         .frame(height: AppUIConstants.captureChooserPromptLineHeight, alignment: .leading)
         .padding(.top, headerTopPadding)

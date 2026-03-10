@@ -23,23 +23,43 @@ enum AppStartupMode {
     case deferredMaintenance
 }
 
-    enum CloudSyncInitialFetchMode {
-        case immediate
-        case deferred
+private enum CaptureSuggestedTargetChoice: Equatable {
+    case automatic(CaptureSuggestedTarget)
+    case explicit(CaptureSuggestedTarget)
+
+    var target: CaptureSuggestedTarget {
+        switch self {
+        case .automatic(let target), .explicit(let target):
+            return target
+        }
     }
 
-    private struct RemoteApplyPlan {
-        let sortedCards: [CaptureCard]
-        let changedCards: [CaptureCard]
-        let deletedIDs: [UUID]
-        let survivingIDs: Set<UUID>
-        let removedCards: [CaptureCard]
-    }
+    var isAutomatic: Bool {
+        if case .automatic = self {
+            return true
+        }
 
-    private enum RemoteMergeWinner {
-        case local
-        case remote
+        return false
     }
+}
+
+enum CloudSyncInitialFetchMode {
+    case immediate
+    case deferred
+}
+
+private struct RemoteApplyPlan {
+    let sortedCards: [CaptureCard]
+    let changedCards: [CaptureCard]
+    let deletedIDs: [UUID]
+    let survivingIDs: Set<UUID>
+    let removedCards: [CaptureCard]
+}
+
+private enum RemoteMergeWinner {
+    case local
+    case remote
+}
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -51,7 +71,8 @@ final class AppModel: ObservableObject {
     @Published var draftText = ""
     @Published var draftEditorMetrics: CaptureEditorMetrics = .empty
     @Published private(set) var availableSuggestedTargets: [CaptureSuggestedTarget] = []
-    @Published private(set) var draftSuggestedTargetOverride: CaptureSuggestedTarget?
+    @Published var isShowingCaptureSuggestedTargetChooser = false
+    @Published private(set) var selectedCaptureSuggestedTargetIndex = 0
     @Published var selectedCardIDs: Set<UUID> = []
     @Published private(set) var isMultiSelectMode = false
     @Published private(set) var stagedCopiedCardIDs: [UUID] = []
@@ -69,6 +90,7 @@ final class AppModel: ObservableObject {
     private var deferredCloudSyncFetchTask: Task<Void, Never>?
     private var remoteApplyTask: Task<Void, Never>?
     private var pendingRemoteChanges: [SyncChange] = []
+    private var draftSuggestedTargetOverride: CaptureSuggestedTarget?
 
     init(
         cardStore: CardStore,
@@ -133,12 +155,36 @@ final class AppModel: ObservableObject {
         draftSuggestedTargetOverride == nil
     }
 
+    var canChooseSuggestedTarget: Bool {
+        effectiveCaptureSuggestedTarget != nil || !availableSuggestedTargets.isEmpty
+    }
+
     var captureChooserTarget: CaptureSuggestedTarget? {
-        effectiveCaptureSuggestedTarget ?? captureSuggestedTargetChoices.first
+        effectiveCaptureSuggestedTarget ?? availableSuggestedTargets.first
     }
 
     var captureSuggestedTargetChoiceCount: Int {
         captureSuggestedTargetChoices.count
+    }
+
+    var highlightedCaptureSuggestedTarget: CaptureSuggestedTarget? {
+        let choices = captureSuggestedTargetChoices
+        guard !choices.isEmpty else {
+            return nil
+        }
+
+        let clampedIndex = max(0, min(selectedCaptureSuggestedTargetIndex, choices.count - 1))
+        return choices[clampedIndex].target
+    }
+
+    var isAutomaticCaptureSuggestedTargetHighlighted: Bool {
+        let choices = captureSuggestedTargetChoices
+        guard !choices.isEmpty else {
+            return false
+        }
+
+        let clampedIndex = max(0, min(selectedCaptureSuggestedTargetIndex, choices.count - 1))
+        return choices[clampedIndex].isAutomatic
     }
 
     var showsRecentScreenshotSlot: Bool {
@@ -208,6 +254,8 @@ final class AppModel: ObservableObject {
         applyRecentScreenshotState(.idle)
         availableSuggestedTargets = []
         draftSuggestedTargetOverride = nil
+        isShowingCaptureSuggestedTargetChooser = false
+        selectedCaptureSuggestedTargetIndex = 0
         isMultiSelectMode = false
         selectedCardIDs.removeAll()
         stagedCopiedCardIDs.removeAll()
@@ -237,6 +285,8 @@ final class AppModel: ObservableObject {
     func beginCaptureSession() {
         prepareDraftMetricsForPresentation()
         draftSuggestedTargetOverride = nil
+        isShowingCaptureSuggestedTargetChooser = false
+        selectedCaptureSuggestedTargetIndex = 0
         refreshAvailableSuggestedTargets()
         recentScreenshotCoordinator.prepareForCaptureSession()
         syncRecentScreenshotState()
@@ -249,6 +299,8 @@ final class AppModel: ObservableObject {
 
     func endCaptureSession() {
         draftSuggestedTargetOverride = nil
+        isShowingCaptureSuggestedTargetChooser = false
+        selectedCaptureSuggestedTargetIndex = 0
         syncRecentScreenshotState()
     }
 
@@ -264,10 +316,98 @@ final class AppModel: ObservableObject {
 
     func chooseDraftSuggestedTarget(_ target: CaptureSuggestedTarget) {
         draftSuggestedTargetOverride = target
+        isShowingCaptureSuggestedTargetChooser = false
+        syncCaptureSuggestedTargetSelection()
     }
 
     func clearDraftSuggestedTargetOverride() {
         draftSuggestedTargetOverride = nil
+        isShowingCaptureSuggestedTargetChooser = false
+        syncCaptureSuggestedTargetSelection()
+    }
+
+    func toggleCaptureSuggestedTargetChooser() {
+        if !isShowingCaptureSuggestedTargetChooser {
+            refreshAvailableSuggestedTargets()
+            syncCaptureSuggestedTargetSelection()
+        }
+
+        isShowingCaptureSuggestedTargetChooser.toggle()
+    }
+
+    func hideCaptureSuggestedTargetChooser() {
+        isShowingCaptureSuggestedTargetChooser = false
+    }
+
+    @discardableResult
+    func moveCaptureSuggestedTargetSelection(by offset: Int) -> Bool {
+        let choices = captureSuggestedTargetChoices
+        guard isShowingCaptureSuggestedTargetChooser, !choices.isEmpty else {
+            return false
+        }
+
+        let count = choices.count
+        let current = max(0, min(selectedCaptureSuggestedTargetIndex, count - 1))
+        selectedCaptureSuggestedTargetIndex = (current + offset + count) % count
+        return true
+    }
+
+    @discardableResult
+    func highlightCaptureSuggestedTarget(_ target: CaptureSuggestedTarget) -> Bool {
+        guard isShowingCaptureSuggestedTargetChooser else {
+            return false
+        }
+
+        let choices = captureSuggestedTargetChoices
+        guard let matchingIndex = choices.firstIndex(where: { !$0.isAutomatic && $0.target == target }) else {
+            return false
+        }
+
+        selectedCaptureSuggestedTargetIndex = matchingIndex
+        return true
+    }
+
+    @discardableResult
+    func highlightAutomaticCaptureSuggestedTarget() -> Bool {
+        guard isShowingCaptureSuggestedTargetChooser else {
+            return false
+        }
+
+        let choices = captureSuggestedTargetChoices
+        guard let matchingIndex = choices.firstIndex(where: \.isAutomatic) else {
+            return false
+        }
+
+        selectedCaptureSuggestedTargetIndex = matchingIndex
+        return true
+    }
+
+    @discardableResult
+    func completeCaptureSuggestedTargetSelection() -> Bool {
+        let choices = captureSuggestedTargetChoices
+        guard isShowingCaptureSuggestedTargetChooser, !choices.isEmpty else {
+            return false
+        }
+
+        let selectedIndex = max(0, min(selectedCaptureSuggestedTargetIndex, choices.count - 1))
+        switch choices[selectedIndex] {
+        case .automatic:
+            clearDraftSuggestedTargetOverride()
+        case .explicit(let target):
+            chooseDraftSuggestedTarget(target)
+        }
+
+        return true
+    }
+
+    @discardableResult
+    func cancelCaptureSuggestedTargetSelection() -> Bool {
+        guard isShowingCaptureSuggestedTargetChooser else {
+            return false
+        }
+
+        hideCaptureSuggestedTargetChooser()
+        return true
     }
 
     func beginCaptureSubmission(onSuccess: @escaping @MainActor () -> Void = {}) {
@@ -371,6 +511,8 @@ final class AppModel: ObservableObject {
         draftText = ""
         draftEditorMetrics = .empty
         draftSuggestedTargetOverride = nil
+        isShowingCaptureSuggestedTargetChooser = false
+        selectedCaptureSuggestedTargetIndex = 0
         if attachment != nil {
             recentScreenshotCoordinator.consumeCurrent()
         }
@@ -383,6 +525,8 @@ final class AppModel: ObservableObject {
         draftText = ""
         draftEditorMetrics = .empty
         draftSuggestedTargetOverride = nil
+        isShowingCaptureSuggestedTargetChooser = false
+        selectedCaptureSuggestedTargetIndex = 0
     }
 
     func updateDraftEditorMetrics(_ metrics: CaptureEditorMetrics) {
@@ -570,9 +714,12 @@ final class AppModel: ObservableObject {
         }
 
         cards = filtered
-        selectedCardIDs.formIntersection(Set(filtered.map(\.id)))
+        selectedCardIDs = selectedCardIDs.filter { id in
+            filtered.contains(where: { $0.id == id })
+        }
         stagedCopiedCardIDs.removeAll { id in
-            filtered.contains(where: { $0.id == id }) == false
+            filtered.contains(where: { $0.id == id })
+                == false
         }
         if isMultiSelectMode {
             _ = syncStagedMultiCopyClipboard()
@@ -582,9 +729,9 @@ final class AppModel: ObservableObject {
     }
 
     private func markCopied(orderedIDs: [UUID]) {
-        let uniqueOrderedIDs = orderedIDs.reduce(into: [UUID]()) { result, id in
-            if result.contains(id) == false {
-                result.append(id)
+        let uniqueOrderedIDs = orderedIDs.reduce(into: [UUID]()) { partialResult, id in
+            if partialResult.contains(id) == false {
+                partialResult.append(id)
             }
         }
         let copiedIDs = Set(uniqueOrderedIDs)
@@ -810,26 +957,60 @@ final class AppModel: ObservableObject {
         return maximum + 1
     }
 
-    private var captureSuggestedTargetChoices: [CaptureSuggestedTarget] {
-        var choices: [CaptureSuggestedTarget] = []
+    private func syncAvailableSuggestedTargets() {
+        availableSuggestedTargets = suggestedTargetProvider.availableSuggestedTargets()
+        syncCaptureSuggestedTargetSelection()
+    }
+
+    private var captureSuggestedTargetChoices: [CaptureSuggestedTargetChoice] {
+        var choices: [CaptureSuggestedTargetChoice] = []
 
         if let automaticSuggestedTarget {
-            choices.append(automaticSuggestedTarget)
+            choices.append(.automatic(automaticSuggestedTarget))
         }
 
-        for target in availableSuggestedTargets {
-            if choices.contains(where: { $0.canonicalIdentityKey == target.canonicalIdentityKey }) {
-                continue
+        let filteredTargets: [CaptureSuggestedTarget]
+        if let automaticSuggestedTarget {
+            filteredTargets = availableSuggestedTargets.filter {
+                $0.canonicalIdentityKey != automaticSuggestedTarget.canonicalIdentityKey
             }
-
-            choices.append(target)
+        } else {
+            filteredTargets = availableSuggestedTargets
         }
 
+        let deduplicatedTargets = filteredTargets.reduce(into: [CaptureSuggestedTarget]()) { result, target in
+            if result.contains(where: { $0.canonicalIdentityKey == target.canonicalIdentityKey }) == false {
+                result.append(target)
+            }
+        }
+
+        choices.append(contentsOf: deduplicatedTargets.map(CaptureSuggestedTargetChoice.explicit))
         return choices
     }
 
-    private func syncAvailableSuggestedTargets() {
-        availableSuggestedTargets = suggestedTargetProvider.availableSuggestedTargets()
+    private func syncCaptureSuggestedTargetSelection() {
+        let choices = captureSuggestedTargetChoices
+        guard !choices.isEmpty else {
+            selectedCaptureSuggestedTargetIndex = 0
+            return
+        }
+
+        if draftSuggestedTargetOverride == nil,
+           automaticSuggestedTarget != nil {
+            selectedCaptureSuggestedTargetIndex = 0
+            return
+        }
+
+        if let draftSuggestedTargetOverride,
+           let matchingIndex = choices.firstIndex(where: { choice in
+               !choice.isAutomatic
+                   && choice.target.canonicalIdentityKey == draftSuggestedTargetOverride.canonicalIdentityKey
+           }) {
+            selectedCaptureSuggestedTargetIndex = matchingIndex
+            return
+        }
+
+        selectedCaptureSuggestedTargetIndex = min(selectedCaptureSuggestedTargetIndex, choices.count - 1)
     }
 
     private func syncRecentScreenshotState() {
@@ -1144,9 +1325,6 @@ extension AppModel: CloudSyncDelegate {
         cards = plan.sortedCards
         selectedCardIDs.formIntersection(plan.survivingIDs)
         stagedCopiedCardIDs.removeAll { plan.survivingIDs.contains($0) == false }
-        if isMultiSelectMode {
-            _ = syncStagedMultiCopyClipboard()
-        }
 
         if !plan.removedCards.isEmpty {
             cleanupManagedAttachments(

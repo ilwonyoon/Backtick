@@ -2,6 +2,13 @@ import AppKit
 import Carbon
 import SwiftUI
 
+enum CueEditorCommand {
+    case moveSelectionUp
+    case moveSelectionDown
+    case completeSelection
+    case cancelSelection
+}
+
 struct CueTextEditor: NSViewRepresentable {
     @Binding var text: String
     let placeholder: String
@@ -10,6 +17,7 @@ struct CueTextEditor: NSViewRepresentable {
     let onResolvedPreferredHeightChange: (CGFloat) -> Void
     let onSubmit: () -> Void
     let onCancel: () -> Void
+    let onCommand: (CueEditorCommand) -> Bool
 
     init(
         text: Binding<String>,
@@ -18,7 +26,8 @@ struct CueTextEditor: NSViewRepresentable {
         onMetricsChange: @escaping (CaptureEditorMetrics) -> Void,
         onResolvedPreferredHeightChange: @escaping (CGFloat) -> Void = { _ in },
         onSubmit: @escaping () -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping () -> Void,
+        onCommand: @escaping (CueEditorCommand) -> Bool = { _ in false }
     ) {
         _text = text
         self.placeholder = placeholder
@@ -27,6 +36,7 @@ struct CueTextEditor: NSViewRepresentable {
         self.onResolvedPreferredHeightChange = onResolvedPreferredHeightChange
         self.onSubmit = onSubmit
         self.onCancel = onCancel
+        self.onCommand = onCommand
     }
 
     func makeCoordinator() -> Coordinator {
@@ -44,6 +54,7 @@ struct CueTextEditor: NSViewRepresentable {
         container.placeholderText = placeholder
         textView.onSubmit = onSubmit
         textView.onCancel = onCancel
+        textView.onCommand = onCommand
         textView.onPaste = { [weak container] in
             container?.requestScrollToSelectionOnNextMeasurement()
         }
@@ -66,6 +77,7 @@ struct CueTextEditor: NSViewRepresentable {
         container.placeholderText = placeholder
         textView.onSubmit = onSubmit
         textView.onCancel = onCancel
+        textView.onCommand = onCommand
         textView.onPaste = { [weak container] in
             container?.requestScrollToSelectionOnNextMeasurement()
         }
@@ -155,6 +167,7 @@ typealias CaptureEditorHostView = CaptureEditorRuntimeHostView
 final class WrappingCueTextView: NSTextView {
     var onSubmit: (() -> Void)?
     var onCancel: (() -> Void)?
+    var onCommand: ((CueEditorCommand) -> Bool)?
     var onPaste: (() -> Void)?
 
     override func keyDown(with event: NSEvent) {
@@ -166,13 +179,34 @@ final class WrappingCueTextView: NSTextView {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
         switch Int(event.keyCode) {
+        case Int(kVK_UpArrow):
+            if onCommand?(.moveSelectionUp) == true {
+                return
+            }
+            super.keyDown(with: event)
+        case Int(kVK_DownArrow):
+            if onCommand?(.moveSelectionDown) == true {
+                return
+            }
+            super.keyDown(with: event)
+        case Int(kVK_Tab):
+            if onCommand?(.completeSelection) == true {
+                return
+            }
+            super.keyDown(with: event)
         case Int(kVK_Return), Int(kVK_ANSI_KeypadEnter):
+            if onCommand?(.completeSelection) == true {
+                return
+            }
             if modifiers.contains(.shift) {
                 super.keyDown(with: event)
             } else {
                 onSubmit?()
             }
         case Int(kVK_Escape):
+            if onCommand?(.cancelSelection) == true {
+                return
+            }
             onCancel?()
         default:
             super.keyDown(with: event)
