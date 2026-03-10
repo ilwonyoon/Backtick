@@ -1,13 +1,16 @@
+import AppKit
 import SwiftUI
 
 struct CaptureCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let card: CaptureCard
     let isSelected: Bool
+    let isRecentlyCopied: Bool
     let selectionMode: Bool
     let isExpanded: Bool
     let onCopy: () -> Void
     let onToggleSelection: () -> Void
+    let onCmdClick: () -> Void
     let onToggleExpansion: () -> Void
     let onDelete: () -> Void
     @State private var isCardHovered = false
@@ -20,6 +23,7 @@ struct CaptureCardView: View {
         CaptureCardActionStyle.resolve(
             card: card,
             isSelected: isSelected,
+            isRecentlyCopied: isRecentlyCopied,
             selectionMode: selectionMode,
             colorScheme: colorScheme,
             isCardHovered: isCardHovered,
@@ -27,6 +31,30 @@ struct CaptureCardView: View {
             isDeleteHovered: isDeleteHovered,
             isShowingCopyFeedback: isShowingCopyFeedback
         )
+    }
+
+    init(
+        card: CaptureCard,
+        isSelected: Bool,
+        isRecentlyCopied: Bool = false,
+        selectionMode: Bool,
+        isExpanded: Bool,
+        onCopy: @escaping () -> Void,
+        onToggleSelection: @escaping () -> Void,
+        onCmdClick: @escaping () -> Void = {},
+        onToggleExpansion: @escaping () -> Void,
+        onDelete: @escaping () -> Void
+    ) {
+        self.card = card
+        self.isSelected = isSelected
+        self.isRecentlyCopied = isRecentlyCopied
+        self.selectionMode = selectionMode
+        self.isExpanded = isExpanded
+        self.onCopy = onCopy
+        self.onToggleSelection = onToggleSelection
+        self.onCmdClick = onCmdClick
+        self.onToggleExpansion = onToggleExpansion
+        self.onDelete = onDelete
     }
 
     var body: some View {
@@ -71,13 +99,17 @@ struct CaptureCardView: View {
 
                 VStack(spacing: PrimitiveTokens.Space.xs) {
                     iconButton(
-                        systemName: actionStyle.copyIconSystemName,
-                        foregroundColor: actionStyle.copyIconColor,
-                        backgroundColor: actionStyle.copyIconBackground,
+                        systemName: actionStyle.primaryIconSystemName,
+                        foregroundColor: actionStyle.primaryIconColor,
+                        backgroundColor: actionStyle.primaryIconBackground,
                         action: performCopy
                     )
-                    .accessibilityLabel("Copy cue")
-                    .accessibilityHint("Copies this cue to the clipboard")
+                    .accessibilityLabel(selectionMode ? "Toggle staged cue copy" : "Copy cue")
+                    .accessibilityHint(
+                        selectionMode
+                            ? "Adds or removes this cue from the current multi-copy clipboard"
+                            : "Copies this cue to the clipboard"
+                    )
                     .onHover { hovered in
                         withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
                             isCopyHovered = hovered
@@ -105,7 +137,13 @@ struct CaptureCardView: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Cue: \(card.text)")
             .accessibilityAddTraits(isSelected ? .isSelected : [])
-            .onTapGesture(perform: performPrimaryAction)
+            .onTapGesture {
+                if isCommandClickEvent {
+                    onCmdClick()
+                } else {
+                    performPrimaryAction()
+                }
+            }
         }
         .contentShape(Rectangle())
         .onContinuousHover { phase in
@@ -188,6 +226,11 @@ struct CaptureCardView: View {
     }
 
     private func performCopy() {
+        if selectionMode {
+            onToggleSelection()
+            return
+        }
+
         guard !isShowingCopyFeedback else {
             return
         }
@@ -200,6 +243,10 @@ struct CaptureCardView: View {
             onCopy()
             isShowingCopyFeedback = false
         }
+    }
+
+    private var isCommandClickEvent: Bool {
+        NSApp.currentEvent?.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command) == true
     }
 
     @ViewBuilder
@@ -225,15 +272,16 @@ struct CaptureCardView: View {
 
 private struct CaptureCardActionStyle {
     let bodyColor: Color
-    let copyIconColor: Color
-    let copyIconSystemName: String
-    let copyIconBackground: Color
+    let primaryIconColor: Color
+    let primaryIconSystemName: String
+    let primaryIconBackground: Color
     let deleteIconColor: Color
     let deleteIconBackground: Color
 
     static func resolve(
         card: CaptureCard,
         isSelected: Bool,
+        isRecentlyCopied: Bool,
         selectionMode: Bool,
         colorScheme: ColorScheme,
         isCardHovered: Bool,
@@ -247,7 +295,7 @@ private struct CaptureCardActionStyle {
         let bodyColor: Color
         if isSelected || isCardHovered || isCopyHovered || isDeleteHovered {
             bodyColor = SemanticTokens.Text.primary
-        } else if card.isCopied {
+        } else if isRecentlyCopied || card.isCopied {
             switch colorScheme {
             case .light:
                 bodyColor = SemanticTokens.Text.primary.opacity(0.74)
@@ -260,31 +308,39 @@ private struct CaptureCardActionStyle {
             bodyColor = SemanticTokens.Text.primary
         }
 
-        let copyIconColor: Color
+        let primaryIconColor: Color
         if isDeleteHovered {
-            copyIconColor = SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.subtle)
+            primaryIconColor = SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.subtle)
         } else if isShowingCopyFeedback {
-            copyIconColor = SemanticTokens.Text.primary
+            primaryIconColor = SemanticTokens.Text.primary
+        } else if selectionMode, isSelected {
+            primaryIconColor = SemanticTokens.Text.primary
+        } else if selectionMode {
+            primaryIconColor = SemanticTokens.Text.secondary.opacity(0.78)
         } else if isPrimaryCopyHover {
-            copyIconColor = SemanticTokens.Text.primary
+            primaryIconColor = SemanticTokens.Text.primary
         } else {
             switch colorScheme {
             case .light:
-                copyIconColor = SemanticTokens.Text.secondary.opacity(0.80)
+                primaryIconColor = SemanticTokens.Text.secondary.opacity(0.80)
             case .dark:
-                copyIconColor = SemanticTokens.Text.secondary.opacity(0.86)
+                primaryIconColor = SemanticTokens.Text.secondary.opacity(0.86)
             @unknown default:
-                copyIconColor = SemanticTokens.Text.secondary.opacity(0.86)
+                primaryIconColor = SemanticTokens.Text.secondary.opacity(0.86)
             }
         }
 
-        let copyIconSystemName: String
+        let primaryIconSystemName: String
         if isShowingCopyFeedback {
-            copyIconSystemName = "checkmark"
+            primaryIconSystemName = "checkmark"
+        } else if selectionMode, isSelected {
+            primaryIconSystemName = "checkmark.circle.fill"
+        } else if selectionMode {
+            primaryIconSystemName = "circle"
         } else if isPrimaryCopyHover {
-            copyIconSystemName = "doc.on.doc.fill"
+            primaryIconSystemName = "doc.on.doc.fill"
         } else {
-            copyIconSystemName = "doc.on.doc"
+            primaryIconSystemName = "doc.on.doc"
         }
 
         let deleteIconColor: Color
@@ -310,24 +366,28 @@ private struct CaptureCardActionStyle {
             }
         }
 
-        let copyIconBackground: Color
+        let primaryIconBackground: Color
         if isDeleteHovered {
-            copyIconBackground = .clear
+            primaryIconBackground = .clear
         } else if isShowingCopyFeedback {
-            copyIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
+            primaryIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
+        } else if selectionMode, isSelected {
+            primaryIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
+        } else if selectionMode {
+            primaryIconBackground = .clear
         } else if isPrimaryCopyHover {
-            copyIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
+            primaryIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
         } else if usesPersistentActionBackdrop {
             switch colorScheme {
             case .light:
-                copyIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.72)
+                primaryIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.72)
             case .dark:
-                copyIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.54)
+                primaryIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.54)
             @unknown default:
-                copyIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.54)
+                primaryIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.54)
             }
         } else {
-            copyIconBackground = .clear
+            primaryIconBackground = .clear
         }
 
         let deleteIconBackground: Color
@@ -348,9 +408,9 @@ private struct CaptureCardActionStyle {
 
         return CaptureCardActionStyle(
             bodyColor: bodyColor,
-            copyIconColor: copyIconColor,
-            copyIconSystemName: copyIconSystemName,
-            copyIconBackground: copyIconBackground,
+            primaryIconColor: primaryIconColor,
+            primaryIconSystemName: primaryIconSystemName,
+            primaryIconBackground: primaryIconBackground,
             deleteIconColor: deleteIconColor,
             deleteIconBackground: deleteIconBackground
         )

@@ -16,7 +16,7 @@ struct CardStackView: View {
         ZStack {
             stackBackdrop
 
-            VStack(alignment: .leading, spacing: PrimitiveTokens.Size.panelSectionSpacing) {
+            VStack(alignment: .trailing, spacing: PrimitiveTokens.Size.panelSectionSpacing) {
                 header
 
                 if sections.isEmpty {
@@ -51,8 +51,61 @@ struct CardStackView: View {
 
     private var header: some View {
         Group {
-            if selectionMode {
+            if model.isMultiSelectMode {
+                multiSelectHeader
+            } else if selectionMode {
                 selectionHeader
+            } else if !model.cards.isEmpty {
+                defaultHeader
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    private var defaultHeader: some View {
+        Button(action: model.enterMultiSelectMode) {
+            stackColumnSurface {
+                HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
+                    Text("Copy Multiple")
+                        .font(PrimitiveTokens.Typography.bodyStrong)
+                        .foregroundStyle(SemanticTokens.Text.primary)
+
+                    Spacer(minLength: PrimitiveTokens.Space.xs)
+
+                    Text("⌘ click")
+                        .font(PrimitiveTokens.Typography.meta)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Enter multi-select mode")
+    }
+
+    private var multiSelectHeader: some View {
+        stackColumnSurface {
+            HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
+                if model.stagedCopiedCount > 0 {
+                    Text("\(model.stagedCopiedCount) copied")
+                        .font(PrimitiveTokens.Typography.bodyStrong)
+                        .foregroundStyle(SemanticTokens.Text.primary)
+                } else {
+                    Text("Select cues to copy")
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                }
+
+                Spacer(minLength: PrimitiveTokens.Space.xs)
+
+                Button(action: model.exitMultiSelectMode) {
+                    PromptCueChip {
+                        Image(systemName: "xmark")
+                            .font(PrimitiveTokens.Typography.chipIcon)
+                            .foregroundStyle(SemanticTokens.Text.primary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Exit multi-select mode")
             }
         }
     }
@@ -105,28 +158,52 @@ struct CardStackView: View {
     }
 
     private var selectionMode: Bool {
-        model.selectionCount > 0
+        model.isMultiSelectMode || model.selectionCount > 0
     }
 
     private func cardRow(for card: CaptureCard) -> some View {
-        CaptureCardView(
-            card: card,
-            isSelected: model.selectedCardIDs.contains(card.id),
-            selectionMode: selectionMode,
-            isExpanded: expandedCardIDs.contains(card.id),
-            onCopy: {
-                onCopyCard(card)
-            },
-            onToggleSelection: {
-                model.toggleSelection(for: card)
-            },
-            onToggleExpansion: {
-                toggleExpansion(for: card)
-            },
-            onDelete: {
-                onDeleteCard(card)
-            }
-        )
+        let isStagedCopied = model.stagedCopiedCardIDs.contains(card.id)
+
+        return stackColumnContent {
+            CaptureCardView(
+                card: card,
+                isSelected: model.isMultiSelectMode
+                    ? isStagedCopied
+                    : model.selectedCardIDs.contains(card.id),
+                isRecentlyCopied: isStagedCopied,
+                selectionMode: selectionMode,
+                isExpanded: expandedCardIDs.contains(card.id),
+                onCopy: {
+                    if model.isMultiSelectMode {
+                        _ = model.toggleMultiCopiedCard(card)
+                    } else if selectionMode {
+                        model.toggleSelection(for: card)
+                    } else {
+                        onCopyCard(card)
+                    }
+                },
+                onToggleSelection: {
+                    if model.isMultiSelectMode {
+                        _ = model.toggleMultiCopiedCard(card)
+                    } else {
+                        model.toggleSelection(for: card)
+                    }
+                },
+                onCmdClick: {
+                    if !model.isMultiSelectMode {
+                        model.enterMultiSelectMode()
+                    }
+                    _ = model.toggleMultiCopiedCard(card)
+                },
+                onToggleExpansion: {
+                    toggleExpansion(for: card)
+                },
+                onDelete: {
+                    onDeleteCard(card)
+                }
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     @ViewBuilder
@@ -323,6 +400,23 @@ struct CardStackView: View {
                 expandedCardIDs.insert(card.id)
             }
         }
+    }
+
+    private func stackColumnSurface<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        StackNotificationCardSurface {
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
+    }
+
+    private func stackColumnContent<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
     }
 
     private func partitionedCards(from cards: [CaptureCard]) -> CardSections {

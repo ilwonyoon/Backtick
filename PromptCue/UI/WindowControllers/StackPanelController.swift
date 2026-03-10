@@ -77,7 +77,11 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     func close() {
-        model.clearSelection()
+        if model.isMultiSelectMode {
+            model.commitDeferredCopies()
+        } else {
+            model.clearSelection()
+        }
 
         guard let panel else {
             isVisible = false

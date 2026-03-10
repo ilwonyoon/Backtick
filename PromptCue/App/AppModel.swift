@@ -53,6 +53,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var availableSuggestedTargets: [CaptureSuggestedTarget] = []
     @Published private(set) var draftSuggestedTargetOverride: CaptureSuggestedTarget?
     @Published var selectedCardIDs: Set<UUID> = []
+    @Published private(set) var isMultiSelectMode = false
+    @Published private(set) var stagedCopiedCardIDs: [UUID] = []
     @Published private(set) var isSubmittingCapture = false
 
     private let cardStore: CardStore
@@ -105,6 +107,15 @@ final class AppModel: ObservableObject {
 
     var selectedCardsInDisplayOrder: [CaptureCard] {
         cards.filter { selectedCardIDs.contains($0.id) }
+    }
+
+    var stagedCopiedCount: Int {
+        stagedCopiedCardIDs.count
+    }
+
+    var stagedCopiedCardsInClickOrder: [CaptureCard] {
+        let cardsByID = Dictionary(uniqueKeysWithValues: cards.map { ($0.id, $0) })
+        return stagedCopiedCardIDs.compactMap { cardsByID[$0] }
     }
 
     var automaticSuggestedTarget: CaptureSuggestedTarget? {
@@ -197,6 +208,9 @@ final class AppModel: ObservableObject {
         applyRecentScreenshotState(.idle)
         availableSuggestedTargets = []
         draftSuggestedTargetOverride = nil
+        isMultiSelectMode = false
+        selectedCardIDs.removeAll()
+        stagedCopiedCardIDs.removeAll()
         if let syncToggleObserver {
             NotificationCenter.default.removeObserver(syncToggleObserver)
         }
@@ -429,6 +443,18 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func enterMultiSelectMode() {
+        isMultiSelectMode = true
+        selectedCardIDs.removeAll()
+        stagedCopiedCardIDs.removeAll()
+    }
+
+    func exitMultiSelectMode() {
+        isMultiSelectMode = false
+        selectedCardIDs.removeAll()
+        stagedCopiedCardIDs.removeAll()
+    }
+
     func clearSelection() {
         selectedCardIDs.removeAll()
     }
@@ -437,7 +463,7 @@ final class AppModel: ObservableObject {
     func copy(card: CaptureCard) -> String {
         let payload = ClipboardFormatter.string(for: [card])
         ClipboardFormatter.copyToPasteboard(cards: [card])
-        markCopied(ids: [card.id])
+        markCopied(orderedIDs: [card.id])
         return payload
     }
 
@@ -450,8 +476,30 @@ final class AppModel: ObservableObject {
 
         let payload = ClipboardFormatter.string(for: selectedCards)
         ClipboardFormatter.copyToPasteboard(cards: selectedCards)
-        markCopied(ids: selectedCards.map(\.id))
+        markCopied(orderedIDs: selectedCards.map(\.id))
         return payload
+    }
+
+    @discardableResult
+    func toggleMultiCopiedCard(_ card: CaptureCard) -> String? {
+        if let existingIndex = stagedCopiedCardIDs.firstIndex(of: card.id) {
+            stagedCopiedCardIDs.remove(at: existingIndex)
+        } else {
+            stagedCopiedCardIDs.append(card.id)
+        }
+
+        return syncStagedMultiCopyClipboard()
+    }
+
+    func commitDeferredCopies() {
+        let deferredCopiedIDs = stagedCopiedCardIDs
+        guard !deferredCopiedIDs.isEmpty else {
+            exitMultiSelectMode()
+            return
+        }
+
+        markCopied(orderedIDs: deferredCopiedIDs)
+        exitMultiSelectMode()
     }
 
     func delete(card: CaptureCard) {
@@ -467,6 +515,10 @@ final class AppModel: ObservableObject {
 
         cards = updatedCards
         selectedCardIDs.remove(card.id)
+        stagedCopiedCardIDs.removeAll { $0 == card.id }
+        if isMultiSelectMode {
+            _ = syncStagedMultiCopyClipboard()
+        }
         cleanupManagedAttachments(removedCards: [card], remainingCards: updatedCards)
         cloudSyncEngine?.pushDeletion(id: card.id)
     }
@@ -495,20 +547,41 @@ final class AppModel: ObservableObject {
 
         cards = filtered
         selectedCardIDs.formIntersection(Set(filtered.map(\.id)))
+        stagedCopiedCardIDs.removeAll { id in
+            filtered.contains(where: { $0.id == id }) == false
+        }
+        if isMultiSelectMode {
+            _ = syncStagedMultiCopyClipboard()
+        }
         cleanupManagedAttachments(removedCards: expiredCards, remainingCards: filtered)
         cloudSyncEngine?.pushBatch(cards: [], deletions: expiredCards.map(\.id))
     }
 
-    private func markCopied(ids: [UUID]) {
-        let copiedIDs = Set(ids)
+    private func markCopied(orderedIDs: [UUID]) {
+        let uniqueOrderedIDs = orderedIDs.reduce(into: [UUID]()) { result, id in
+            if result.contains(id) == false {
+                result.append(id)
+            }
+        }
+        let copiedIDs = Set(uniqueOrderedIDs)
         let copiedAt = Date()
+        let copiedTimestamps = Dictionary(
+            uniqueKeysWithValues: uniqueOrderedIDs.enumerated().map { offset, id in
+                (
+                    id,
+                    copiedAt.addingTimeInterval(
+                        TimeInterval(uniqueOrderedIDs.count - offset) * 0.001
+                    )
+                )
+            }
+        )
         let updatedCards = sortedCards(
             cards.map { card in
                 guard copiedIDs.contains(card.id) else {
                     return card
                 }
 
-                return card.markCopied(at: copiedAt)
+                return card.markCopied(at: copiedTimestamps[card.id] ?? copiedAt)
             }
         )
         let copiedCards = updatedCards.filter { copiedIDs.contains($0.id) }
@@ -523,7 +596,19 @@ final class AppModel: ObservableObject {
 
         cards = updatedCards
         clearSelection()
+        stagedCopiedCardIDs.removeAll()
         pushCopiedCardsToCloudSync(copiedCards, forcePerCardDispatch: true)
+    }
+
+    private func syncStagedMultiCopyClipboard() -> String? {
+        let stagedCards = stagedCopiedCardsInClickOrder
+        guard !stagedCards.isEmpty else {
+            return nil
+        }
+
+        let payload = ClipboardFormatter.string(for: stagedCards)
+        ClipboardFormatter.copyToPasteboard(cards: stagedCards)
+        return payload
     }
 
     func pushCopiedCardsToCloudSync(
@@ -1034,6 +1119,10 @@ extension AppModel: CloudSyncDelegate {
 
         cards = plan.sortedCards
         selectedCardIDs.formIntersection(plan.survivingIDs)
+        stagedCopiedCardIDs.removeAll { plan.survivingIDs.contains($0) == false }
+        if isMultiSelectMode {
+            _ = syncStagedMultiCopyClipboard()
+        }
 
         if !plan.removedCards.isEmpty {
             cleanupManagedAttachments(

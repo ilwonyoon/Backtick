@@ -68,6 +68,7 @@
 		9FDC842CD22533DEF3817216 /* TransientScreenshotCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABC3CC7704E03CAB7D3959F /* TransientScreenshotCache.swift */; };
 		A3A423D204F44EC77421EA0F /* CaptureCardRenderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FA4D7EE3F2A66184B933C93 /* CaptureCardRenderingTests.swift */; };
 		A3B388733B91B624F0344F36 /* TopEdgeStrokeOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE0A5A352E047EF7ED93053 /* TopEdgeStrokeOverlay.swift */; };
+		A4B48C9E7490123D7B2D4DFE /* StackMultiCopyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78DEA144347458FDC5E9000 /* StackMultiCopyTests.swift */; };
 		A8FF21FF3EA560720F63B376 /* StorageServicesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CF4040B34025F10E6AB2C52 /* StorageServicesTests.swift */; };
 		A9A325745A3FCD8776614A21 /* HotKeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F447D3D2D92FFA7B5252D467 /* HotKeyCenter.swift */; };
 		AAEE765E6306C005070C399D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 6072B9D68F6A5C85EA50D901 /* GRDB */; };
@@ -122,6 +123,7 @@
 		092E3A82E4F9554B2984BDDF /* CaptureComposerLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureComposerLayoutTests.swift; sourceTree = "<group>"; };
 		09A461FEECE4CB884E435CC0 /* CardStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStore.swift; sourceTree = "<group>"; };
 		0A375A280E139D2C4C63F586 /* PromptCueShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueShortcuts.swift; sourceTree = "<group>"; };
+		0BAF880D0FF6A54927FD8D71 /* promptcue-pr15-multicopy-landing.2982 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "promptcue-pr15-multicopy-landing.2982"; path = .; sourceTree = SOURCE_ROOT; };
 		0DA754E495B637178A614D3C /* CaptureCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCardView.swift; sourceTree = "<group>"; };
 		0E42D900064EA79ABFF67858 /* ClipboardFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardFormatter.swift; sourceTree = "<group>"; };
 		0F15E70490C98C163CB52780 /* RecentScreenshotDirectoryObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotDirectoryObserver.swift; sourceTree = "<group>"; };
@@ -180,7 +182,6 @@
 		8E6B1D035A1C732D61C34CC2 /* CaptureCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCard.swift; sourceTree = "<group>"; };
 		91B9CDCE0290CBC1B005127A /* GlassPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassPanel.swift; sourceTree = "<group>"; };
 		94A7B229FE0346BD992E1208 /* StackPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackPanelController.swift; sourceTree = "<group>"; };
-		95B3D79B6A1E798C67F8C370 /* promptcue-pr15-chooser.j1WtqY */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "promptcue-pr15-chooser.j1WtqY"; path = .; sourceTree = SOURCE_ROOT; };
 		96E9A4318E943407297893C5 /* RecentSuggestedAppTargetTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentSuggestedAppTargetTracker.swift; sourceTree = "<group>"; };
 		9D7037F3C1F08BD57AE02B42 /* CloudSyncControlling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncControlling.swift; sourceTree = "<group>"; };
 		A377806B38E2AD651F10793B /* CaptureEditorResolvedHeight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorResolvedHeight.swift; sourceTree = "<group>"; };
@@ -189,6 +190,7 @@
 		ABB36AED40CA89C7F61009CE /* CloudSyncMergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncMergeTests.swift; sourceTree = "<group>"; };
 		AC3BC4BDEBDB5789858A2864 /* StackNotificationCardChromeRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackNotificationCardChromeRecipe.swift; sourceTree = "<group>"; };
 		AD841B199B35A1509E1A787E /* CaptureRuntimeMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureRuntimeMetrics.swift; sourceTree = "<group>"; };
+		B78DEA144347458FDC5E9000 /* StackMultiCopyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackMultiCopyTests.swift; sourceTree = "<group>"; };
 		B8FF6E5313712AEB634FE5B6 /* RecentClipboardImageMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentClipboardImageMonitor.swift; sourceTree = "<group>"; };
 		BEEB6C15D81F9C8F2C4A411A /* StackNotificationCardSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackNotificationCardSurface.swift; sourceTree = "<group>"; };
 		BFFA8B21D5818DC4A6138C6E /* PromptCue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PromptCue.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -326,7 +328,7 @@
 		6FDC8665E7B2B81DDA302044 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				95B3D79B6A1E798C67F8C370 /* promptcue-pr15-chooser.j1WtqY */,
+				0BAF880D0FF6A54927FD8D71 /* promptcue-pr15-multicopy-landing.2982 */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -401,6 +403,7 @@
 				A679683687A04D7C37581DDD /* RecentScreenshotCoordinatorTests.swift */,
 				4D905A922322288295EECE24 /* StackCardOverflowPerformanceTests.swift */,
 				7887BBB2E24D918B70BA2496 /* StackCardOverflowPolicyTests.swift */,
+				B78DEA144347458FDC5E9000 /* StackMultiCopyTests.swift */,
 				5CF4040B34025F10E6AB2C52 /* StorageServicesTests.swift */,
 			);
 			path = PromptCueTests;
@@ -578,6 +581,7 @@
 				87DACC5473D8E35DE0C94591 /* RecentScreenshotCoordinatorTests.swift in Sources */,
 				1FE7A3F3443CA6A36A525129 /* StackCardOverflowPerformanceTests.swift in Sources */,
 				CD286242FA8EB9D07D6E6488 /* StackCardOverflowPolicyTests.swift in Sources */,
+				A4B48C9E7490123D7B2D4DFE /* StackMultiCopyTests.swift in Sources */,
 				A8FF21FF3EA560720F63B376 /* StorageServicesTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
