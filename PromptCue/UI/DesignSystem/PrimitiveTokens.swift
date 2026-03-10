@@ -70,6 +70,7 @@ enum PrimitiveTokens {
         static let faint: Double = 0.12
         static let subtle: Double = 0.32
         static let soft: Double = 0.65
+        static let copiedCard: Double = 0.72
         static let medium: Double = 0.75
         static let strong: Double = 0.85
         static let shell: Double = 0.84

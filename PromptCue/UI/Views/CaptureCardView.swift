@@ -38,7 +38,8 @@ struct CaptureCardView: View {
 
         StackNotificationCardSurface(
             isSelected: isSelected,
-            isEmphasized: isCardHovered || isCopyHovered || isDeleteHovered || isShowingCopyFeedback
+            isEmphasized: isCardHovered || isCopyHovered || isDeleteHovered || isShowingCopyFeedback,
+            isCopied: card.isCopied
         ) {
             ZStack(alignment: .topTrailing) {
                 VStack(alignment: .leading, spacing: contentSpacing) {

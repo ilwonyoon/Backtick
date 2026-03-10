@@ -6,15 +6,18 @@ struct StackNotificationCardSurface<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     let isSelected: Bool
     let isEmphasized: Bool
+    let isCopied: Bool
     @ViewBuilder private var content: Content
 
     init(
         isSelected: Bool = false,
         isEmphasized: Bool = false,
+        isCopied: Bool = false,
         @ViewBuilder content: () -> Content
     ) {
         self.isSelected = isSelected
         self.isEmphasized = isEmphasized
+        self.isCopied = isCopied
         self.content = content()
     }
 
@@ -49,6 +52,7 @@ struct StackNotificationCardSurface<Content: View>: View {
                     .stroke(borderColor, lineWidth: isSelected ? PrimitiveTokens.Stroke.emphasis : PrimitiveTokens.Stroke.subtle)
             }
             .clipShape(shape)
+            .opacity(copiedSurfaceOpacity)
 
         if showsElevatedChrome {
             cardBody
@@ -68,6 +72,10 @@ struct StackNotificationCardSurface<Content: View>: View {
     private var backgroundFill: Color {
         if isSelected {
             return SemanticTokens.Surface.accentFill
+        }
+
+        if isCopied && !isEmphasized {
+            return SemanticTokens.Surface.notificationCardCopiedFill
         }
 
         return SemanticTokens.Surface.notificationCardFill
@@ -90,6 +98,10 @@ struct StackNotificationCardSurface<Content: View>: View {
             return SemanticTokens.Border.notificationCardHover
         }
 
+        if isCopied {
+            return SemanticTokens.Border.notificationCardCopied
+        }
+
         switch colorScheme {
         case .light:
             return SemanticTokens.Border.notificationCard.opacity(0.92)
@@ -98,6 +110,14 @@ struct StackNotificationCardSurface<Content: View>: View {
         @unknown default:
             return SemanticTokens.Border.notificationCard.opacity(0.82)
         }
+    }
+
+    private var copiedSurfaceOpacity: Double {
+        if !isCopied || isSelected || isEmphasized {
+            return 1.0
+        }
+
+        return PrimitiveTokens.Opacity.copiedCard
     }
 
     private var showsElevatedChrome: Bool {
