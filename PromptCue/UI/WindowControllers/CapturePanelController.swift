@@ -2,11 +2,73 @@ import AppKit
 import Carbon
 import SwiftUI
 
+struct CapturePanelFrameUpdateMetrics {
+    let totalMilliseconds: Double
+    let averageMicroseconds: Double
+    let appliedFrameCount: Int
+    let skippedFrameCount: Int
+}
+
+enum CapturePanelFrameUpdateGuard {
+    static let tolerance: CGFloat = 0.5
+
+    static func shouldApply(
+        currentFrame: NSRect,
+        targetFrame: NSRect,
+        tolerance: CGFloat = tolerance
+    ) -> Bool {
+        abs(currentFrame.origin.x - targetFrame.origin.x) > tolerance
+            || abs(currentFrame.origin.y - targetFrame.origin.y) > tolerance
+            || abs(currentFrame.size.width - targetFrame.size.width) > tolerance
+            || abs(currentFrame.size.height - targetFrame.size.height) > tolerance
+    }
+
+    @MainActor
+    static func benchmark(
+        initialFrame: NSRect,
+        targetFrames: [NSRect],
+        guarded: Bool,
+        applier: (NSRect) -> Void
+    ) -> CapturePanelFrameUpdateMetrics {
+        var currentFrame = initialFrame
+        var appliedFrameCount = 0
+        var skippedFrameCount = 0
+
+        let startedAt = CFAbsoluteTimeGetCurrent()
+
+        for targetFrame in targetFrames {
+            if guarded,
+               !shouldApply(
+                currentFrame: currentFrame,
+                targetFrame: targetFrame
+               ) {
+                skippedFrameCount += 1
+                continue
+            }
+
+            applier(targetFrame)
+            currentFrame = targetFrame
+            appliedFrameCount += 1
+        }
+
+        let totalMilliseconds = (CFAbsoluteTimeGetCurrent() - startedAt) * 1_000
+        let operationCount = max(targetFrames.count, 1)
+
+        return CapturePanelFrameUpdateMetrics(
+            totalMilliseconds: totalMilliseconds,
+            averageMicroseconds: totalMilliseconds * 1_000 / Double(operationCount),
+            appliedFrameCount: appliedFrameCount,
+            skippedFrameCount: skippedFrameCount
+        )
+    }
+}
+
 @MainActor
 final class CapturePanelController: NSObject, NSWindowDelegate {
     private let model: AppModel
     private var panel: CapturePanel?
     private var runtimeViewController: CapturePanelRuntimeViewController?
+    private var pendingCaptureSessionPreparationTask: Task<Void, Never>?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
     private var anchoredTopY: CGFloat?
@@ -19,6 +81,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     }
 
     deinit {
+        pendingCaptureSessionPreparationTask?.cancel()
         if let localMouseMonitor {
             NSEvent.removeMonitor(localMouseMonitor)
         }
@@ -28,7 +91,8 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     }
 
     func show() {
-        model.beginCaptureSession()
+        pendingCaptureSessionPreparationTask?.cancel()
+        model.prepareCapturePresentation()
         let runtimeViewController = runtimeViewController ?? makeRuntimeViewController()
         runtimeViewController.prepareForPresentation()
         preferredPanelHeight = runtimeViewController.currentPreferredPanelHeight
@@ -37,15 +101,19 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         let frame = initialPanelFrame()
         anchoredTopY = frame.maxY
         anchoredOriginX = frame.minX
-        panel.setFrame(frame, display: true)
+        applyFrameIfNeeded(frame, to: panel, display: true, animate: false)
         panel.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         runtimeViewController.focusEditorIfPossible()
         installDismissMonitors()
+        scheduleCaptureSessionPreparation()
     }
 
     func close() {
+        pendingCaptureSessionPreparationTask?.cancel()
+        pendingCaptureSessionPreparationTask = nil
+        runtimeViewController?.persistDraftIfNeeded()
         model.endCaptureSession()
         panel?.orderOut(nil)
         removeDismissMonitors()
@@ -178,7 +246,27 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
             anchoredOriginX = panel.frame.minX
         }
 
-        panel.setFrame(anchoredPanelFrame(), display: true, animate: false)
+        applyFrameIfNeeded(anchoredPanelFrame(), to: panel, display: true, animate: false)
+    }
+
+    private func scheduleCaptureSessionPreparation() {
+        pendingCaptureSessionPreparationTask = Task { @MainActor [weak self] in
+            await Task.yield()
+
+            guard let self else {
+                return
+            }
+
+            defer {
+                self.pendingCaptureSessionPreparationTask = nil
+            }
+
+            guard self.isVisible else {
+                return
+            }
+
+            self.model.beginCaptureSession()
+        }
     }
 
     private func primePanelLayout(_ panel: CapturePanel) {
@@ -188,6 +276,22 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
 
         contentView.needsLayout = true
         contentView.layoutSubtreeIfNeeded()
+    }
+
+    private func applyFrameIfNeeded(
+        _ targetFrame: NSRect,
+        to panel: CapturePanel,
+        display: Bool,
+        animate: Bool
+    ) {
+        guard CapturePanelFrameUpdateGuard.shouldApply(
+            currentFrame: panel.frame,
+            targetFrame: targetFrame
+        ) else {
+            return
+        }
+
+        panel.setFrame(targetFrame, display: display, animate: animate)
     }
 
     private func installDismissMonitors() {

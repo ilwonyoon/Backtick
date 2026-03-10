@@ -2,13 +2,13 @@ import Foundation
 import PromptCueCore
 import UniformTypeIdentifiers
 
-struct RecentScreenshotScanResult: Equatable {
+struct RecentScreenshotScanResult: Equatable, Sendable {
     let signalCandidate: RecentScreenshotCandidate?
     let readableCandidate: RecentScreenshotCandidate?
     let recentTemporaryContainerDate: Date?
 }
 
-struct RecentScreenshotCandidate: Equatable {
+struct RecentScreenshotCandidate: Equatable, Sendable {
     let attachment: ScreenshotAttachment
     let sourceKey: String
 

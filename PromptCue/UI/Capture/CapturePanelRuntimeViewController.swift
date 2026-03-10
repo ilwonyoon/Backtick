@@ -1,10 +1,70 @@
 import AppKit
 import Combine
 
+struct CapturePanelPreferredHeightUpdateMetrics {
+    let totalMilliseconds: Double
+    let averageMicroseconds: Double
+    let emittedHeightCount: Int
+    let skippedHeightCount: Int
+}
+
+enum CapturePanelPreferredHeightGuard {
+    static let tolerance: CGFloat = 0.5
+
+    static func shouldEmit(
+        currentHeight: CGFloat,
+        targetHeight: CGFloat,
+        tolerance: CGFloat = tolerance
+    ) -> Bool {
+        abs(currentHeight - targetHeight) > tolerance
+    }
+
+    static func benchmark(
+        initialHeight: CGFloat,
+        targetHeights: [CGFloat],
+        guarded: Bool,
+        emitter: (CGFloat) -> Void
+    ) -> CapturePanelPreferredHeightUpdateMetrics {
+        var currentHeight = initialHeight
+        var emittedHeightCount = 0
+        var skippedHeightCount = 0
+
+        let startedAt = CFAbsoluteTimeGetCurrent()
+
+        for targetHeight in targetHeights {
+            if guarded,
+               !shouldEmit(
+                currentHeight: currentHeight,
+                targetHeight: targetHeight
+               ) {
+                currentHeight = targetHeight
+                skippedHeightCount += 1
+                continue
+            }
+
+            emitter(targetHeight)
+            currentHeight = targetHeight
+            emittedHeightCount += 1
+        }
+
+        let totalMilliseconds = (CFAbsoluteTimeGetCurrent() - startedAt) * 1_000
+        let operationCount = max(targetHeights.count, 1)
+
+        return CapturePanelPreferredHeightUpdateMetrics(
+            totalMilliseconds: totalMilliseconds,
+            averageMicroseconds: totalMilliseconds * 1_000 / Double(operationCount),
+            emittedHeightCount: emittedHeightCount,
+            skippedHeightCount: skippedHeightCount
+        )
+    }
+}
+
 @MainActor
 // Runtime-owned capture panel controller.
 // This file coordinates the live AppKit capture shell and must not be flattened into token-only styling work.
 final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDelegate {
+    private static let previewImageCache = CapturePreviewImageCache()
+
     private let model: AppModel
     private let shadowHostView = CapturePanelShadowHostView()
     private let shadowCasterView = CapturePanelShadowCasterView()
@@ -27,6 +87,9 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private var cancellables = Set<AnyCancellable>()
     private var isApplyingDraftExternally = false
     private var imageLoadTask: Task<Void, Never>?
+    private var pendingDraftSyncWorkItem: DispatchWorkItem?
+    private var pendingDraftSyncText: String?
+    private var displayedPreviewImageKey: String?
 
     var onPreferredPanelHeightChange: ((CGFloat) -> Void)?
     var onSubmitSuccess: (() -> Void)?
@@ -43,6 +106,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     deinit {
         imageLoadTask?.cancel()
+        pendingDraftSyncWorkItem?.cancel()
         cancellables.removeAll()
     }
 
@@ -243,42 +307,84 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
         switch state {
         case .idle, .expired, .consumed:
+            imageLoadTask?.cancel()
+            displayedPreviewImageKey = nil
             screenshotImageView.image = nil
             screenshotSpinner.stopAnimation(nil)
             screenshotSurface.showLoading(false)
         case .detected:
+            imageLoadTask?.cancel()
+            displayedPreviewImageKey = nil
             screenshotImageView.image = nil
             screenshotSurface.showLoading(true)
             screenshotSpinner.startAnimation(nil)
-        case .previewReady(_, let cacheURL, let thumbnailState):
+        case .previewReady(let sessionID, let cacheURL, let thumbnailState):
             switch thumbnailState {
             case .loading:
+                imageLoadTask?.cancel()
+                displayedPreviewImageKey = nil
                 screenshotImageView.image = nil
                 screenshotSurface.showLoading(true)
                 screenshotSpinner.startAnimation(nil)
             case .ready:
-                screenshotSurface.showLoading(false)
-                screenshotSpinner.stopAnimation(nil)
-                loadImage(from: cacheURL)
+                loadImage(from: cacheURL, sessionID: sessionID)
             }
         }
 
         recomputePreferredPanelHeight()
     }
 
-    private func loadImage(from url: URL) {
+    private func loadImage(from url: URL, sessionID: UUID) {
+        let cacheKey = CapturePreviewImageCache.cacheKey(
+            sessionID: sessionID,
+            cacheURL: url
+        )
+
+        if displayedPreviewImageKey == cacheKey, screenshotImageView.image != nil {
+            screenshotSurface.showLoading(false)
+            screenshotSpinner.stopAnimation(nil)
+            return
+        }
+
+        if let cachedImage = Self.previewImageCache.image(forKey: cacheKey) {
+            imageLoadTask?.cancel()
+            displayedPreviewImageKey = cacheKey
+            screenshotImageView.image = cachedImage
+            screenshotSurface.showLoading(false)
+            screenshotSpinner.stopAnimation(nil)
+            return
+        }
+
         imageLoadTask?.cancel()
-        imageLoadTask = Task { [weak self] in
-            let image = ScreenshotDirectoryResolver.withAccessIfNeeded(to: url) { scopedURL in
-                NSImage(contentsOf: scopedURL)
-            }
+        displayedPreviewImageKey = cacheKey
+        screenshotImageView.image = nil
+        screenshotSurface.showLoading(true)
+        screenshotSpinner.startAnimation(nil)
+
+        imageLoadTask = Task.detached(priority: .utility) { [weak self, cacheKey, url] in
+            let image = CapturePreviewImageCache.loadUncachedImage(from: url)
 
             guard !Task.isCancelled else {
                 return
             }
 
+            if let image {
+                Self.previewImageCache.store(image, forKey: cacheKey)
+            }
+
             await MainActor.run {
-                self?.screenshotImageView.image = image
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                let resolvedImage = Self.previewImageCache.image(forKey: cacheKey)
+                guard let self, self.displayedPreviewImageKey == cacheKey else {
+                    return
+                }
+
+                self.screenshotImageView.image = resolvedImage
+                self.screenshotSurface.showLoading(false)
+                self.screenshotSpinner.stopAnimation(nil)
             }
         }
     }
@@ -291,16 +397,28 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             editorHeight + screenshotHeight + PanelMetrics.captureSurfaceTopPadding + PanelMetrics.captureSurfaceBottomPadding
         )
 
-        shellHeightConstraint.constant = surfaceHeight
-        preferredPanelHeight = ceil(
+        let nextPreferredPanelHeight = ceil(
             PanelMetrics.capturePanelShadowTopInset
             + surfaceHeight
             + PanelMetrics.capturePanelShadowBottomInset
         )
+        if abs(shellHeightConstraint.constant - surfaceHeight) > CapturePanelPreferredHeightGuard.tolerance {
+            shellHeightConstraint.constant = surfaceHeight
+        }
+
+        guard CapturePanelPreferredHeightGuard.shouldEmit(
+            currentHeight: preferredPanelHeight,
+            targetHeight: nextPreferredPanelHeight
+        ) else {
+            return
+        }
+
+        preferredPanelHeight = nextPreferredPanelHeight
         onPreferredPanelHeightChange?(preferredPanelHeight)
     }
 
     private func handleSubmit() {
+        flushDraftSyncIfNeeded(forceText: editorHost.textView.string)
         model.beginCaptureSubmission { [weak self] in
             self?.onSubmitSuccess?()
         }
@@ -311,19 +429,119 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         model.dismissPendingScreenshot()
     }
 
+    func persistDraftIfNeeded() {
+        flushDraftSyncIfNeeded(forceText: editorHost.textView.string)
+    }
+
     func textDidChange(_ notification: Notification) {
         guard let textView = notification.object as? NSTextView,
               textView === editorHost.textView else {
             return
         }
 
-        editorHost.updateMeasuredMetrics(forceMeasure: true, emitMetrics: false)
+        let previousDraftCount = model.draftText.utf16.count
+        let currentDraftText = textView.string
+        let currentDraftCount = currentDraftText.utf16.count
+        let isGrowingDraft = currentDraftCount >= previousDraftCount
+        let shouldSkipMeasurement = editorHost.currentMetrics.isScrollable && isGrowingDraft
 
-        if !isApplyingDraftExternally, model.draftText != textView.string {
-            model.draftText = textView.string
+        if !isApplyingDraftExternally {
+            scheduleDraftSync(currentDraftText)
         }
 
-        editorHost.flushPendingMetricsIfNeeded()
+        guard !shouldSkipMeasurement else {
+            return
+        }
+
+        // Keep wrap and early multiline growth synchronous so the shell grows
+        // in the same interaction frame. Once the editor is already clamped
+        // and scrollable, we can afford to coalesce follow-up measurements.
+        if editorHost.currentMetrics.isScrollable {
+            editorHost.scheduleMeasuredMetrics()
+        } else {
+            editorHost.resolvePreferredHeight(forceMeasure: true)
+        }
+    }
+
+    private func scheduleDraftSync(_ text: String) {
+        pendingDraftSyncText = text
+        pendingDraftSyncWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else {
+                return
+            }
+
+            self.pendingDraftSyncWorkItem = nil
+            let resolvedText = self.pendingDraftSyncText ?? text
+            self.pendingDraftSyncText = nil
+            if self.model.draftText != resolvedText {
+                self.model.draftText = resolvedText
+            }
+        }
+
+        pendingDraftSyncWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
+    }
+
+    private func flushDraftSyncIfNeeded(forceText: String? = nil) {
+        pendingDraftSyncWorkItem?.cancel()
+        pendingDraftSyncWorkItem = nil
+
+        let resolvedText = forceText ?? pendingDraftSyncText ?? editorHost.textView.string
+        pendingDraftSyncText = nil
+
+        if !isApplyingDraftExternally, model.draftText != resolvedText {
+            model.draftText = resolvedText
+        }
+    }
+}
+
+final class CapturePreviewImageCache {
+    private let storage = NSCache<NSString, NSImage>()
+
+    init(countLimit: Int = 12) {
+        storage.countLimit = countLimit
+    }
+
+    func image(forKey key: String) -> NSImage? {
+        storage.object(forKey: key as NSString)
+    }
+
+    func store(_ image: NSImage, forKey key: String) {
+        storage.setObject(image, forKey: key as NSString)
+    }
+
+    func removeAllObjects() {
+        storage.removeAllObjects()
+    }
+
+    func cachedImage(
+        sessionID: UUID,
+        cacheURL: URL,
+        loader: (URL) -> NSImage?
+    ) -> NSImage? {
+        let cacheKey = Self.cacheKey(sessionID: sessionID, cacheURL: cacheURL)
+        if let cachedImage = image(forKey: cacheKey) {
+            return cachedImage
+        }
+
+        guard let decodedImage = loader(cacheURL) else {
+            return nil
+        }
+
+        store(decodedImage, forKey: cacheKey)
+        return decodedImage
+    }
+
+    static func cacheKey(sessionID: UUID, cacheURL: URL) -> String {
+        "\(sessionID.uuidString.lowercased())|\(cacheURL.standardizedFileURL.path)"
+    }
+
+    static func loadUncachedImage(from url: URL) -> NSImage? {
+        ScreenshotDirectoryResolver.withAccessIfNeeded(to: url) { scopedURL in
+            NSImage(contentsOf: scopedURL)
+        }
     }
 }
 
@@ -410,6 +628,7 @@ private final class CapturePanelShellView: NSVisualEffectView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
+        appearance = window?.effectiveAppearance ?? NSApp.effectiveAppearance
         updateAppearance()
     }
 
@@ -417,7 +636,8 @@ private final class CapturePanelShellView: NSVisualEffectView {
         super.init(frame: frameRect)
         state = .active
         blendingMode = .withinWindow
-        material = .hudWindow
+        material = .menu
+        appearance = NSApp.effectiveAppearance
         wantsLayer = true
         layer?.masksToBounds = true
         layer?.addSublayer(fillLayer)
@@ -438,11 +658,13 @@ private final class CapturePanelShellView: NSVisualEffectView {
     private func updateAppearance() {
         guard let layer else { return }
 
-        fillLayer.fillColor = NSColor(SemanticTokens.Surface.captureShellFill).cgColor
-        borderLayer.strokeColor = NSColor(SemanticTokens.Surface.captureShellStroke).cgColor
+        material = usesDarkAppearance ? .menu : .hudWindow
+
+        fillLayer.fillColor = captureShellFillColor.cgColor
+        borderLayer.strokeColor = captureShellStrokeColor.cgColor
         borderLayer.lineWidth = PrimitiveTokens.Stroke.subtle
         borderLayer.fillColor = NSColor.clear.cgColor
-        topHighlightLayer.strokeColor = NSColor(SemanticTokens.Surface.captureShellTopHighlight).cgColor
+        topHighlightLayer.strokeColor = captureShellTopHighlightColor.cgColor
         topHighlightLayer.lineWidth = PrimitiveTokens.Stroke.subtle
         topHighlightLayer.fillColor = NSColor.clear.cgColor
         layer.cornerRadius = PrimitiveTokens.Radius.lg
@@ -478,6 +700,23 @@ private final class CapturePanelShellView: NSVisualEffectView {
         }()
 
         layer.cornerRadius = radius
+    }
+
+    private var usesDarkAppearance: Bool {
+        effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight]) == .darkAqua
+            || effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight]) == .vibrantDark
+    }
+
+    private var captureShellFillColor: NSColor {
+        NSColor(SemanticTokens.Surface.captureShellFill)
+    }
+
+    private var captureShellStrokeColor: NSColor {
+        NSColor(SemanticTokens.Surface.captureShellStroke)
+    }
+
+    private var captureShellTopHighlightColor: NSColor {
+        NSColor(SemanticTokens.Surface.captureShellTopHighlight)
     }
 }
 
@@ -517,8 +756,16 @@ private final class CaptureScreenshotSurfaceView: NSView {
     }
 
     private func updateAppearance() {
-        layer?.backgroundColor = NSColor(SemanticTokens.Surface.captureShellScreenshotFill).cgColor
-        layer?.borderColor = NSColor(SemanticTokens.Surface.captureShellScreenshotBorder).cgColor
-        loadingOverlay.layer?.backgroundColor = NSColor(SemanticTokens.Surface.captureShellScreenshotLoadingFill).cgColor
+        let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight]) == .darkAqua
+            || effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight]) == .vibrantDark
+        layer?.backgroundColor = (isDark
+            ? NSColor.white.withAlphaComponent(0.08)
+            : NSColor.white.withAlphaComponent(0.68)).cgColor
+        layer?.borderColor = (isDark
+            ? NSColor.white.withAlphaComponent(0.12)
+            : NSColor.black.withAlphaComponent(0.10)).cgColor
+        loadingOverlay.layer?.backgroundColor = (isDark
+            ? NSColor.white.withAlphaComponent(0.06)
+            : NSColor.white.withAlphaComponent(0.44)).cgColor
     }
 }

@@ -24,7 +24,7 @@ protocol CloudSyncDelegate: AnyObject {
 }
 
 @MainActor
-final class CloudSyncEngine {
+final class CloudSyncEngine: CloudSyncControlling {
     private static let zoneName = "Cards"
     private static let recordType = "CaptureCard"
     private static let serverChangeTokenKey = "CloudSyncEngine.serverChangeToken"

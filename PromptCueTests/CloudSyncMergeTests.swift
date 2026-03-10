@@ -260,6 +260,148 @@ final class CloudSyncMergeTests: XCTestCase {
         XCTAssertNil(card?.screenshotPath)
     }
 
+    func testRemoteApplySkipsAssetImportWhenLocalWinnerAlreadyHasScreenshot() throws {
+        let attachmentsURL = tempDirectoryURL.appendingPathComponent("Attachments", isDirectory: true)
+        let localCard = CaptureCard(
+            id: UUID(),
+            text: "Local keeps screenshot",
+            createdAt: Date(),
+            screenshotPath: attachmentsURL.appendingPathComponent("local.png").path,
+            lastCopiedAt: Date(timeIntervalSince1970: 2_000)
+        )
+        try saveCards([localCard])
+        let attachmentStore = CountingAttachmentStore(baseDirectoryURL: attachmentsURL)
+        model = makeModel(attachmentStore: attachmentStore)
+        model.reloadCards()
+
+        let assetFile = tempDirectoryURL.appendingPathComponent("redundant-remote.png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: assetFile)
+        let remoteCard = CaptureCard(
+            id: localCard.id,
+            text: "Remote loses merge",
+            createdAt: localCard.createdAt,
+            lastCopiedAt: Date(timeIntervalSince1970: 1_000)
+        )
+
+        model.applyRemoteChanges([
+            .upsert(remoteCard, screenshotAssetURL: assetFile)
+        ])
+
+        XCTAssertEqual(attachmentStore.importCallCount, 0)
+        XCTAssertEqual(model.cards.first?.screenshotPath, localCard.screenshotPath)
+        XCTAssertEqual(model.cards.first?.text, localCard.text)
+    }
+
+    func testRemoteApplyImportsAssetWhenLocalWinnerNeedsScreenshot() throws {
+        let attachmentsURL = tempDirectoryURL.appendingPathComponent("Attachments", isDirectory: true)
+        let localCard = CaptureCard(
+            id: UUID(),
+            text: "Local needs screenshot",
+            createdAt: Date(),
+            screenshotPath: nil,
+            lastCopiedAt: Date(timeIntervalSince1970: 2_000)
+        )
+        try saveCards([localCard])
+        let attachmentStore = CountingAttachmentStore(baseDirectoryURL: attachmentsURL)
+        model = makeModel(attachmentStore: attachmentStore)
+        model.reloadCards()
+
+        let assetFile = tempDirectoryURL.appendingPathComponent("needed-remote.png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: assetFile)
+        let remoteCard = CaptureCard(
+            id: localCard.id,
+            text: "Remote loses merge",
+            createdAt: localCard.createdAt,
+            lastCopiedAt: Date(timeIntervalSince1970: 1_000)
+        )
+
+        model.applyRemoteChanges([
+            .upsert(remoteCard, screenshotAssetURL: assetFile)
+        ])
+
+        XCTAssertEqual(attachmentStore.importCallCount, 1)
+        XCTAssertEqual(model.cards.first?.text, localCard.text)
+        XCTAssertNotNil(model.cards.first?.screenshotPath)
+    }
+
+    func testScheduledRemoteChangesApplyEventually() async throws {
+        let remoteCard = CaptureCard(text: "Queued remote note", createdAt: Date())
+
+        model.scheduleRemoteChangesForApply([
+            .upsert(remoteCard, screenshotAssetURL: nil)
+        ])
+        await model.waitForRemoteApplyToDrain()
+
+        XCTAssertEqual(model.cards.count, 1)
+        XCTAssertEqual(model.cards.first?.text, "Queued remote note")
+    }
+
+    func testScheduledRemoteChangesSkipAssetImportWhenLocalWinnerAlreadyHasScreenshot() async throws {
+        let attachmentsURL = tempDirectoryURL.appendingPathComponent("Attachments", isDirectory: true)
+        let localCard = CaptureCard(
+            id: UUID(),
+            text: "Local keeps screenshot",
+            createdAt: Date(),
+            screenshotPath: attachmentsURL.appendingPathComponent("local.png").path,
+            lastCopiedAt: Date(timeIntervalSince1970: 2_000)
+        )
+        try saveCards([localCard])
+        let attachmentStore = CountingAttachmentStore(baseDirectoryURL: attachmentsURL)
+        model = makeModel(attachmentStore: attachmentStore)
+        model.reloadCards()
+
+        let assetFile = tempDirectoryURL.appendingPathComponent("queued-redundant-remote.png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: assetFile)
+        let remoteCard = CaptureCard(
+            id: localCard.id,
+            text: "Remote loses merge",
+            createdAt: localCard.createdAt,
+            lastCopiedAt: Date(timeIntervalSince1970: 1_000)
+        )
+
+        model.scheduleRemoteChangesForApply([
+            .upsert(remoteCard, screenshotAssetURL: assetFile)
+        ])
+        await model.waitForRemoteApplyToDrain()
+
+        XCTAssertEqual(attachmentStore.importCallCount, 0)
+        XCTAssertEqual(model.cards.first?.screenshotPath, localCard.screenshotPath)
+        XCTAssertEqual(model.cards.first?.text, localCard.text)
+    }
+
+    func testScheduledRemoteChangesImportAssetWhenLocalWinnerNeedsScreenshot() async throws {
+        let attachmentsURL = tempDirectoryURL.appendingPathComponent("Attachments", isDirectory: true)
+        let localCard = CaptureCard(
+            id: UUID(),
+            text: "Local needs screenshot",
+            createdAt: Date(),
+            screenshotPath: nil,
+            lastCopiedAt: Date(timeIntervalSince1970: 2_000)
+        )
+        try saveCards([localCard])
+        let attachmentStore = CountingAttachmentStore(baseDirectoryURL: attachmentsURL)
+        model = makeModel(attachmentStore: attachmentStore)
+        model.reloadCards()
+
+        let assetFile = tempDirectoryURL.appendingPathComponent("queued-needed-remote.png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: assetFile)
+        let remoteCard = CaptureCard(
+            id: localCard.id,
+            text: "Remote loses merge",
+            createdAt: localCard.createdAt,
+            lastCopiedAt: Date(timeIntervalSince1970: 1_000)
+        )
+
+        model.scheduleRemoteChangesForApply([
+            .upsert(remoteCard, screenshotAssetURL: assetFile)
+        ])
+        await model.waitForRemoteApplyToDrain()
+
+        XCTAssertEqual(attachmentStore.importCallCount, 1)
+        XCTAssertEqual(model.cards.first?.text, localCard.text)
+        XCTAssertNotNil(model.cards.first?.screenshotPath)
+    }
+
     // MARK: - Selection Cleanup on Delete
 
     func testRemoteDeleteClearsSelectionForDeletedCard() throws {
@@ -278,10 +420,10 @@ final class CloudSyncMergeTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func makeModel() -> AppModel {
+    private func makeModel(attachmentStore: AttachmentStoring? = nil) -> AppModel {
         AppModel(
             cardStore: CardStore(databaseURL: tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")),
-            attachmentStore: AttachmentStore(
+            attachmentStore: attachmentStore ?? AttachmentStore(
                 baseDirectoryURL: tempDirectoryURL.appendingPathComponent("Attachments", isDirectory: true)
             ),
             recentScreenshotCoordinator: TestSyncRecentScreenshotCoordinator()
@@ -291,6 +433,34 @@ final class CloudSyncMergeTests: XCTestCase {
     private func saveCards(_ cards: [CaptureCard]) throws {
         let store = CardStore(databaseURL: tempDirectoryURL.appendingPathComponent("PromptCue.sqlite"))
         try store.save(cards)
+    }
+}
+
+@MainActor
+private final class CountingAttachmentStore: AttachmentStoring {
+    let baseDirectoryURL: URL
+
+    private(set) var importCallCount = 0
+
+    init(baseDirectoryURL: URL) {
+        self.baseDirectoryURL = baseDirectoryURL
+    }
+
+    func importScreenshot(from sourceURL: URL, ownerID: UUID) throws -> URL {
+        importCallCount += 1
+        return baseDirectoryURL
+            .appendingPathComponent(ownerID.uuidString.lowercased(), isDirectory: false)
+            .appendingPathExtension(sourceURL.pathExtension)
+    }
+
+    func removeManagedFile(at fileURL: URL) throws {}
+    func pruneUnreferencedManagedFiles(referencedFileURLs: Set<URL>) throws {}
+
+    func isManagedFile(_ fileURL: URL) -> Bool {
+        let standardizedURL = fileURL.standardizedFileURL
+        let basePath = baseDirectoryURL.standardizedFileURL.path
+        let filePath = standardizedURL.path
+        return filePath == basePath || filePath.hasPrefix(basePath + "/")
     }
 }
 

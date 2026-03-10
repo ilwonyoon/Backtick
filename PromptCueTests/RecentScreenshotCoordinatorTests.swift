@@ -58,7 +58,13 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-07 at 10.00.00.png")
         try Data().write(to: screenshotURL)
         observer.signalChange(.authorizedDirectoryChanged)
-        drainMainQueue()
+        waitForCondition("detected state after zero-byte screenshot") {
+            if case .detected = coordinator.state {
+                return true
+            }
+
+            return false
+        }
 
         guard case .detected(let sessionID, _) = coordinator.state else {
             return XCTFail("Expected detected state after zero-byte screenshot signal")
@@ -66,7 +72,13 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         try Data("png".utf8).write(to: screenshotURL)
         observer.signalChange(.authorizedDirectoryChanged)
-        drainMainQueue()
+        waitForCondition("preview-ready state after screenshot becomes readable") {
+            if case .previewReady = coordinator.state {
+                return true
+            }
+
+            return false
+        }
 
         guard case .previewReady(let previewSessionID, let previewCacheURL, .ready) = coordinator.state else {
             return XCTFail("Expected preview-ready state after screenshot becomes readable")
@@ -116,7 +128,13 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         try Data("png".utf8).write(to: screenshotURL)
 
         coordinator.prepareForCaptureSession()
-        drainMainQueue()
+        waitForCondition("preview-ready state after capture session preparation") {
+            if case .previewReady = coordinator.state {
+                return true
+            }
+
+            return false
+        }
 
         guard case .previewReady(_, let previewCacheURL, .ready) = coordinator.state else {
             return XCTFail("Expected preview-ready state after prepareForCaptureSession")
@@ -164,8 +182,14 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         let temporaryScreenshotURL = childDirectoryURL.appendingPathComponent(filename)
         let finalScreenshotURL = screenshotsURL.appendingPathComponent(filename)
         try Data().write(to: temporaryScreenshotURL)
-        observer.signalChange(.temporaryScreenshotContainerChanged)
-        drainMainQueue()
+        coordinator.prepareForCaptureSession()
+        await waitForConditionAsync("detected state before resolve") {
+            if case .detected = coordinator.state {
+                return true
+            }
+
+            return false
+        }
 
         guard case .detected = coordinator.state else {
             return XCTFail("Expected detected state before resolve")
@@ -223,7 +247,13 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         try Data().write(to: temporaryScreenshotURL)
 
         coordinator.prepareForCaptureSession()
-        drainMainQueue()
+        waitForCondition("detected state for zero-byte temporary screenshot") {
+            if case .detected = coordinator.state {
+                return true
+            }
+
+            return false
+        }
 
         guard case .detected(let sessionID, _) = coordinator.state else {
             return XCTFail("Expected detected state for zero-byte temporary screenshot")
@@ -233,7 +263,13 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         try Data("png".utf8).write(to: finalScreenshotURL)
 
         coordinator.prepareForCaptureSession()
-        drainMainQueue()
+        waitForCondition("preview-ready state after final screenshot becomes readable") {
+            if case .previewReady = coordinator.state {
+                return true
+            }
+
+            return false
+        }
 
         guard case .previewReady(let previewSessionID, let previewCacheURL, .ready) = coordinator.state else {
             return XCTFail("Expected preview-ready state after final screenshot becomes readable")
@@ -271,7 +307,13 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         coordinator.start()
         coordinator.prepareForCaptureSession()
-        drainMainQueue()
+        waitForCondition("detected state from recent temporary screenshot container") {
+            if case .detected = coordinator.state {
+                return true
+            }
+
+            return false
+        }
 
         guard case .detected = coordinator.state else {
             return XCTFail("Expected detected state from recent temporary screenshot container")
@@ -309,7 +351,13 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-07 at 10.05.00.png")
         try Data("png".utf8).write(to: screenshotURL)
         observer.signalChange(.authorizedDirectoryChanged)
-        drainMainQueue()
+        waitForCondition("preview-ready state before dismissal") {
+            if case .previewReady = coordinator.state {
+                return true
+            }
+
+            return false
+        }
 
         guard case .previewReady = coordinator.state else {
             return XCTFail("Expected preview-ready state before dismissal")
@@ -319,7 +367,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .idle)
 
         observer.signalChange(.authorizedDirectoryChanged)
-        drainMainQueue()
+        drainMainQueue(seconds: 0.1)
         XCTAssertEqual(coordinator.state, .idle)
     }
 
@@ -351,7 +399,13 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         coordinator.start()
         observer.signalChange(.temporaryScreenshotContainerDetected)
-        drainMainQueue()
+        waitForCondition("immediate detected state after screenshot container signal") {
+            if case .detected = coordinator.state {
+                return true
+            }
+
+            return false
+        }
 
         guard case .detected = coordinator.state else {
             return XCTFail("Expected immediate detected state after screenshot container signal")
@@ -392,7 +446,13 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         try Data().write(to: tempScreenshotURL)
         observer.signalChange(.temporaryScreenshotContainerChanged)
-        drainMainQueue()
+        waitForCondition("detected state from temporary screenshot") {
+            if case .detected = coordinator.state {
+                return true
+            }
+
+            return false
+        }
 
         guard case .detected(let detectedSessionID, _) = coordinator.state else {
             return XCTFail("Expected detected state from temporary screenshot")
@@ -400,7 +460,13 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         try Data("png".utf8).write(to: finalScreenshotURL)
         observer.signalChange(.authorizedDirectoryChanged)
-        drainMainQueue(seconds: 0.1)
+        waitForCondition("preview-ready state after final screenshot write", timeout: 1) {
+            if case .previewReady = coordinator.state {
+                return true
+            }
+
+            return false
+        }
 
         guard case .previewReady(let previewSessionID, let previewCacheURL, .ready) = coordinator.state else {
             return XCTFail("Expected preview-ready state after final screenshot write")
@@ -454,6 +520,46 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
     private func drainMainQueue(seconds: TimeInterval = 0.05) {
         RunLoop.main.run(until: Date().addingTimeInterval(seconds))
+    }
+
+    private func waitForCondition(
+        _ description: String,
+        timeout: TimeInterval = 0.6,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        condition: () -> Bool
+    ) {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if condition() {
+                return
+            }
+
+            drainMainQueue(seconds: 0.01)
+        }
+
+        XCTFail("Timed out waiting for \(description)", file: file, line: line)
+    }
+
+    private func waitForConditionAsync(
+        _ description: String,
+        timeout: TimeInterval = 0.6,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        condition: @escaping @MainActor () -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if condition() {
+                return
+            }
+
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        XCTFail("Timed out waiting for \(description)", file: file, line: line)
     }
 }
 

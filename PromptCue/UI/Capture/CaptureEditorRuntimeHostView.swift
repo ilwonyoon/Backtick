@@ -29,6 +29,8 @@ final class CaptureEditorRuntimeHostView: NSView {
     private var lastEmittedPreferredHeight: CGFloat = CaptureEditorResolvedHeight.empty.preferredHeight
     private var lastMeasuredViewportWidth: CGFloat = 0
     private var pendingScrollToSelection = false
+    private var pendingMeasurementWorkItem: DispatchWorkItem?
+    private var pendingMeasurementWantsScroll = false
     private var scrollBoundsObserver: NSObjectProtocol?
     private var scrollIndicatorHideWorkItem: DispatchWorkItem?
     private let shouldLogMetrics = ProcessInfo.processInfo.environment["PROMPTCUE_LOG_EDITOR_METRICS"] == "1"
@@ -55,6 +57,7 @@ final class CaptureEditorRuntimeHostView: NSView {
         if let scrollBoundsObserver {
             NotificationCenter.default.removeObserver(scrollBoundsObserver)
         }
+        pendingMeasurementWorkItem?.cancel()
         scrollIndicatorHideWorkItem?.cancel()
     }
 
@@ -146,6 +149,25 @@ final class CaptureEditorRuntimeHostView: NSView {
 
         self.pendingMetrics = nil
         emitMetricsIfNeeded(pendingMetrics)
+    }
+
+    func scheduleMeasuredMetrics(forceScrollToSelection: Bool = false) {
+        pendingMeasurementWantsScroll = pendingMeasurementWantsScroll || forceScrollToSelection
+        pendingMeasurementWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else {
+                return
+            }
+
+            let shouldScroll = self.pendingMeasurementWantsScroll
+            self.pendingMeasurementWantsScroll = false
+            self.pendingMeasurementWorkItem = nil
+            self.updateMeasuredMetrics(forceScrollToSelection: shouldScroll, forceMeasure: true, emitMetrics: true)
+        }
+
+        pendingMeasurementWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.016, execute: workItem)
     }
 
     func resolvePreferredHeight(forceMeasure: Bool = false) {

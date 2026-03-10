@@ -69,4 +69,71 @@ final class StorageServicesTests: XCTestCase {
         let loadedCopiedAt = try XCTUnwrap(loadedCards.first?.lastCopiedAt)
         XCTAssertLessThan(abs(loadedCopiedAt.timeIntervalSince(copiedAt)), 1)
     }
+
+    func testCardStoreBatchUpsertUpdatesExistingCardAndInsertsNewCard() throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let store = CardStore(databaseURL: databaseURL)
+        let original = CaptureCard(
+            id: UUID(),
+            text: "Original",
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            sortOrder: 10
+        )
+        let inserted = CaptureCard(
+            id: UUID(),
+            text: "Inserted",
+            createdAt: Date(timeIntervalSinceReferenceDate: 200),
+            sortOrder: 20
+        )
+        let updatedOriginal = CaptureCard(
+            id: original.id,
+            text: "Updated",
+            createdAt: original.createdAt,
+            screenshotPath: "/tmp/updated.png",
+            lastCopiedAt: Date(timeIntervalSinceReferenceDate: 400),
+            sortOrder: original.sortOrder
+        )
+
+        try store.replaceAll([original])
+        try store.upsert([updatedOriginal, inserted])
+
+        let loadedCards = try store.load()
+
+        XCTAssertEqual(loadedCards.map(\.id), [inserted.id, original.id])
+        XCTAssertEqual(loadedCards.first?.text, inserted.text)
+        XCTAssertEqual(loadedCards.last?.text, updatedOriginal.text)
+        XCTAssertEqual(loadedCards.last?.screenshotPath, updatedOriginal.screenshotPath)
+        XCTAssertEqual(loadedCards.last?.lastCopiedAt, updatedOriginal.lastCopiedAt)
+    }
+
+    func testCardStoreBatchDeleteRemovesRequestedCardsOnly() throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let store = CardStore(databaseURL: databaseURL)
+        let first = CaptureCard(
+            id: UUID(),
+            text: "First",
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            sortOrder: 10
+        )
+        let second = CaptureCard(
+            id: UUID(),
+            text: "Second",
+            createdAt: Date(timeIntervalSinceReferenceDate: 200),
+            sortOrder: 20
+        )
+        let third = CaptureCard(
+            id: UUID(),
+            text: "Third",
+            createdAt: Date(timeIntervalSinceReferenceDate: 300),
+            sortOrder: 30
+        )
+
+        try store.replaceAll([first, second, third])
+        try store.delete(ids: [first.id, third.id])
+
+        let loadedCards = try store.load()
+
+        XCTAssertEqual(loadedCards.map(\.id), [second.id])
+        XCTAssertEqual(loadedCards.first?.text, second.text)
+    }
 }

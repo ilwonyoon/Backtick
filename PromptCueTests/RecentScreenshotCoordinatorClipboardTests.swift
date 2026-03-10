@@ -188,6 +188,14 @@ final class RecentScreenshotCoordinatorClipboardTests: XCTestCase {
         coordinator.start()
         coordinator.prepareForCaptureSession()
 
+        waitForCondition("file screenshot preview-ready state") {
+            if case .previewReady = coordinator.state {
+                return true
+            }
+
+            return false
+        }
+
         guard case .previewReady(_, let previewCacheURL, .ready) = coordinator.state else {
             return XCTFail("Expected file screenshot preview-ready state")
         }
@@ -211,6 +219,26 @@ final class RecentScreenshotCoordinatorClipboardTests: XCTestCase {
             ),
             sourceKey: filename.lowercased()
         )
+    }
+
+    private func waitForCondition(
+        _ description: String,
+        timeout: TimeInterval = 0.6,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        condition: () -> Bool
+    ) {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if condition() {
+                return
+            }
+
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+
+        XCTFail("Timed out waiting for \(description)", file: file, line: line)
     }
 }
 

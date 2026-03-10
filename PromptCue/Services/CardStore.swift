@@ -96,6 +96,10 @@ final class CardStore {
     }
 
     func save(_ cards: [CaptureCard]) throws {
+        try replaceAll(cards)
+    }
+
+    func replaceAll(_ cards: [CaptureCard]) throws {
         guard let dbQueue else {
             throw CardStoreError.unavailable(underlying: setupError)
         }
@@ -114,13 +118,23 @@ final class CardStore {
     }
 
     func upsert(_ card: CaptureCard) throws {
+        try upsert([card])
+    }
+
+    func upsert(_ cards: [CaptureCard]) throws {
         guard let dbQueue else {
             throw CardStoreError.unavailable(underlying: setupError)
         }
 
+        guard !cards.isEmpty else {
+            return
+        }
+
         do {
             try dbQueue.write { db in
-                try CardRecord(captureCard: card).save(db)
+                for card in cards {
+                    try CardRecord(captureCard: card).upsert(db)
+                }
             }
         } catch {
             NSLog("CardStore upsert failed: %@", error.localizedDescription)
@@ -129,19 +143,57 @@ final class CardStore {
     }
 
     func delete(id: UUID) throws {
+        try delete(ids: [id])
+    }
+
+    func apply(upserts cards: [CaptureCard], deletions ids: [UUID]) throws {
         guard let dbQueue else {
             throw CardStoreError.unavailable(underlying: setupError)
         }
 
+        guard !cards.isEmpty || !ids.isEmpty else {
+            return
+        }
+
         do {
             try dbQueue.write { db in
+                if !ids.isEmpty {
+                    let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ", ")
+                    try db.execute(
+                        sql: "DELETE FROM \(CardRecord.databaseTableName) WHERE id IN (\(placeholders))",
+                        arguments: StatementArguments(ids.map(\.uuidString))
+                    )
+                }
+
+                for card in cards {
+                    try CardRecord(captureCard: card).upsert(db)
+                }
+            }
+        } catch {
+            NSLog("CardStore batch apply failed: %@", error.localizedDescription)
+            throw CardStoreError.saveFailed(error)
+        }
+    }
+
+    func delete(ids: [UUID]) throws {
+        guard let dbQueue else {
+            throw CardStoreError.unavailable(underlying: setupError)
+        }
+
+        guard !ids.isEmpty else {
+            return
+        }
+
+        do {
+            try dbQueue.write { db in
+                let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ", ")
                 try db.execute(
-                    sql: "DELETE FROM \(CardRecord.databaseTableName) WHERE id = ?",
-                    arguments: [id.uuidString]
+                    sql: "DELETE FROM \(CardRecord.databaseTableName) WHERE id IN (\(placeholders))",
+                    arguments: StatementArguments(ids.map(\.uuidString))
                 )
             }
         } catch {
-            NSLog("CardStore delete by id failed: %@", error.localizedDescription)
+            NSLog("CardStore delete failed: %@", error.localizedDescription)
             throw CardStoreError.saveFailed(error)
         }
     }

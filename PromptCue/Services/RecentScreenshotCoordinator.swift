@@ -21,6 +21,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     private let maxAge: TimeInterval
     private let settleGrace: TimeInterval
     private let now: () -> Date
+    private let backgroundWorker: RecentScreenshotBackgroundWorker
 
     private var currentSession: RecentScreenshotSession?
     private var ignoredSourceKeys: [String: Date] = [:]
@@ -28,6 +29,10 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     private var settleDeadline: Date?
     private var expirationTimer: Timer?
     private var isStarted = false
+    private var scanGeneration: UInt64 = 0
+    private var previewGeneration: UInt64 = 0
+    private var scanInFlight = false
+    private var pendingScanReferenceDate: Date?
 
     init(
         observer: RecentScreenshotObserving? = nil,
@@ -45,6 +50,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         self.maxAge = maxAge
         self.settleGrace = settleGrace
         self.now = now
+        self.backgroundWorker = RecentScreenshotBackgroundWorker(locator: locator, cache: cache)
     }
 
     func start() {
@@ -80,6 +86,10 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         settleDeadline = nil
         expirationTimer?.invalidate()
         expirationTimer = nil
+        scanInFlight = false
+        pendingScanReferenceDate = nil
+        scanGeneration &+= 1
+        previewGeneration &+= 1
 
         clearCurrentSessionCache()
         currentSession = nil
@@ -119,7 +129,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
                 return cacheURL
             }
 
-            guard state.showsCaptureSlot else {
+            guard state.showsCaptureSlot || scanInFlight || pendingScanReferenceDate != nil else {
                 return nil
             }
 
@@ -198,45 +208,8 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             return
         }
 
-        let scanResult = locator.locateRecentScreenshot(now: referenceDate, maxAge: maxAge)
-        let signalCandidate = filteredCandidate(scanResult.signalCandidate, referenceDate: referenceDate)
-        let readableCandidate = filteredCandidate(scanResult.readableCandidate, referenceDate: referenceDate)
-
-        if signalCandidate == nil,
-           readableCandidate == nil,
-           let recentTemporaryContainerDate = scanResult.recentTemporaryContainerDate {
-            ensurePendingDetection(referenceDate: recentTemporaryContainerDate)
-        }
-
-        if let signalCandidate {
-            let session = ensureSession(for: signalCandidate, referenceDate: referenceDate)
-
-            if let readableCandidate, readableCandidate.sourceKey == session.sourceKey {
-                updatePreviewIfNeeded(using: readableCandidate, session: session, referenceDate: referenceDate)
-            } else {
-                state = .detected(sessionID: session.id, detectedAt: session.detectedAt)
-            }
-
-            scheduleExpirationIfNeeded(for: session, referenceDate: referenceDate)
-            return
-        }
-
-        guard let currentSession else {
-            state = .idle
-            invalidateExpirationTimer()
-            return
-        }
-
-        scheduleExpirationIfNeeded(for: currentSession, referenceDate: referenceDate)
-        if let cacheURL = currentSession.cacheURL {
-            state = .previewReady(
-                sessionID: currentSession.id,
-                cacheURL: cacheURL,
-                thumbnailState: .ready
-            )
-        } else {
-            state = .detected(sessionID: currentSession.id, detectedAt: currentSession.detectedAt)
-        }
+        publishCurrentSessionState(referenceDate: referenceDate)
+        scheduleAsyncRefresh(referenceDate: referenceDate)
     }
 
     private func ensureClipboardSession(
@@ -323,26 +296,22 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         nextSession.latestIdentityKey = candidate.identityKey
         nextSession.expiresAt = candidateExpirationDate(candidate, referenceDate: referenceDate)
 
-        if nextSession.cacheURL == nil || session.latestIdentityKey != candidate.identityKey {
-            let sourceURL = candidate.fileURL
-            let cacheURL = try? ScreenshotDirectoryResolver.withAccessIfNeeded(to: sourceURL) { readableURL in
-                try cache.cacheScreenshot(from: readableURL, sessionID: session.id)
-            }
+        if let cacheURL = session.cacheURL, session.latestIdentityKey == candidate.identityKey {
             nextSession.cacheURL = cacheURL
-        }
-
-        currentSession = nextSession
-
-        guard let cacheURL = nextSession.cacheURL else {
-            state = .detected(sessionID: nextSession.id, detectedAt: nextSession.detectedAt)
+            currentSession = nextSession
+            state = .previewReady(
+                sessionID: nextSession.id,
+                cacheURL: cacheURL,
+                thumbnailState: .ready
+            )
             return
         }
 
-        state = .previewReady(
-            sessionID: nextSession.id,
-            cacheURL: cacheURL,
-            thumbnailState: .ready
-        )
+        clearCacheForSession(nextSession)
+        nextSession.cacheURL = nil
+        currentSession = nextSession
+        state = .detected(sessionID: nextSession.id, detectedAt: nextSession.detectedAt)
+        schedulePreviewCaching(for: candidate, session: nextSession)
     }
 
     private func ensurePendingDetection(referenceDate: Date) {
@@ -484,6 +453,14 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         try? cache.removeCachedFile(at: cacheURL)
     }
 
+    private func clearCacheForSession(_ session: RecentScreenshotSession) {
+        guard let cacheURL = session.cacheURL else {
+            return
+        }
+
+        try? cache.removeCachedFile(at: cacheURL)
+    }
+
     private func invalidateTimers() {
         settleTimer?.invalidate()
         settleTimer = nil
@@ -495,6 +472,190 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         expirationTimer?.invalidate()
         expirationTimer = nil
     }
+
+    private func publishCurrentSessionState(referenceDate: Date) {
+        guard let currentSession else {
+            state = .idle
+            invalidateExpirationTimer()
+            return
+        }
+
+        scheduleExpirationIfNeeded(for: currentSession, referenceDate: referenceDate)
+        if let cacheURL = currentSession.cacheURL {
+            state = .previewReady(
+                sessionID: currentSession.id,
+                cacheURL: cacheURL,
+                thumbnailState: .ready
+            )
+        } else {
+            state = .detected(sessionID: currentSession.id, detectedAt: currentSession.detectedAt)
+        }
+    }
+
+    private func scheduleAsyncRefresh(referenceDate: Date) {
+        pendingScanReferenceDate = referenceDate
+        guard !scanInFlight else {
+            return
+        }
+
+        let requestedReferenceDate = pendingScanReferenceDate ?? referenceDate
+        pendingScanReferenceDate = nil
+        scanInFlight = true
+        scanGeneration &+= 1
+        let generation = scanGeneration
+        let maxAge = self.maxAge
+        let worker = backgroundWorker
+
+        Task(priority: .userInitiated) { @MainActor [weak self, requestedReferenceDate, maxAge, generation, worker] in
+            guard let self else {
+                return
+            }
+
+            let scanResult = await worker.locate(now: requestedReferenceDate, maxAge: maxAge)
+            self.handleCompletedScan(
+                scanResult,
+                referenceDate: requestedReferenceDate,
+                generation: generation
+            )
+        }
+    }
+
+    private func handleCompletedScan(
+        _ scanResult: RecentScreenshotScanResult,
+        referenceDate: Date,
+        generation: UInt64
+    ) {
+        guard isStarted else {
+            scanInFlight = false
+            pendingScanReferenceDate = nil
+            return
+        }
+
+        guard generation == scanGeneration else {
+            finishAsyncRefresh()
+            return
+        }
+
+        applyScanResult(scanResult, referenceDate: referenceDate)
+        finishAsyncRefresh()
+    }
+
+    private func finishAsyncRefresh() {
+        scanInFlight = false
+
+        if let pendingScanReferenceDate {
+            self.pendingScanReferenceDate = nil
+            scheduleAsyncRefresh(referenceDate: pendingScanReferenceDate)
+        }
+    }
+
+    private func applyScanResult(
+        _ scanResult: RecentScreenshotScanResult,
+        referenceDate: Date
+    ) {
+        purgeIgnoredSourceKeys(referenceDate: referenceDate)
+
+        if let currentSession, referenceDate >= currentSession.expiresAt {
+            expireCurrentSession(currentSession)
+            return
+        }
+
+        if let clipboardImage = clipboardProvider.recentImage(referenceDate: referenceDate, maxAge: maxAge) {
+            let session = ensureClipboardSession(for: clipboardImage, referenceDate: referenceDate)
+            state = .previewReady(
+                sessionID: session.id,
+                cacheURL: clipboardImage.cacheURL,
+                thumbnailState: .ready
+            )
+            scheduleExpirationIfNeeded(for: session, referenceDate: referenceDate)
+            return
+        }
+
+        let signalCandidate = filteredCandidate(scanResult.signalCandidate, referenceDate: referenceDate)
+        let readableCandidate = filteredCandidate(scanResult.readableCandidate, referenceDate: referenceDate)
+
+        if signalCandidate == nil,
+           readableCandidate == nil,
+           let recentTemporaryContainerDate = scanResult.recentTemporaryContainerDate {
+            ensurePendingDetection(referenceDate: recentTemporaryContainerDate)
+        }
+
+        if let signalCandidate {
+            let session = ensureSession(for: signalCandidate, referenceDate: referenceDate)
+
+            if let readableCandidate, readableCandidate.sourceKey == session.sourceKey {
+                updatePreviewIfNeeded(using: readableCandidate, session: session, referenceDate: referenceDate)
+            } else {
+                state = .detected(sessionID: session.id, detectedAt: session.detectedAt)
+            }
+
+            scheduleExpirationIfNeeded(for: session, referenceDate: referenceDate)
+            return
+        }
+
+        publishCurrentSessionState(referenceDate: referenceDate)
+    }
+
+    private func schedulePreviewCaching(
+        for candidate: RecentScreenshotCandidate,
+        session: RecentScreenshotSession
+    ) {
+        previewGeneration &+= 1
+        let generation = previewGeneration
+        let worker = backgroundWorker
+        let sessionID = session.id
+
+        Task(priority: .utility) { @MainActor [weak self, candidate, sessionID, generation, worker] in
+            guard let self else {
+                return
+            }
+
+            let cacheURL = await worker.cachePreview(for: candidate, sessionID: sessionID)
+            self.handleCompletedPreviewCache(
+                cacheURL: cacheURL,
+                candidate: candidate,
+                sessionID: sessionID,
+                generation: generation
+            )
+        }
+    }
+
+    private func handleCompletedPreviewCache(
+        cacheURL: URL?,
+        candidate: RecentScreenshotCandidate,
+        sessionID: UUID,
+        generation: UInt64
+    ) {
+        guard isStarted, generation == previewGeneration else {
+            if let cacheURL {
+                try? cache.removeCachedFile(at: cacheURL)
+            }
+            return
+        }
+
+        guard var currentSession, currentSession.id == sessionID else {
+            if let cacheURL {
+                try? cache.removeCachedFile(at: cacheURL)
+            }
+            return
+        }
+
+        currentSession.latestIdentityKey = candidate.identityKey
+        currentSession.expiresAt = candidateExpirationDate(candidate, referenceDate: now())
+        currentSession.cacheURL = cacheURL
+        self.currentSession = currentSession
+
+        guard let cacheURL else {
+            state = .detected(sessionID: currentSession.id, detectedAt: currentSession.detectedAt)
+            return
+        }
+
+        state = .previewReady(
+            sessionID: currentSession.id,
+            cacheURL: cacheURL,
+            thumbnailState: .ready
+        )
+    }
 }
 
 private struct RecentScreenshotSession {
@@ -504,4 +665,25 @@ private struct RecentScreenshotSession {
     let detectedAt: Date
     var expiresAt: Date
     var cacheURL: URL?
+}
+
+private actor RecentScreenshotBackgroundWorker {
+    private let locator: RecentScreenshotLocating
+    private let cache: TransientScreenshotCaching
+
+    init(locator: RecentScreenshotLocating, cache: TransientScreenshotCaching) {
+        self.locator = locator
+        self.cache = cache
+    }
+
+    func locate(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        locator.locateRecentScreenshot(now: now, maxAge: maxAge)
+    }
+
+    func cachePreview(for candidate: RecentScreenshotCandidate, sessionID: UUID) -> URL? {
+        let sourceURL = candidate.fileURL
+        return try? ScreenshotDirectoryResolver.withAccessIfNeeded(to: sourceURL) { readableURL in
+            try cache.cacheScreenshot(from: readableURL, sessionID: sessionID)
+        }
+    }
 }

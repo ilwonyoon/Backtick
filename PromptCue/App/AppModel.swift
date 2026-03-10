@@ -18,8 +18,33 @@ enum CardSection {
     }
 }
 
+enum AppStartupMode {
+    case immediateMaintenance
+    case deferredMaintenance
+}
+
+    enum CloudSyncInitialFetchMode {
+        case immediate
+        case deferred
+    }
+
+    private struct RemoteApplyPlan {
+        let sortedCards: [CaptureCard]
+        let changedCards: [CaptureCard]
+        let deletedIDs: [UUID]
+        let survivingIDs: Set<UUID>
+        let removedCards: [CaptureCard]
+    }
+
+    private enum RemoteMergeWinner {
+        case local
+        case remote
+    }
+
 @MainActor
 final class AppModel: ObservableObject {
+    private static let deferredStartupDelayNanoseconds: UInt64 = 1_500_000_000
+
     @Published private(set) var cards: [CaptureCard] = []
     @Published private(set) var storageErrorMessage: String?
     @Published private(set) var recentScreenshotState: RecentScreenshotState = .idle
@@ -31,16 +56,20 @@ final class AppModel: ObservableObject {
     private let cardStore: CardStore
     private let attachmentStore: AttachmentStoring
     private let recentScreenshotCoordinator: RecentScreenshotCoordinating
-    private var cloudSyncEngine: CloudSyncEngine?
+    private var cloudSyncEngine: (any CloudSyncControlling)?
     private var cleanupTimer: Timer?
     private var captureSubmissionTask: Task<Bool, Never>?
     private var syncToggleObserver: NSObjectProtocol?
+    private var deferredStartupMaintenanceTask: Task<Void, Never>?
+    private var deferredCloudSyncFetchTask: Task<Void, Never>?
+    private var remoteApplyTask: Task<Void, Never>?
+    private var pendingRemoteChanges: [SyncChange] = []
 
     init(
         cardStore: CardStore,
         attachmentStore: AttachmentStoring,
         recentScreenshotCoordinator: RecentScreenshotCoordinating,
-        cloudSyncEngine: CloudSyncEngine? = nil
+        cloudSyncEngine: (any CloudSyncControlling)? = nil
     ) {
         self.cardStore = cardStore
         self.attachmentStore = attachmentStore
@@ -94,7 +123,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func start() {
+    func start(startupMode: AppStartupMode = .deferredMaintenance) {
         recentScreenshotCoordinator.onStateChange = { [weak self] state in
             Task { @MainActor [weak self] in
                 self?.applyRecentScreenshotState(state)
@@ -102,16 +131,28 @@ final class AppModel: ObservableObject {
         }
         recentScreenshotCoordinator.start()
         applyRecentScreenshotState(recentScreenshotCoordinator.state)
-        reloadCards()
+        reloadCards(runNonCriticalMaintenance: startupMode == .immediateMaintenance)
         cleanupTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.purgeExpiredCards()
             }
         }
-        startCloudSync()
+        if startupMode == .deferredMaintenance {
+            scheduleDeferredStartupMaintenance()
+        }
+        startCloudSync(
+            initialFetchMode: startupMode == .immediateMaintenance ? .immediate : .deferred
+        )
     }
 
     func stop() {
+        deferredStartupMaintenanceTask?.cancel()
+        deferredStartupMaintenanceTask = nil
+        deferredCloudSyncFetchTask?.cancel()
+        deferredCloudSyncFetchTask = nil
+        remoteApplyTask?.cancel()
+        remoteApplyTask = nil
+        pendingRemoteChanges.removeAll()
         cleanupTimer?.invalidate()
         cleanupTimer = nil
         recentScreenshotCoordinator.onStateChange = nil
@@ -124,7 +165,7 @@ final class AppModel: ObservableObject {
         cloudSyncEngine?.delegate = nil
     }
 
-    func reloadCards() {
+    func reloadCards(runNonCriticalMaintenance: Bool = true) {
         do {
             cards = sortedCards(try cardStore.load())
             storageErrorMessage = nil
@@ -133,14 +174,21 @@ final class AppModel: ObservableObject {
             return
         }
 
-        migrateLegacyExternalAttachmentsIfNeeded()
-        purgeExpiredCards()
-        pruneOrphanedManagedAttachments()
+        guard runNonCriticalMaintenance else {
+            return
+        }
+
+        performNonCriticalStartupMaintenance()
     }
 
     func beginCaptureSession() {
         prepareDraftMetricsForPresentation()
         recentScreenshotCoordinator.prepareForCaptureSession()
+        syncRecentScreenshotState()
+    }
+
+    func prepareCapturePresentation() {
+        prepareDraftMetricsForPresentation()
         syncRecentScreenshotState()
     }
 
@@ -241,7 +289,7 @@ final class AppModel: ObservableObject {
         let updatedCards = sortedCards(cards + [newCard])
 
         do {
-            try cardStore.save(updatedCards)
+            try cardStore.upsert(newCard)
             storageErrorMessage = nil
         } catch {
             cleanupImportedAttachment(atPath: importedScreenshotPath)
@@ -352,7 +400,7 @@ final class AppModel: ObservableObject {
         let updatedCards = cards.filter { $0.id != card.id }
 
         do {
-            try cardStore.save(updatedCards)
+            try cardStore.delete(id: card.id)
             storageErrorMessage = nil
         } catch {
             logStorageFailure("Card delete failed", error: error)
@@ -377,9 +425,10 @@ final class AppModel: ObservableObject {
         }
 
         let filtered = sortedCards(cards.filter { !$0.isExpired(relativeTo: now, ttl: ttl) })
+        let expiredIDs = expiredCards.map(\.id)
 
         do {
-            try cardStore.save(filtered)
+            try cardStore.delete(ids: expiredIDs)
             storageErrorMessage = nil
         } catch {
             logStorageFailure("Card purge failed", error: error)
@@ -406,9 +455,10 @@ final class AppModel: ObservableObject {
                 return card.markCopied(at: copiedAt)
             }
         )
+        let copiedCards = updatedCards.filter { copiedIDs.contains($0.id) }
 
         do {
-            try cardStore.save(updatedCards)
+            try cardStore.upsert(copiedCards)
             storageErrorMessage = nil
         } catch {
             logStorageFailure("Card copy state save failed", error: error)
@@ -417,11 +467,25 @@ final class AppModel: ObservableObject {
 
         cards = updatedCards
         clearSelection()
+        pushCopiedCardsToCloudSync(copiedCards)
+    }
 
-        let copiedCards = updatedCards.filter { copiedIDs.contains($0.id) }
-        for card in copiedCards {
-            cloudSyncEngine?.pushLocalChange(card: card)
+    func pushCopiedCardsToCloudSync(
+        _ copiedCards: [CaptureCard],
+        forcePerCardDispatch: Bool = false
+    ) {
+        guard let cloudSyncEngine, !copiedCards.isEmpty else {
+            return
         }
+
+        if forcePerCardDispatch || copiedCards.count == 1 {
+            for card in copiedCards {
+                cloudSyncEngine.pushLocalChange(card: card)
+            }
+            return
+        }
+
+        cloudSyncEngine.pushBatch(cards: copiedCards, deletions: [])
     }
 
     private func sortedCards(_ cards: [CaptureCard]) -> [CaptureCard] {
@@ -518,9 +582,13 @@ final class AppModel: ObservableObject {
         }
 
         let sortedMigratedCards = sortedCards(migratedCards)
+        let originalCardsByID = Dictionary(uniqueKeysWithValues: cards.map { ($0.id, $0) })
+        let migratedChanges = sortedMigratedCards.filter { migratedCard in
+            originalCardsByID[migratedCard.id] != migratedCard
+        }
 
         do {
-            try cardStore.save(sortedMigratedCards)
+            try cardStore.upsert(migratedChanges)
             storageErrorMessage = nil
             cards = sortedMigratedCards
         } catch {
@@ -531,6 +599,40 @@ final class AppModel: ObservableObject {
     private func logStorageFailure(_ message: String, error: Error) {
         storageErrorMessage = "\(message): \(error.localizedDescription)"
         NSLog("%@: %@", message, String(describing: error))
+    }
+
+    private func performNonCriticalStartupMaintenance() {
+        migrateLegacyExternalAttachmentsIfNeeded()
+        purgeExpiredCards()
+        pruneOrphanedManagedAttachments()
+    }
+
+    private func scheduleDeferredStartupMaintenance() {
+        deferredStartupMaintenanceTask?.cancel()
+        deferredStartupMaintenanceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: Self.deferredStartupDelayNanoseconds)
+
+            guard let self, !Task.isCancelled else {
+                return
+            }
+
+            self.deferredStartupMaintenanceTask = nil
+            self.performNonCriticalStartupMaintenance()
+        }
+    }
+
+    private func scheduleDeferredCloudSyncFetch() {
+        deferredCloudSyncFetchTask?.cancel()
+        deferredCloudSyncFetchTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: Self.deferredStartupDelayNanoseconds)
+
+            guard let self, !Task.isCancelled else {
+                return
+            }
+
+            self.deferredCloudSyncFetchTask = nil
+            self.cloudSyncEngine?.fetchRemoteChanges()
+        }
     }
 
     private func nextTopSortOrder(in section: CardSection) -> Double {
@@ -552,7 +654,7 @@ final class AppModel: ObservableObject {
 
     // MARK: - Cloud Sync
 
-    private func startCloudSync() {
+    private func startCloudSync(initialFetchMode: CloudSyncInitialFetchMode = .immediate) {
         syncToggleObserver = NotificationCenter.default.addObserver(
             forName: .cloudSyncEnabledChanged,
             object: nil,
@@ -569,11 +671,18 @@ final class AppModel: ObservableObject {
 
         Task {
             await cloudSyncEngine.setup()
-            cloudSyncEngine.fetchRemoteChanges()
+            switch initialFetchMode {
+            case .immediate:
+                cloudSyncEngine.fetchRemoteChanges()
+            case .deferred:
+                scheduleDeferredCloudSyncFetch()
+            }
         }
     }
 
     func handleCloudRemoteNotification() {
+        deferredCloudSyncFetchTask?.cancel()
+        deferredCloudSyncFetchTask = nil
         cloudSyncEngine?.handleRemoteNotification()
     }
 
@@ -581,10 +690,12 @@ final class AppModel: ObservableObject {
         if enabled, cloudSyncEngine == nil {
             let engine = CloudSyncEngine()
             cloudSyncEngine = engine
-            startCloudSync()
+            startCloudSync(initialFetchMode: .immediate)
         } else if !enabled {
             cloudSyncEngine?.delegate = nil
             cloudSyncEngine = nil
+            deferredCloudSyncFetchTask?.cancel()
+            deferredCloudSyncFetchTask = nil
         }
     }
 }
@@ -614,60 +725,247 @@ extension AppModel: CloudSyncDelegate {
     }
 
     func cloudSync(_ engine: CloudSyncEngine, didReceiveChanges changes: [SyncChange]) {
-        applyRemoteChanges(changes)
+        scheduleRemoteChangesForApply(changes)
     }
 
     func applyRemoteChanges(_ changes: [SyncChange]) {
-        var updatedCards = cards
-        var removedCards: [CaptureCard] = []
+        let plan = buildRemoteApplyPlan(changes)
+        applyRemoteApplyPlan(plan)
+    }
+
+    func scheduleRemoteChangesForApply(_ changes: [SyncChange]) {
+        guard !changes.isEmpty else {
+            return
+        }
+
+        pendingRemoteChanges.append(contentsOf: changes)
+        guard remoteApplyTask == nil else {
+            return
+        }
+
+        remoteApplyTask = Task { @MainActor [weak self] in
+            await self?.processPendingRemoteChanges()
+        }
+    }
+
+    func waitForRemoteApplyToDrain() async {
+        while let remoteApplyTask {
+            await remoteApplyTask.value
+        }
+    }
+
+    private func mergeRemoteChange(
+        local: CaptureCard?,
+        remote: CaptureCard,
+        assetURL: URL?
+    ) -> CaptureCard {
+        guard let local else {
+            return card(
+                remote,
+                replacingScreenshotPath: importRemoteScreenshotPathIfNeeded(
+                    for: remote,
+                    assetURL: assetURL,
+                    shouldImport: remote.screenshotPath == nil
+                ) ?? remote.screenshotPath
+            )
+        }
+
+        let winner = mergeWinner(local: local, remote: remote)
+        let importedRemoteScreenshotPath = importRemoteScreenshotPathIfNeeded(
+            for: remote,
+            assetURL: assetURL,
+            shouldImport: shouldImportRemoteScreenshot(
+                local: local,
+                remote: remote,
+                winner: winner,
+                assetURL: assetURL
+            )
+        )
+        return mergeCard(
+            local: local,
+            remote: remote,
+            winner: winner,
+            importedRemoteScreenshotPath: importedRemoteScreenshotPath
+        )
+    }
+
+    private func importRemoteScreenshotPathIfNeeded(
+        for card: CaptureCard,
+        assetURL: URL?,
+        shouldImport: Bool
+    ) -> String? {
+        guard shouldImport, let assetURL else {
+            return nil
+        }
+
+        return importRemoteScreenshotPath(for: card, assetURL: assetURL)
+    }
+
+    private func shouldImportRemoteScreenshot(
+        local: CaptureCard,
+        remote: CaptureCard,
+        winner: RemoteMergeWinner,
+        assetURL: URL?
+    ) -> Bool {
+        guard remote.screenshotPath == nil,
+              let assetURL,
+              FileManager.default.fileExists(atPath: assetURL.path)
+        else {
+            return false
+        }
+
+        switch winner {
+        case .local:
+            return local.screenshotPath == nil
+        case .remote:
+            return true
+        }
+    }
+
+    private func mergeWinner(local: CaptureCard, remote: CaptureCard) -> RemoteMergeWinner {
+        switch (local.lastCopiedAt, remote.lastCopiedAt) {
+        case (.some(let localDate), .some(let remoteDate)):
+            return localDate >= remoteDate ? .local : .remote
+        case (.some, .none):
+            return .local
+        case (.none, .some):
+            return .remote
+        case (.none, .none):
+            return .local
+        }
+    }
+
+    private func mergeCard(
+        local: CaptureCard,
+        remote: CaptureCard,
+        winner: RemoteMergeWinner,
+        importedRemoteScreenshotPath: String?
+    ) -> CaptureCard {
+        switch winner {
+        case .local:
+            return card(
+                local,
+                replacingScreenshotPath: local.screenshotPath
+                    ?? remote.screenshotPath
+                    ?? importedRemoteScreenshotPath
+            )
+        case .remote:
+            return card(
+                remote,
+                replacingScreenshotPath: importedRemoteScreenshotPath
+                    ?? remote.screenshotPath
+                    ?? local.screenshotPath
+            )
+        }
+    }
+
+    private func card(_ card: CaptureCard, replacingScreenshotPath screenshotPath: String?) -> CaptureCard {
+        guard screenshotPath != card.screenshotPath else {
+            return card
+        }
+
+        return CaptureCard(
+            id: card.id,
+            text: card.text,
+            createdAt: card.createdAt,
+            screenshotPath: screenshotPath,
+            lastCopiedAt: card.lastCopiedAt,
+            sortOrder: card.sortOrder
+        )
+    }
+
+    private func processPendingRemoteChanges() async {
+        while !Task.isCancelled {
+            guard !pendingRemoteChanges.isEmpty else {
+                remoteApplyTask = nil
+                return
+            }
+
+            let changes = pendingRemoteChanges
+            pendingRemoteChanges.removeAll()
+
+            guard !Task.isCancelled else {
+                remoteApplyTask = nil
+                return
+            }
+
+            applyRemoteChanges(changes)
+        }
+
+        remoteApplyTask = nil
+    }
+
+    private func buildRemoteApplyPlan(_ changes: [SyncChange]) -> RemoteApplyPlan {
+        let originalCardsByID = Dictionary(uniqueKeysWithValues: cards.map { ($0.id, $0) })
+        var updatedCardsByID = originalCardsByID
+        var changedCardsByID: [UUID: CaptureCard] = [:]
+        var removedCardsByID: [UUID: CaptureCard] = [:]
+        var deletedIDs: [UUID] = []
 
         for change in changes {
             switch change {
             case .upsert(let remoteCard, let screenshotAssetURL):
-                let cardWithScreenshot = importRemoteScreenshotIfNeeded(
-                    card: remoteCard,
+                let mergedCard = mergeRemoteChange(
+                    local: updatedCardsByID[remoteCard.id],
+                    remote: remoteCard,
                     assetURL: screenshotAssetURL
                 )
+                updatedCardsByID[mergedCard.id] = mergedCard
+                removedCardsByID.removeValue(forKey: mergedCard.id)
 
-                if let index = updatedCards.firstIndex(where: { $0.id == cardWithScreenshot.id }) {
-                    let local = updatedCards[index]
-                    let merged = mergeCard(local: local, remote: cardWithScreenshot)
-                    updatedCards[index] = merged
+                if originalCardsByID[mergedCard.id] != mergedCard {
+                    changedCardsByID[mergedCard.id] = mergedCard
                 } else {
-                    updatedCards.append(cardWithScreenshot)
+                    changedCardsByID.removeValue(forKey: mergedCard.id)
                 }
 
             case .delete(let id):
-                if let index = updatedCards.firstIndex(where: { $0.id == id }) {
-                    removedCards.append(updatedCards[index])
-                    updatedCards.remove(at: index)
+                if let removedCard = updatedCardsByID.removeValue(forKey: id) {
+                    removedCardsByID[id] = removedCard
+                    if originalCardsByID[id] != nil {
+                        deletedIDs.append(id)
+                    }
                 }
+                changedCardsByID.removeValue(forKey: id)
             }
         }
 
-        let sorted = sortedCards(updatedCards)
+        let sorted = sortedCards(Array(updatedCardsByID.values))
+        let survivingIDs = Set(updatedCardsByID.keys)
+        return RemoteApplyPlan(
+            sortedCards: sorted,
+            changedCards: Array(changedCardsByID.values),
+            deletedIDs: deletedIDs,
+            survivingIDs: survivingIDs,
+            removedCards: Array(removedCardsByID.values)
+        )
+    }
 
-        do {
-            try cardStore.save(sorted)
-            storageErrorMessage = nil
-        } catch {
-            logStorageFailure("Cloud sync apply failed", error: error)
-            return
+    private func applyRemoteApplyPlan(_ plan: RemoteApplyPlan) {
+        if !plan.changedCards.isEmpty || !plan.deletedIDs.isEmpty {
+            do {
+                try cardStore.apply(upserts: plan.changedCards, deletions: plan.deletedIDs)
+                storageErrorMessage = nil
+            } catch {
+                logStorageFailure("Cloud sync apply failed", error: error)
+                return
+            }
         }
 
-        cards = sorted
-        selectedCardIDs = selectedCardIDs.filter { id in
-            sorted.contains(where: { $0.id == id })
-        }
+        cards = plan.sortedCards
+        selectedCardIDs.formIntersection(plan.survivingIDs)
 
-        if !removedCards.isEmpty {
-            cleanupManagedAttachments(removedCards: removedCards, remainingCards: sorted)
+        if !plan.removedCards.isEmpty {
+            cleanupManagedAttachments(
+                removedCards: plan.removedCards,
+                remainingCards: plan.sortedCards
+            )
         }
     }
 
-    private func importRemoteScreenshotIfNeeded(card: CaptureCard, assetURL: URL?) -> CaptureCard {
-        guard let assetURL, FileManager.default.fileExists(atPath: assetURL.path) else {
-            return card
+    private func importRemoteScreenshotPath(for card: CaptureCard, assetURL: URL) -> String? {
+        guard FileManager.default.fileExists(atPath: assetURL.path) else {
+            return nil
         }
 
         do {
@@ -675,45 +973,10 @@ extension AppModel: CloudSyncDelegate {
                 from: assetURL,
                 ownerID: card.id
             )
-            return CaptureCard(
-                id: card.id,
-                text: card.text,
-                createdAt: card.createdAt,
-                screenshotPath: importedURL.path,
-                lastCopiedAt: card.lastCopiedAt,
-                sortOrder: card.sortOrder
-            )
+            return importedURL.path
         } catch {
             logStorageFailure("Remote screenshot import failed", error: error)
-            return card
+            return nil
         }
-    }
-
-    private func mergeCard(local: CaptureCard, remote: CaptureCard) -> CaptureCard {
-        let winner: CaptureCard
-        switch (local.lastCopiedAt, remote.lastCopiedAt) {
-        case (.some(let localDate), .some(let remoteDate)):
-            winner = localDate >= remoteDate ? local : remote
-        case (.some, .none):
-            winner = local
-        case (.none, .some):
-            winner = remote
-        case (.none, .none):
-            winner = local
-        }
-
-        let resolvedScreenshotPath = winner.screenshotPath ?? local.screenshotPath ?? remote.screenshotPath
-        guard resolvedScreenshotPath != winner.screenshotPath else {
-            return winner
-        }
-
-        return CaptureCard(
-            id: winner.id,
-            text: winner.text,
-            createdAt: winner.createdAt,
-            screenshotPath: resolvedScreenshotPath,
-            lastCopiedAt: winner.lastCopiedAt,
-            sortOrder: winner.sortOrder
-        )
     }
 }
