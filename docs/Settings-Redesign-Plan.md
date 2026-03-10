@@ -103,6 +103,68 @@ settingsPanelHeight: 620 → 460  // 각 탭이 짧아지므로 높이 감소
 | `AppearanceSettingsModel.swift` | **신규** — Appearance 설정 모델 |
 | `AppCoordinator.swift` | AppearanceSettingsModel 생성/주입 |
 
+## Phase 0: Copy Reduction (텍스트 다이어트)
+
+현재 Settings의 텍스트가 과도함. 섹션 footer, rowNote, 상세 설명이 구구절절하여 핵심이 묻힘.
+모든 설명 텍스트를 **토글/컨트롤 자체로 의미가 전달되면 삭제**, 꼭 필요한 것만 짧게 유지.
+
+### 삭제/축소 대상
+
+| 현재 텍스트 | 위치 | 조치 | 이유 |
+|------------|------|------|------|
+| `"These shortcuts work globally."` | Shortcuts footer | **삭제** | 단축키가 글로벌인 건 자명 |
+| `"Cards stay until you delete them unless auto-expire is enabled."` | Retention footer | **삭제** | 토글 레이블로 충분 |
+| `"Off by default. Turn this on to restore the original 8-hour cleanup behavior."` | Retention rowNote | **삭제** | 토글이 꺼져있으면 자명 |
+| `"Auto-expire stack cards after 8 hours"` | Retention toggle | → `"Auto-expire after 8 hours"` | 축소 |
+| `"Saved cards stay unchanged. The tail is added only when you copy or export."` | Export Tail footer | **삭제** | 토글 레이블로 충분 |
+| `"Append your reusable instruction block to copied text without modifying saved cards."` | Export Tail rowNote | → `"Added to clipboard output only"` | 한 줄로 축소 |
+| `"Auto-attach only checks the screenshot folder you explicitly approve."` | Screenshots footer | **삭제** | 폴더 선택 UX로 충분 |
+| `"System screenshots often save to ~/Desktop. Choose that folder to enable auto-attach."` | Screenshots detail (notConfigured) | → `"Choose your screenshot folder."` | 핵심만 |
+| `"Backtick remembers X, but access needs to be approved again."` | Screenshots detail (needsReconnect) | → `"Access expired. Reconnect to continue."` | 축소 |
+| `"Sync cards across your Macs via iCloud. Screenshots stay local."` | iCloud Sync footer | → `"Screenshots stay local."` | 핵심 주의사항만 |
+| `"Cards sync automatically between Macs signed into the same Apple ID."` | iCloud Sync rowNote | **삭제** | 토글 레이블로 충분 |
+
+### Before / After 비교
+
+**Before (Retention 섹션):**
+```
+Retention
+Cards stay until you delete them unless auto-expire is enabled.
+
+Card Lifetime    ☑ Auto-expire stack cards after 8 hours
+                 Off by default. Turn this on to restore the
+                 original 8-hour cleanup behavior.
+```
+
+**After:**
+```
+Card Lifetime    ☑ Auto-expire after 8 hours
+```
+
+**Before (iCloud Sync 섹션):**
+```
+iCloud Sync
+Sync cards across your Macs via iCloud. Screenshots stay local.
+
+Sync      ☑ Enable iCloud sync
+          Cards sync automatically between Macs signed into
+          the same Apple ID.
+Status    Last synced 2 min ago
+```
+
+**After:**
+```
+iCloud Sync    ☑ Enable iCloud sync
+               Screenshots stay local.
+Status         Last synced 2 min ago
+```
+
+### 원칙
+1. **토글/컨트롤의 레이블이 행동을 설명하면 추가 텍스트 불필요**
+2. **Footer는 주의사항이 있을 때만** (예: "Screenshots stay local")
+3. **rowNote는 동작이 비직관적일 때만** (예: export tail이 저장된 카드는 안 건드린다는 점)
+4. **상태 텍스트(Status)는 유지** — 현재 상태를 보여주는 건 필요
+
 ## NOT in scope
 - 검색 기능
 - 탭 내 세부 네비게이션 (섹션 수가 적으므로 불필요)
