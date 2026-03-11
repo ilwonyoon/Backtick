@@ -15,7 +15,7 @@ enum AppUIConstants {
     static let capturePanelVerticalSpacing: CGFloat = PanelMetrics.capturePanelVerticalSpacing
     static let captureChooserPanelVerticalSpacing: CGFloat = 12
     static let captureChooserPanelShadowTopInset: CGFloat = PanelMetrics.capturePanelShadowTopInset
-    static let captureChooserPanelShadowBottomInset: CGFloat = PanelMetrics.capturePanelShadowBottomInset
+    static let captureChooserPanelShadowBottomInset: CGFloat = captureChooserPanelVerticalSpacing
     static let captureChooserSurfaceHorizontalPadding: CGFloat = 0
     static let captureChooserSurfaceVerticalPadding: CGFloat = PanelMetrics.captureSurfaceInnerPadding
     static let captureChooserPanelSurfaceTopPadding: CGFloat = PrimitiveTokens.Space.md

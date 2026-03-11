@@ -285,18 +285,10 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
             width: PanelMetrics.capturePanelWidth,
             height: min(desiredSuggestedTargetPanelHeight(), visibleFrame.height - (PrimitiveTokens.Space.xl * 2))
         )
-        let maximumOriginY = visibleFrame.maxY - PrimitiveTokens.Space.xl - size.height
-        let preferredOriginY = captureFrame.maxY
-            - PanelMetrics.capturePanelShadowTopInset
-            + AppUIConstants.captureChooserPanelVerticalSpacing
-            - AppUIConstants.captureChooserPanelShadowBottomInset
-        let originY = min(maximumOriginY, preferredOriginY)
-
-        return NSRect(
-            x: captureFrame.minX,
-            y: originY,
-            width: size.width,
-            height: size.height
+        return CaptureSuggestedTargetPanelLayout.frame(
+            above: captureFrame,
+            visibleFrame: visibleFrame,
+            panelSize: size
         )
     }
 
@@ -504,7 +496,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
 
         let childWindows = parentPanel.childWindows ?? []
         if !childWindows.contains(auxiliaryPanel) {
-            parentPanel.addChildWindow(auxiliaryPanel, ordered: .below)
+            parentPanel.addChildWindow(auxiliaryPanel, ordered: .above)
         }
     }
 
@@ -515,6 +507,31 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         }
 
         parentWindow.removeChildWindow(auxiliaryPanel)
+    }
+}
+
+enum CaptureSuggestedTargetPanelLayout {
+    static func frame(
+        above captureFrame: NSRect,
+        visibleFrame: NSRect,
+        panelSize: NSSize
+    ) -> NSRect {
+        let maximumOriginY = visibleFrame.maxY - PrimitiveTokens.Space.xl - panelSize.height
+        let preferredOriginY = captureShellTopY(for: captureFrame)
+            + AppUIConstants.captureChooserPanelVerticalSpacing
+            - AppUIConstants.captureChooserPanelShadowBottomInset
+        let originY = min(maximumOriginY, preferredOriginY)
+
+        return NSRect(
+            x: captureFrame.minX,
+            y: originY,
+            width: panelSize.width,
+            height: panelSize.height
+        )
+    }
+
+    static func captureShellTopY(for captureFrame: NSRect) -> CGFloat {
+        captureFrame.maxY - PanelMetrics.capturePanelShadowTopInset
     }
 }
 

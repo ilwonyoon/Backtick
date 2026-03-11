@@ -79,6 +79,7 @@
 		AAEE765E6306C005070C399D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 6072B9D68F6A5C85EA50D901 /* GRDB */; };
 		AECF2241F99F7F5BCC151E21 /* AppTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65959EE4923F0AA0EDE928EA /* AppTiming.swift */; };
 		AF61D721471DCEEF138C41FD /* RecentScreenshotContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23579BC7E06ED49F32AE8EB1 /* RecentScreenshotContracts.swift */; };
+		B21551C2A261BCA1B27143DB /* CapturePanelControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE50D56618AB4468D1D54FB /* CapturePanelControllerTests.swift */; };
 		B358F4085B2EDA1EAF7764BD /* PrimitiveTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25E52C65D0F3F5887CBAB797 /* PrimitiveTokens.swift */; };
 		B761D5F05053A512EA58320D /* ScreenshotDirectoryResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1BD85EA1F495DB2F4FAD6AB /* ScreenshotDirectoryResolver.swift */; };
 		B9485BF7E8009D0B8B229E77 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3578175AAD479D3659D72CE5 /* AppModel.swift */; };
@@ -145,6 +146,7 @@
 		19E7982703EC6D0302F17A37 /* CapturePanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePanelController.swift; sourceTree = "<group>"; };
 		1AE0A5A352E047EF7ED93053 /* TopEdgeStrokeOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopEdgeStrokeOverlay.swift; sourceTree = "<group>"; };
 		1AE47CEE43805033948881E6 /* DesignSystemPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystemPreviewView.swift; sourceTree = "<group>"; };
+		1FE50D56618AB4468D1D54FB /* CapturePanelControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePanelControllerTests.swift; sourceTree = "<group>"; };
 		20CD794F5690F98D2FFE1C87 /* PanelHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelHeader.swift; sourceTree = "<group>"; };
 		23579BC7E06ED49F32AE8EB1 /* RecentScreenshotContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotContracts.swift; sourceTree = "<group>"; };
 		25E52C65D0F3F5887CBAB797 /* PrimitiveTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimitiveTokens.swift; sourceTree = "<group>"; };
@@ -422,6 +424,7 @@
 				6FA4D7EE3F2A66184B933C93 /* CaptureCardRenderingTests.swift */,
 				092E3A82E4F9554B2984BDDF /* CaptureComposerLayoutTests.swift */,
 				D9BD2A11BE05AD6376D87E70 /* CaptureEditorLayoutCalculatorTests.swift */,
+				1FE50D56618AB4468D1D54FB /* CapturePanelControllerTests.swift */,
 				838FAC8FE4F5AE11EC0D8DBC /* CapturePanelResizePerformanceTests.swift */,
 				C343F2CAC571F12332D46BBA /* CapturePanelRuntimeViewControllerTests.swift */,
 				5DF6888EDB742C96FC15D391 /* CapturePreviewImagePerformanceTests.swift */,
@@ -603,6 +606,7 @@
 				A3A423D204F44EC77421EA0F /* CaptureCardRenderingTests.swift in Sources */,
 				59486FE7DB7F6A7DF4932032 /* CaptureComposerLayoutTests.swift in Sources */,
 				CFC5DE7C11066C8565D21A29 /* CaptureEditorLayoutCalculatorTests.swift in Sources */,
+				B21551C2A261BCA1B27143DB /* CapturePanelControllerTests.swift in Sources */,
 				7D08AB5229231B548CAEE181 /* CapturePanelResizePerformanceTests.swift in Sources */,
 				D89222A2A16923B28CA23834 /* CapturePanelRuntimeViewControllerTests.swift in Sources */,
 				15B0CE14628AAE363F0CF6CE /* CapturePreviewImagePerformanceTests.swift in Sources */,
