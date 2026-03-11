@@ -6,7 +6,7 @@ struct PromptCueApp: App {
 
     var body: some Scene {
         Settings {
-            PromptCueSettingsView()
+            EmptyView()
         }
     }
 }
