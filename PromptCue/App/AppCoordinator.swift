@@ -30,11 +30,12 @@ final class AppCoordinator {
     }
 
     func start() {
+        let environment = AppEnvironment.current
         terminateDuplicateDebugInstancesIfNeeded()
         ScreenshotDirectoryResolver.bootstrapPreferredDirectoryIfNeeded()
         appearanceSettingsModel.applyAppearance()
         model.start()
-        applyCaptureQADraftSeedIfNeeded()
+        applyCaptureQADraftSeedIfNeeded(environment)
         hotKeyCenter.registerDefaultShortcuts(
             onCapture: { [weak self] in
                 self?.showCapturePanel()
@@ -50,11 +51,11 @@ final class AppCoordinator {
             self?.stackPanelController.prepareForFirstPresentation()
         }
 
-        if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_DESIGN_SYSTEM"] == "1" {
+        if environment.shouldOpenDesignSystemOnStart {
             showDesignSystemWindow()
         }
 
-        if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_STACK_ON_START"] == "1" {
+        if environment.shouldOpenStackOnStart {
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 250_000_000)
                 self?.stackPanelController.show()
@@ -68,14 +69,14 @@ final class AppCoordinator {
             }
         }
 
-        if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_SETTINGS_ON_START"] == "1" {
+        if environment.shouldOpenSettingsOnStart {
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 250_000_000)
                 self?.showSettingsWindow()
             }
         }
 
-        if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_CAPTURE_ON_START"] == "1" {
+        if environment.shouldOpenCaptureOnStart {
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 250_000_000)
                 self?.showCapturePanel()
@@ -215,15 +216,13 @@ final class AppCoordinator {
         #endif
     }
 
-    private func applyCaptureQADraftSeedIfNeeded() {
-        let environment = ProcessInfo.processInfo.environment
-
-        if let directText = environment["PROMPTCUE_QA_DRAFT_TEXT"], !directText.isEmpty {
+    private func applyCaptureQADraftSeedIfNeeded(_ environment: AppEnvironment) {
+        if let directText = environment.qaDraftText {
             model.draftText = directText
             return
         }
 
-        guard let filePath = environment["PROMPTCUE_QA_DRAFT_TEXT_FILE"], !filePath.isEmpty else {
+        guard let filePath = environment.qaDraftTextFilePath else {
             return
         }
 
