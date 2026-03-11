@@ -161,8 +161,9 @@ Current landed slices:
 - `MCP3` write bridge landed on `main`
 - `MCP4` execution action landed on `main`
 - `MCP5` stdio tool surface landed on `main`
-- execution-map style UI remains out of scope while connector setup and validation are still in flight
-- Settings-based connector UI is the active rollout surface after `MCP5`
+- `MCP6` connector settings surface landed on `main`
+- execution-map style UI remains out of scope while guided setup and helper packaging are still in flight
+- Settings-based connector UI is now the user-facing MCP rollout surface
 
 Landed MCP gates:
 
@@ -193,18 +194,17 @@ Landed `MCP5` gate:
 
 Immediate next step:
 
-- land `MCP6` connector settings UI on top of merged `main`
 - run an external MCP client smoke against merged `main`
 - verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
 - capture connector friction before finalizing guided setup UX
 
-`PR #29` gate:
+Landed `MCP6` gate:
 
-- `PR #29` (`backtick-mcp-connectors`) is `OPEN`, base `main`, and `MERGEABLE` on `2026-03-11`
-- the branch is one commit ahead of `main`; no restack is required
-- carry forward only Settings connector UI, connector inspection model/tests, generated project wiring, and MCP doc updates
-- keep `MCP2` through `MCP5` behavior unchanged; this slice is read-mostly UI
-- after merge, external MCP client smoke still needs to run against merged `main`
+- Settings shows a `Connectors` tab without regressing existing tabs
+- `Claude Code` and `Codex` sections expose CLI path, project/home config status, quick-add command, and config snippet
+- `Copy Command`, `Copy Add Command`, `Copy Config Snippet`, `Reveal`, and `Open Docs` all worked in manual smoke
+- `MCP2` through `MCP5` behavior remains unchanged; this slice is read-mostly UI
+- external MCP client smoke still needs to run against merged `main`
 
 Post-`MCP5` rollout:
 

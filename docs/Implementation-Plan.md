@@ -300,12 +300,20 @@ Current landed slices:
    - `Tests/BacktickMCPServerTests/BacktickMCPServerTests.swift`
    - exposes `list_notes`, `get_note`, `create_note`, `update_note`, `delete_note`, and `mark_notes_executed`
    - routes all note operations through the landed Stack services against the shared DB
+- `MCP6` connector settings surface is on `main`
+   - `PromptCue/UI/Settings/MCPConnectorSettingsModel.swift`
+   - `PromptCue/UI/Settings/PromptCueSettingsView.swift`
+   - `PromptCue/UI/WindowControllers/SettingsWindowController.swift`
+   - `PromptCueTests/MCPConnectorSettingsModelTests.swift`
+   - shows `Claude Code` and `Codex` connector status, launch command, add command, and config snippets
+   - supports repository-checkout launch commands while bundled helper packaging is still pending
 
 Verification gates run for landed MCP slices:
 
 - `xcodegen generate`
 - `swift test`
 - `swift test --filter BacktickMCPServerTests`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/MCPConnectorSettingsModelTests`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackReadServiceTests`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackWriteServiceTests`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackExecutionServiceTests`
@@ -314,23 +322,12 @@ Verification gates run for landed MCP slices:
 
 Current immediate next step:
 
-1. `MCP6` connector settings surface
-   - add a dedicated `Connectors` area in Settings
-   - list supported external clients:
-     - `Claude Code`
-     - `Codex`
-   - show current install/config status per client
-   - show the exact command/path Backtick expects the client to launch
-   - provide copyable client config snippets instead of expecting the user to discover MCP wiring alone
-   - keep this surface read-mostly at first; it can start by showing status and copy/install instructions before one-click setup exists
-   - support both repository-checkout workflows and a future bundled helper path
-
-2. external MCP client smoke
+1. external MCP client smoke
    - verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
    - collect connector friction from real client setup
    - use that friction to finalize the guided setup flow instead of guessing
 
-3. `MCP7` guided setup and validation
+2. `MCP7` guided setup and validation
    - add a product-facing explanation of what MCP is in Backtick terms
    - explain that MCP gives external coding agents direct read/write access to Stack storage
    - provide a concrete setup flow:
@@ -344,7 +341,7 @@ Current immediate next step:
      - `Connection test passed`
      - `Connection test failed`
 
-4. `MCP8` bundled helper packaging
+3. `MCP8` bundled helper packaging
    - package `BacktickMCP` with app builds so Settings can show a ready command outside local source checkouts
    - keep repository-root detection as the development fallback
    - make connector setup work for direct-download users without requiring a Swift toolchain
@@ -362,50 +359,6 @@ Rules after `MCP5`:
 - keep Stack as the only source of truth
 - reuse the landed services instead of duplicating note logic in the transport layer
 - `main` already contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
-
-### `PR #29` Landing Plan
-
-`PR #29` (`backtick-mcp-connectors`) should land as the focused `MCP6` Settings surface.
-
-Branch condition on `2026-03-11`:
-
-- state `OPEN`, base `main`, mergeable `MERGEABLE`
-- head commit `a034432`
-- branch is one commit ahead of `main`; restack is not required
-
-Carry-forward scope:
-
-- `PromptCue/App/AppCoordinator.swift`
-- `PromptCue/App/PanelMetrics.swift`
-- `PromptCue/UI/Settings/MCPConnectorSettingsModel.swift`
-- `PromptCue/UI/Settings/PromptCueSettingsView.swift`
-- `PromptCue/UI/WindowControllers/SettingsWindowController.swift`
-- `PromptCueTests/MCPConnectorSettingsModelTests.swift`
-- `PromptCue.xcodeproj/project.pbxproj`
-- `docs/Implementation-Plan.md`
-- `docs/Master-Board.md`
-
-Merge rules:
-
-1. keep `MCP2` through `MCP5` services and tool surface unchanged
-2. keep this slice read-mostly; no actual connector write/install flow yet
-3. support both current repository-checkout launch commands and a future bundled helper path in product language
-4. do not add execution-map style UI or route connector state through Stack selection/runtime state
-
-Verification gate for `PR #29`:
-
-- `swift test`
-- `xcodegen generate`
-- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/MCPConnectorSettingsModelTests`
-- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
-
-Required smoke checks after the gate:
-
-- Settings shows a `Connectors` tab without regressing existing `General`, `Capture`, and `Stack` tabs
-- `Claude Code` and `Codex` sections show CLI path, project/home config status, quick-add command, and config snippet
-- `Copy Command`, `Copy Add Command`, and `Copy Config Snippet` copy non-empty values when a launch spec is available
-- missing config files degrade to parent-folder reveal and status text instead of crashing
-- external MCP client smoke still runs after merge, not as part of this UI slice
 ## Phase 0: Research And Decisions
 
 ### Goal
