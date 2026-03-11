@@ -269,24 +269,11 @@ Current landed slices:
   - `PromptCueTests/StackWriteServiceTests.swift`
   - creates, updates, and deletes Stack notes directly
   - cleans up managed screenshot attachments on delete
-
-Current queued PR:
-
-- `PR #24` `backtick-mcp-execution-action`
-  - title: `Add Stack MCP execution action service`
-  - base: `main`
-  - scope:
-    - `PromptCue/Services/StackExecutionService.swift`
-    - `PromptCueTests/StackExecutionServiceTests.swift`
-    - docs and generated project updates only
-
-`PR #24` landing plan:
-
-1. merge `PR #24` directly into `main`
-2. keep the slice app-internal
-3. keep copied-state mutation exclusive to execution
-4. update `lastCopiedAt` and persist matching `CopyEvent` rows in the same transaction
-5. do not add stdio transport, MCP tool wiring, or UI affordances in this PR
+- `MCP4` execution action is the current merge slice
+   - `PromptCue/Services/StackExecutionService.swift`
+   - `PromptCueTests/StackExecutionServiceTests.swift`
+   - marks executed notes copied in Stack storage
+   - persists matching `CopyEvent` rows in the same transaction
 
 Verification gates run for landed MCP slices:
 
@@ -294,17 +281,12 @@ Verification gates run for landed MCP slices:
 - `swift test`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackReadServiceTests`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackWriteServiceTests`
-
-`PR #24` gate:
-
-- `xcodegen generate`
-- `swift test`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackExecutionServiceTests`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
 
 Current next slice:
 
-- implement `MCP5` stdio tool surface after `PR #24` lands
+- implement `MCP5` stdio tool surface over the landed Stack services
 - expose Stack note operations without introducing any new UI or derived item layer
 - keep transport separate from app runtime state such as current selection
 
@@ -325,6 +307,12 @@ Current next slice:
 3. add a minimal end-to-end smoke path
    - verify MCP transport can read, write, and execute notes against the shared DB
 
+Rules for `MCP5`:
+- no new board, work-item, or execution-map layer
+- no dependency on current UI selection state
+- keep Stack as the only source of truth
+- reuse the landed services instead of duplicating note logic in the transport layer
+
 Rules for `MCP4`:
 
 - no UI or menu changes
@@ -332,14 +320,7 @@ Rules for `MCP4`:
 - do not blur plain write operations with execution semantics
 - keep stdio transport for `MCP5`
 
-Rules for `MCP5`:
-
-- no new board, work-item, or execution-map layer
-- no dependency on current UI selection state
-- keep Stack as the only source of truth
-- reuse the landed services instead of duplicating note logic in the transport layer
-
-Post-merge state after `PR #24`:
+Post-merge state after `MCP4`:
 
 - `main` contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
 - Stack remains the only source of truth

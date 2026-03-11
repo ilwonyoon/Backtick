@@ -146,14 +146,8 @@ Current landed slices:
 
 - `MCP2` read bridge landed on `main`
 - `MCP3` write bridge landed on `main`
+- `MCP4` execution action is the current merge slice
 - UI and transport remain out of scope through `MCP4`
-
-Current queued PR:
-
-- `PR #24` `backtick-mcp-execution-action`
-  - adds `StackExecutionService`
-  - stays app-internal
-  - keeps copied-state mutation exclusive to execution
 
 Landed MCP gates:
 
@@ -162,6 +156,7 @@ Landed MCP gates:
 - service creates, updates, and deletes Stack notes directly
 - service cleans up managed screenshot attachments on delete
 - write service does not write `CopyEvent` rows
+- execution service updates copied state and `CopyEvent` rows together
 - no menu, settings, or panel behavior changes
 - app build and targeted read/write service tests pass
 
@@ -175,7 +170,7 @@ Landed MCP gates:
 
 Immediate next slice:
 
-- implement `MCP5` stdio tool surface after `PR #24` lands
+- implement `MCP5` stdio tool surface over landed Stack services
 - expose read, write, and execute tools to MCP clients
 - keep all UI work out of scope
 
