@@ -93,6 +93,7 @@
 		C2407D1A540A57F74B8CD8A2 /* DesignSystemWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358723B50B0EB526C0C3916D /* DesignSystemWindowController.swift */; };
 		C33CB0CB8D6163E8E29C9390 /* DesignSystemPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE47CEE43805033948881E6 /* DesignSystemPreviewView.swift */; };
 		C3C212100494C2818A213573 /* AppModelSuggestedTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B0115539065F60928002F4 /* AppModelSuggestedTargetTests.swift */; };
+		CA6CE213B531826FDB3CE9A2 /* AppModelEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00306C28A217BF98D7FE59D0 /* AppModelEditingTests.swift */; };
 		CB05FB609B7A278BA2153DFD /* CaptureSuggestedTargetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61D593D8E7C5928FCDFA1D28 /* CaptureSuggestedTargetViews.swift */; };
 		CD286242FA8EB9D07D6E6488 /* StackCardOverflowPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7887BBB2E24D918B70BA2496 /* StackCardOverflowPolicyTests.swift */; };
 		CFC5DE7C11066C8565D21A29 /* CaptureEditorLayoutCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9BD2A11BE05AD6376D87E70 /* CaptureEditorLayoutCalculatorTests.swift */; };
@@ -132,6 +133,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		00306C28A217BF98D7FE59D0 /* AppModelEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelEditingTests.swift; sourceTree = "<group>"; };
 		03B37B6220DABE400C68F4AB /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		092E3A82E4F9554B2984BDDF /* CaptureComposerLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureComposerLayoutTests.swift; sourceTree = "<group>"; };
 		09A461FEECE4CB884E435CC0 /* CardStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStore.swift; sourceTree = "<group>"; };
@@ -414,6 +416,7 @@
 			isa = PBXGroup;
 			children = (
 				6847C4F07F9A4481224AD862 /* AppEnvironmentTests.swift */,
+				00306C28A217BF98D7FE59D0 /* AppModelEditingTests.swift */,
 				503A6CF43E7AA68788A9AF1B /* AppModelRecentScreenshotTests.swift */,
 				E7B0115539065F60928002F4 /* AppModelSuggestedTargetTests.swift */,
 				18D1A25B39DB01DF38666D0C /* AppStartupPerformanceTests.swift */,
@@ -598,6 +601,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A6719F175822EA41E30EADA5 /* AppEnvironmentTests.swift in Sources */,
+				CA6CE213B531826FDB3CE9A2 /* AppModelEditingTests.swift in Sources */,
 				6509E8E1FF3E65C497A25DE3 /* AppModelRecentScreenshotTests.swift in Sources */,
 				C3C212100494C2818A213573 /* AppModelSuggestedTargetTests.swift in Sources */,
 				59DC8DEF36CC0740D5CADB25 /* AppStartupPerformanceTests.swift in Sources */,

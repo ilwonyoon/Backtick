@@ -77,6 +77,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var isMultiSelectMode = false
     @Published private(set) var stagedCopiedCardIDs: [UUID] = []
     @Published private(set) var isSubmittingCapture = false
+    @Published private(set) var editingCaptureCardID: UUID?
 
     private let cardStore: CardStore
     private let attachmentStore: AttachmentStoring
@@ -91,6 +92,7 @@ final class AppModel: ObservableObject {
     private var remoteApplyTask: Task<Void, Never>?
     private var pendingRemoteChanges: [SyncChange] = []
     private var draftSuggestedTargetOverride: CaptureSuggestedTarget?
+    private var draftRecentScreenshotStateOverride: RecentScreenshotState?
 
     init(
         cardStore: CardStore,
@@ -210,16 +212,20 @@ final class AppModel: ObservableObject {
         }
     }
 
+    var isEditingCaptureCard: Bool {
+        editingCaptureCardID != nil
+    }
+
     func start(startupMode: AppStartupMode = .immediateMaintenance) {
         suggestedTargetProvider.start()
         syncAvailableSuggestedTargets()
-        recentScreenshotCoordinator.onStateChange = { [weak self] state in
+        recentScreenshotCoordinator.onStateChange = { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.applyRecentScreenshotState(state)
+                self?.syncRecentScreenshotState()
             }
         }
         recentScreenshotCoordinator.start()
-        applyRecentScreenshotState(recentScreenshotCoordinator.state)
+        syncRecentScreenshotState()
         reloadCards(runNonCriticalMaintenance: startupMode == .immediateMaintenance)
         cleanupTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -250,6 +256,8 @@ final class AppModel: ObservableObject {
         applyRecentScreenshotState(.idle)
         availableSuggestedTargets = []
         draftSuggestedTargetOverride = nil
+        draftRecentScreenshotStateOverride = nil
+        editingCaptureCardID = nil
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
         isMultiSelectMode = false
@@ -280,11 +288,14 @@ final class AppModel: ObservableObject {
 
     func beginCaptureSession() {
         prepareDraftMetricsForPresentation()
-        draftSuggestedTargetOverride = nil
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
         refreshAvailableSuggestedTargets()
-        recentScreenshotCoordinator.prepareForCaptureSession()
+        if !isEditingCaptureCard {
+            draftSuggestedTargetOverride = nil
+            draftRecentScreenshotStateOverride = nil
+            recentScreenshotCoordinator.prepareForCaptureSession()
+        }
         syncRecentScreenshotState()
     }
 
@@ -294,7 +305,10 @@ final class AppModel: ObservableObject {
     }
 
     func endCaptureSession() {
-        draftSuggestedTargetOverride = nil
+        if !isEditingCaptureCard {
+            draftSuggestedTargetOverride = nil
+            draftRecentScreenshotStateOverride = nil
+        }
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
         syncRecentScreenshotState()
@@ -308,6 +322,27 @@ final class AppModel: ObservableObject {
     func refreshAvailableSuggestedTargets() {
         suggestedTargetProvider.refreshAvailableSuggestedTargets()
         syncAvailableSuggestedTargets()
+    }
+
+    func beginEditingCaptureCard(_ card: CaptureCard) {
+        editingCaptureCardID = card.id
+        draftText = card.text
+        draftEditorMetrics = .empty
+        draftSuggestedTargetOverride = card.suggestedTarget
+        isShowingCaptureSuggestedTargetChooser = false
+        selectedCaptureSuggestedTargetIndex = 0
+        if let screenshotURL = card.screenshotURL {
+            draftRecentScreenshotStateOverride = .previewReady(
+                sessionID: UUID(),
+                cacheURL: screenshotURL,
+                thumbnailState: .ready
+            )
+        } else {
+            draftRecentScreenshotStateOverride = .idle
+        }
+        prepareDraftMetricsForPresentation()
+        syncCaptureSuggestedTargetSelection()
+        syncRecentScreenshotState()
     }
 
     func chooseDraftSuggestedTarget(_ target: CaptureSuggestedTarget) {
@@ -462,6 +497,19 @@ final class AppModel: ObservableObject {
             return false
         }
 
+        if isEditingCaptureCard {
+            guard let editingCard = editingCaptureCard else {
+                clearDraft()
+                return false
+            }
+
+            return submitEditedCapture(
+                editingCard,
+                trimmedText: trimmed,
+                attachment: attachment
+            )
+        }
+
         let newCardID = UUID()
         let importedScreenshotPath: String?
 
@@ -521,8 +569,11 @@ final class AppModel: ObservableObject {
         draftText = ""
         draftEditorMetrics = .empty
         draftSuggestedTargetOverride = nil
+        draftRecentScreenshotStateOverride = nil
+        editingCaptureCardID = nil
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
+        syncRecentScreenshotState()
     }
 
     func updateDraftEditorMetrics(_ metrics: CaptureEditorMetrics) {
@@ -571,6 +622,12 @@ final class AppModel: ObservableObject {
     }
 
     func dismissPendingScreenshot() {
+        if draftRecentScreenshotStateOverride != nil {
+            draftRecentScreenshotStateOverride = .idle
+            syncRecentScreenshotState()
+            return
+        }
+
         recentScreenshotCoordinator.dismissCurrent()
         syncRecentScreenshotState()
     }
@@ -839,6 +896,14 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private var editingCaptureCard: CaptureCard? {
+        guard let editingCaptureCardID else {
+            return nil
+        }
+
+        return cards.first { $0.id == editingCaptureCardID }
+    }
+
     private func migrateLegacyExternalAttachmentsIfNeeded() {
         var migratedCards = cards
         var didChange = false
@@ -1005,11 +1070,84 @@ final class AppModel: ObservableObject {
     }
 
     private func syncRecentScreenshotState() {
-        applyRecentScreenshotState(recentScreenshotCoordinator.state)
+        applyRecentScreenshotState(draftRecentScreenshotStateOverride ?? recentScreenshotCoordinator.state)
     }
 
     private func applyRecentScreenshotState(_ state: RecentScreenshotState) {
         recentScreenshotState = state
+    }
+
+    private func submitEditedCapture(
+        _ card: CaptureCard,
+        trimmedText: String,
+        attachment: ScreenshotAttachment?
+    ) -> Bool {
+        let updatedText = trimmedText.isEmpty ? "Screenshot attached" : trimmedText
+        let existingScreenshotURL = card.screenshotURL?.standardizedFileURL
+
+        let updatedScreenshotPath: String?
+        if let attachment {
+            let attachmentURL = URL(fileURLWithPath: attachment.path).standardizedFileURL
+            if attachmentURL == existingScreenshotURL {
+                updatedScreenshotPath = card.screenshotPath
+            } else {
+                do {
+                    updatedScreenshotPath = try ScreenshotDirectoryResolver.withAccessIfNeeded(
+                        to: attachmentURL
+                    ) { scopedURL in
+                        try attachmentStore.importScreenshot(from: scopedURL, ownerID: card.id).path
+                    }
+                } catch {
+                    logStorageFailure("Screenshot edit import failed", error: error)
+                    return false
+                }
+            }
+        } else {
+            updatedScreenshotPath = nil
+        }
+
+        let updatedCard = card.updatingContent(
+            text: updatedText,
+            suggestedTarget: effectiveCaptureSuggestedTarget,
+            screenshotPath: updatedScreenshotPath
+        )
+        let updatedCards = sortedCards(
+            cards.map { existingCard in
+                guard existingCard.id == card.id else {
+                    return existingCard
+                }
+
+                return updatedCard
+            }
+        )
+
+        do {
+            try cardStore.upsert(updatedCard)
+            storageErrorMessage = nil
+        } catch {
+            logStorageFailure("Card edit save failed", error: error)
+            return false
+        }
+
+        if attachment == nil, let existingScreenshotURL {
+            do {
+                try attachmentStore.removeManagedFile(at: existingScreenshotURL)
+            } catch {
+                logStorageFailure("Edited screenshot cleanup failed", error: error)
+            }
+        }
+
+        cards = updatedCards
+        draftText = ""
+        draftEditorMetrics = .empty
+        draftSuggestedTargetOverride = nil
+        draftRecentScreenshotStateOverride = nil
+        editingCaptureCardID = nil
+        isShowingCaptureSuggestedTargetChooser = false
+        selectedCaptureSuggestedTargetIndex = 0
+        syncRecentScreenshotState()
+        cloudSyncEngine?.pushLocalChange(card: updatedCard)
+        return true
     }
 
     // MARK: - Cloud Sync
