@@ -354,6 +354,96 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func clipboardExportFormatterReturnsRawStandaloneLinkWithoutSuffix() {
+        let cards = [
+            CaptureCard(text: "https://example.com/docs", createdAt: .now),
+        ]
+
+        let payload = ExportFormatter.clipboardString(
+            for: cards,
+            suffix: ExportSuffix("Sent from Prompt Cue")
+        )
+
+        #expect(payload == "https://example.com/docs")
+    }
+
+    @Test
+    func clipboardExportFormatterReturnsRawStandalonePathWithoutSuffix() {
+        let cards = [
+            CaptureCard(text: "~/workspace/PromptCue/README.md", createdAt: .now),
+        ]
+
+        let payload = ExportFormatter.clipboardString(
+            for: cards,
+            suffix: ExportSuffix("Sent from Prompt Cue")
+        )
+
+        #expect(payload == "~/workspace/PromptCue/README.md")
+    }
+
+    @Test
+    func clipboardExportFormatterReturnsRawStandaloneSecretWithoutSuffix() {
+        let cards = [
+            CaptureCard(text: "sk-ant-abc123def456xyz987", createdAt: .now),
+        ]
+
+        let payload = ExportFormatter.clipboardString(
+            for: cards,
+            suffix: ExportSuffix("Sent from Prompt Cue")
+        )
+
+        #expect(payload == "sk-ant-abc123def456xyz987")
+    }
+
+    @Test
+    func clipboardExportFormatterReturnsRawStandaloneEmailWithoutSuffix() {
+        let cards = [
+            CaptureCard(text: "dev@example.com", createdAt: .now),
+        ]
+
+        let payload = ExportFormatter.clipboardString(
+            for: cards,
+            suffix: ExportSuffix("Sent from Prompt Cue")
+        )
+
+        #expect(payload == "dev@example.com")
+    }
+
+    @Test
+    func clipboardExportFormatterReturnsRawStandaloneLocalhostWithoutSuffix() {
+        let cards = [
+            CaptureCard(text: "localhost:3000/api/v1?draft=1", createdAt: .now),
+        ]
+
+        let payload = ExportFormatter.clipboardString(
+            for: cards,
+            suffix: ExportSuffix("Sent from Prompt Cue")
+        )
+
+        #expect(payload == "localhost:3000/api/v1?draft=1")
+    }
+
+    @Test
+    func clipboardExportFormatterKeepsExportShapeForNotesContainingLink() {
+        let cards = [
+            CaptureCard(text: "Review https://example.com/docs before shipping", createdAt: .now),
+        ]
+
+        let payload = ExportFormatter.clipboardString(
+            for: cards,
+            suffix: ExportSuffix("Sent from Prompt Cue")
+        )
+
+        #expect(
+            payload == """
+            • Review https://example.com/docs before shipping
+
+            Sent from Prompt Cue
+            """
+        )
+    }
+
+    @Test
     func copyEventJSONCodecRoundTripAndSanitizesSessionID() throws {
         let original = CopyEvent(
             id: UUID(),

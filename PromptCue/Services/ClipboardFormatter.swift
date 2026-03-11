@@ -4,10 +4,11 @@ import PromptCueCore
 
 enum ClipboardFormatter {
     static func string(for cards: [CaptureCard]) -> String {
-        ExportFormatter.string(
-            for: cards,
-            suffix: PromptExportTailPreferences.load().exportSuffix
-        )
+        string(for: cards, suffix: PromptExportTailPreferences.load().exportSuffix)
+    }
+
+    static func string(for cards: [CaptureCard], suffix: ExportSuffix) -> String {
+        ExportFormatter.clipboardString(for: cards, suffix: suffix)
     }
 
     static func copyToPasteboard(cards: [CaptureCard]) {

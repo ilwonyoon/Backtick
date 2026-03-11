@@ -65,4 +65,40 @@ final class PromptExportTailSettingsTests: XCTestCase {
         XCTAssertFalse(resetState.isEnabled)
         XCTAssertEqual(resetState.suffixText, PromptExportTailPreferences.defaultSuffixText)
     }
+
+    func testClipboardFormatterSkipsExportTailForStandaloneLink() {
+        let payload = ClipboardFormatter.string(
+            for: [CaptureCard(text: "https://example.com/docs", createdAt: .now)],
+            suffix: ExportSuffix("Run root-cause analysis first.")
+        )
+
+        XCTAssertEqual(payload, "https://example.com/docs")
+    }
+
+    func testClipboardFormatterSkipsExportTailForStandaloneSecret() {
+        let payload = ClipboardFormatter.string(
+            for: [CaptureCard(text: "sk-ant-abc123def456xyz987", createdAt: .now)],
+            suffix: ExportSuffix("Run root-cause analysis first.")
+        )
+
+        XCTAssertEqual(payload, "sk-ant-abc123def456xyz987")
+    }
+
+    func testClipboardFormatterSkipsExportTailForStandaloneEmail() {
+        let payload = ClipboardFormatter.string(
+            for: [CaptureCard(text: "dev@example.com", createdAt: .now)],
+            suffix: ExportSuffix("Run root-cause analysis first.")
+        )
+
+        XCTAssertEqual(payload, "dev@example.com")
+    }
+
+    func testClipboardFormatterSkipsExportTailForStandaloneLocalhostLink() {
+        let payload = ClipboardFormatter.string(
+            for: [CaptureCard(text: "localhost:3000/api/v1?draft=1", createdAt: .now)],
+            suffix: ExportSuffix("Run root-cause analysis first.")
+        )
+
+        XCTAssertEqual(payload, "localhost:3000/api/v1?draft=1")
+    }
 }
