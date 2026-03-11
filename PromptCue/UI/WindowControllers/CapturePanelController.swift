@@ -113,6 +113,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         panel.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
+        runtimeViewController.refreshAppearance()
         runtimeViewController.focusEditorIfPossible()
         installDismissMonitors()
         updateSuggestedTargetPanelIfNeeded()

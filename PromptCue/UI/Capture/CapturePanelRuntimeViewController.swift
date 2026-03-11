@@ -162,6 +162,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         screenshotContainer.appearance = appliedAppearance
         screenshotSurface.appearance = appliedAppearance
         editorHost.appearance = appliedAppearance
+        editorHost.refreshAppearance()
         view.needsDisplay = true
         shadowCasterView.refreshAppearance()
         shellView.refreshAppearance()

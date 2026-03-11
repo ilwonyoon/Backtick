@@ -67,6 +67,11 @@ final class CaptureEditorRuntimeHostView: NSView {
         NSSize(width: NSView.noIntrinsicMetric, height: currentResolvedHeight.preferredHeight)
     }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        refreshAppearance()
+    }
+
     var currentMetrics: CaptureEditorMetrics {
         currentResolvedHeight.metrics
     }
@@ -138,6 +143,26 @@ final class CaptureEditorRuntimeHostView: NSView {
                 window.makeFirstResponder(self.textView)
             }
         }
+    }
+
+    func refreshAppearance() {
+        let appliedAppearance = effectiveAppearance
+        appearance = appliedAppearance
+        scrollView.appearance = appliedAppearance
+        textView.appearance = appliedAppearance
+        placeholderField.appearance = appliedAppearance
+
+        placeholderField.textColor = NSColor.secondaryLabelColor.withAlphaComponent(PrimitiveTokens.Opacity.soft)
+        scrollIndicatorThumbView.layer?.backgroundColor = NSColor.tertiaryLabelColor.withAlphaComponent(
+            CaptureRuntimeMetrics.scrollIndicatorShowAlpha
+        ).cgColor
+        textView.textColor = .labelColor
+        textView.insertionPointColor = .controlAccentColor
+        textView.typingAttributes = typingAttributes()
+        applyTextStorageAttributes()
+        textView.needsDisplay = true
+        placeholderField.needsDisplay = true
+        needsDisplay = true
     }
 
     func requestScrollToSelectionOnNextMeasurement() {
@@ -417,17 +442,11 @@ final class CaptureEditorRuntimeHostView: NSView {
             return
         }
 
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.minimumLineHeight = PrimitiveTokens.LineHeight.capture
-        paragraphStyle.maximumLineHeight = PrimitiveTokens.LineHeight.capture
-        let font = NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture)
-
         textStorage.beginEditing()
-        textStorage.addAttributes([
-            .font: font,
-            .foregroundColor: NSColor.labelColor,
-            .paragraphStyle: paragraphStyle,
-        ], range: NSRange(location: 0, length: textStorage.length))
+        textStorage.addAttributes(
+            typingAttributes(),
+            range: NSRange(location: 0, length: textStorage.length)
+        )
         textStorage.endEditing()
     }
 
@@ -513,11 +532,7 @@ final class CaptureEditorRuntimeHostView: NSView {
         textView.drawsBackground = false
         textView.backgroundColor = .clear
         textView.textColor = .labelColor
-        let font = NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture)
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.minimumLineHeight = PrimitiveTokens.LineHeight.capture
-        paragraphStyle.maximumLineHeight = PrimitiveTokens.LineHeight.capture
-        textView.font = font
+        textView.font = editorFont
         textView.isRichText = false
         textView.importsGraphics = false
         textView.isAutomaticQuoteSubstitutionEnabled = false
@@ -530,14 +545,31 @@ final class CaptureEditorRuntimeHostView: NSView {
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
         textView.alignment = .left
-        textView.defaultParagraphStyle = paragraphStyle
+        textView.defaultParagraphStyle = editorParagraphStyle
         textView.textContainer?.widthTracksTextView = false
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.lineBreakMode = .byWordWrapping
-        textView.typingAttributes = [
-            .font: font,
+        textView.insertionPointColor = .controlAccentColor
+        textView.typingAttributes = typingAttributes()
+        refreshAppearance()
+    }
+
+    private var editorFont: NSFont {
+        NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture)
+    }
+
+    private var editorParagraphStyle: NSParagraphStyle {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.minimumLineHeight = PrimitiveTokens.LineHeight.capture
+        paragraphStyle.maximumLineHeight = PrimitiveTokens.LineHeight.capture
+        return paragraphStyle
+    }
+
+    private func typingAttributes() -> [NSAttributedString.Key: Any] {
+        [
+            .font: editorFont,
             .foregroundColor: NSColor.labelColor,
-            .paragraphStyle: paragraphStyle,
+            .paragraphStyle: editorParagraphStyle,
         ]
     }
 }
