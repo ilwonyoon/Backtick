@@ -308,23 +308,29 @@ Current next slice:
 - expose Stack note operations without introducing any new UI or derived item layer
 - keep transport separate from app runtime state such as current selection
 
+`MCP5` landing plan:
+
+1. add an app-internal MCP transport wrapper
+   - use `StackReadService`, `StackWriteService`, and `StackExecutionService`
+   - keep tool names aligned with Stack note semantics
+
+2. expose the first tool set
+   - `list_notes`
+   - `get_note`
+   - `create_note`
+   - `update_note`
+   - `delete_note`
+   - `mark_note_executed`
+
+3. add a minimal end-to-end smoke path
+   - verify MCP transport can read, write, and execute notes against the shared DB
+
 Rules for `MCP4`:
 
 - no UI or menu changes
 - no derived item or board layer
 - do not blur plain write operations with execution semantics
 - keep stdio transport for `MCP5`
-
-Post-merge state after `PR #24`:
-
-- `main` contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
-- Stack remains the only source of truth
-- copied state changes only through the execution path
-- `CopyEvent` history is recorded by execution, not plain write operations
-- stdio transport remains a separate `MCP5` slice
-=======
-3. add a minimal end-to-end smoke path
-   - verify MCP transport can read, write, and execute notes against the shared DB
 
 Rules for `MCP5`:
 
@@ -336,10 +342,10 @@ Rules for `MCP5`:
 Post-merge state after `PR #24`:
 
 - `main` contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
+- Stack remains the only source of truth
 - copied state changes only through the execution path
 - `CopyEvent` history is recorded by execution, not plain write operations
 - stdio transport remains a separate `MCP5` slice
->>>>>>> 711f934 (Document PR24 MCP merge plan)
 ## Phase 0: Research And Decisions
 
 ### Goal
