@@ -128,8 +128,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(inspection.launchSpec?.command, bundledHelperURL.path)
         XCTAssertTrue(inspection.status(for: .claudeCode).addCommand?.contains(bundledHelperURL.path) == true)
         XCTAssertTrue(inspection.status(for: .codex).addCommand?.contains(bundledHelperURL.path) == true)
-        XCTAssertTrue(inspection.status(for: .claudeCode).configSnippet?.contains(bundledHelperURL.path) == true)
-        XCTAssertTrue(inspection.status(for: .codex).configSnippet?.contains(bundledHelperURL.path) == true)
+        XCTAssertTrue(inspection.status(for: .claudeCode).configSnippet?.contains("BacktickMCP") == true)
+        XCTAssertTrue(inspection.status(for: .codex).configSnippet?.contains("BacktickMCP") == true)
     }
 
     func testInspectorFallsBackToSwiftRunAndDetectsHomeConfigs() throws {

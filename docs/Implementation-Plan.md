@@ -306,7 +306,7 @@ Current landed slices:
    - `PromptCue/UI/WindowControllers/SettingsWindowController.swift`
    - `PromptCueTests/MCPConnectorSettingsModelTests.swift`
    - shows `Claude Code` and `Codex` connector status, launch command, add command, and config snippets
-   - supports repository-checkout launch commands while bundled helper packaging is still pending
+   - keeps repository-checkout launch commands as the development fallback
 - `MCP7` guided setup and validation is on `main`
    - `PromptCue/UI/Settings/MCPConnectorSettingsModel.swift`
    - `PromptCue/UI/Settings/PromptCueSettingsView.swift`
@@ -314,6 +314,16 @@ Current landed slices:
    - explains what Backtick MCP does, shows a concrete setup flow, and runs a local server self-test from Settings
    - promotes configured clients to `Connected` after a successful local launch/tool-surface validation
    - includes a Claude-specific automation example for `--permission-mode dontAsk` with explicit `--allowedTools`
+- `MCP8` bundled helper packaging is on this branch
+   - `project.yml`
+   - `PromptCue.xcodeproj/project.pbxproj`
+   - `scripts/build_backtick_mcp_helper.sh`
+   - `PromptCue/UI/Settings/MCPConnectorSettingsModel.swift`
+   - `PromptCue/UI/Settings/PromptCueSettingsView.swift`
+   - `PromptCueTests/MCPConnectorSettingsModelTests.swift`
+   - app builds now copy `BacktickMCP` into `Prompt Cue.app/Contents/Helpers/BacktickMCP`
+   - connector setup prefers the bundled helper path when it exists and keeps the repository checkout as the fallback
+   - bundled-helper smoke has been rerun against the built app helper for `initialize` and `tools/list`
 
 Verification gates run for landed MCP slices:
 
@@ -329,16 +339,7 @@ Verification gates run for landed MCP slices:
 
 Current immediate next step:
 
-1. `MCP8` bundled helper packaging
-   - package `BacktickMCP` with app builds so Settings can show a ready command outside local source checkouts
-   - copy the helper into `Prompt Cue.app/Contents/Helpers/BacktickMCP` during app builds
-   - prefer the bundled helper in Settings connector setup when it exists
-   - keep repository-root detection as the development fallback
-   - make connector setup work for direct-download users without requiring a Swift toolchain
-   - preserve the repository-checkout launch path as the developer fallback while release packaging lands
-
-2. release-path connector validation
-   - rerun the Settings server test against a packaged helper, not just a source checkout
+1. release-path external-client validation
    - verify `Claude Code` and `Codex` setup still works when the user has no local Swift toolchain
    - keep treating `tool permission denied` as client setup friction instead of a Backtick MCP launch failure
 

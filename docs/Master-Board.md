@@ -163,7 +163,8 @@ Current landed slices:
 - `MCP5` stdio tool surface landed on `main`
 - `MCP6` connector settings surface landed on `main`
 - `MCP7` guided setup and local server validation landed on `main`
-- execution-map style UI remains out of scope while helper packaging is still in flight
+- `MCP8` bundled helper packaging is on this branch
+- execution-map style UI remains out of scope while external client release-path smoke is still in flight
 - Settings-based connector UI is now the user-facing MCP rollout surface, including setup and local validation
 
 Landed MCP gates:
@@ -195,11 +196,7 @@ Landed `MCP5` gate:
 
 Immediate next step:
 
-- package a bundled `BacktickMCP` helper for release builds
-- copy the helper into `Prompt Cue.app/Contents/Helpers/BacktickMCP` during app builds
-- prefer the bundled helper path in Settings when it exists
-- keep the repository-checkout launch path as a development fallback
-- rerun connector validation against the packaged helper path
+- verify `Claude Code` and `Codex` setup still works when the user has no local Swift toolchain
 - preserve the current external smoke finding:
   - `Claude Code` and `Codex` both connect successfully on merged `main`
   - `Claude Code` in `--permission-mode dontAsk` requires Backtick MCP tools in `--allowedTools`
