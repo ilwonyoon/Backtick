@@ -270,22 +270,43 @@ Current landed slices:
   - creates, updates, and deletes Stack notes directly
   - cleans up managed screenshot attachments on delete
 
+Current queued PR:
+
+- `PR #24` `backtick-mcp-execution-action`
+  - title: `Add Stack MCP execution action service`
+  - base: `main`
+  - scope:
+    - `PromptCue/Services/StackExecutionService.swift`
+    - `PromptCueTests/StackExecutionServiceTests.swift`
+    - docs and generated project updates only
+
+`PR #24` landing plan:
+
+1. merge `PR #24` directly into `main`
+2. keep the slice app-internal
+3. keep copied-state mutation exclusive to execution
+4. update `lastCopiedAt` and persist matching `CopyEvent` rows in the same transaction
+5. do not add stdio transport, MCP tool wiring, or UI affordances in this PR
+
 Verification gates run for landed MCP slices:
 
 - `xcodegen generate`
 - `swift test`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackReadServiceTests`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackWriteServiceTests`
+
+`PR #24` gate:
+
+- `xcodegen generate`
+- `swift test`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackExecutionServiceTests`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
 
 Current next slice:
 
-- implement `MCP4` execution action over Stack storage
-- keep it app-internal for now; do not add stdio or tool-server wiring in this slice
-- execution must be the only path that flips copied state
-- when a note is executed:
-  - update `lastCopiedAt`
-  - persist a matching `CopyEvent` with MCP actor/session metadata
+- implement `MCP5` stdio tool surface after `PR #24` lands
+- expose Stack note operations without introducing any new UI or derived item layer
+- keep transport separate from app runtime state such as current selection
 
 Rules for `MCP4`:
 
@@ -294,12 +315,31 @@ Rules for `MCP4`:
 - do not blur plain write operations with execution semantics
 - keep stdio transport for `MCP5`
 
-Post-merge state after `MCP3`:
+Post-merge state after `PR #24`:
 
-- `main` contains both `StackReadService` and `StackWriteService`
+- `main` contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
 - Stack remains the only source of truth
-- copied state is still untouched by read/write slices
-- execution and stdio transport remain separate follow-up slices
+- copied state changes only through the execution path
+- `CopyEvent` history is recorded by execution, not plain write operations
+- stdio transport remains a separate `MCP5` slice
+=======
+3. add a minimal end-to-end smoke path
+   - verify MCP transport can read, write, and execute notes against the shared DB
+
+Rules for `MCP5`:
+
+- no new board, work-item, or execution-map layer
+- no dependency on current UI selection state
+- keep Stack as the only source of truth
+- reuse the landed services instead of duplicating note logic in the transport layer
+
+Post-merge state after `PR #24`:
+
+- `main` contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
+- copied state changes only through the execution path
+- `CopyEvent` history is recorded by execution, not plain write operations
+- stdio transport remains a separate `MCP5` slice
+>>>>>>> 711f934 (Document PR24 MCP merge plan)
 ## Phase 0: Research And Decisions
 
 ### Goal

@@ -146,7 +146,14 @@ Current landed slices:
 
 - `MCP2` read bridge landed on `main`
 - `MCP3` write bridge landed on `main`
-- UI and transport remain out of scope for both slices
+- UI and transport remain out of scope through `MCP4`
+
+Current queued PR:
+
+- `PR #24` `backtick-mcp-execution-action`
+  - adds `StackExecutionService`
+  - stays app-internal
+  - keeps copied-state mutation exclusive to execution
 
 Landed MCP gates:
 
@@ -154,16 +161,30 @@ Landed MCP gates:
 - read service returns note detail plus `CopyEvent` history
 - service creates, updates, and deletes Stack notes directly
 - service cleans up managed screenshot attachments on delete
-- service does not write `CopyEvent` rows yet
+- write service does not write `CopyEvent` rows
 - no menu, settings, or panel behavior changes
 - app build and targeted read/write service tests pass
 
+`PR #24` gate:
+
+- execution service updates copied state and `CopyEvent` rows together
+- execution service preserves requested note order for returned copied notes
+- plain write operations still do not write `CopyEvent` rows
+- no menu, settings, panel, or execution-map changes
+- app build and targeted execution-service tests pass
+
 Immediate next slice:
 
-- implement `MCP4` execution action
-- keep copied-state mutation exclusive to execution
-- persist `CopyEvent` rows with MCP actor/session metadata
-- keep all UI and transport work out of scope until `MCP5`
+- implement `MCP5` stdio tool surface after `PR #24` lands
+- expose read, write, and execute tools to MCP clients
+- keep all UI work out of scope
+
+`MCP5` gate:
+
+- MCP transport calls the landed Stack services instead of duplicating logic
+- tool surface exposes read, write, and execute actions for Stack notes
+- no menu, settings, panel, or execution-map changes
+- end-to-end smoke coverage exists for the shared DB path
 
 Rules:
 
