@@ -188,6 +188,47 @@ Rules:
 - copied state means execution happened, not that planning or grouping happened
 - cleanup of board and work-item code is not optional follow-up; it is part of getting MCP scope back into focus
 
+## Parallel UX Queue
+
+Current queued non-MCP PR:
+
+- `PR #25` `feat/default-multi-copy`
+  - title: `Make staged multi-copy the default stack flow`
+  - intended scope:
+    - make staged grouped copy the default stack click behavior
+    - commit copied grouping on stack close instead of on click
+    - skip export tails for standalone raw literals
+
+Branch condition on `2026-03-11`:
+
+- the branch still forks from `d4b966c`, before landed `MCP2` through `MCP4`
+- it should be rebased onto the latest `main` before merge
+
+Rebase conflict surface:
+
+- `PromptCue.xcodeproj/project.pbxproj`
+- `PromptCue/UI/WindowControllers/StackPanelController.swift`
+- `Tests/PromptCueCoreTests/PromptCueCoreTests.swift`
+- `docs/Implementation-Plan.md`
+- `docs/Master-Board.md`
+
+`PR #25` gate:
+
+- `swift test`
+- `xcodegen generate`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackMultiCopyTests`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/PromptExportTailSettingsTests -only-testing:PromptCueTests/StackMultiCopyTests`
+- stack smoke:
+  card click stages copy without closing, second click unstages, panel close commits copied ordering
+
+Merge rule:
+
+- keep landed MCP services and MCP docs as the source of truth
+- carry forward only the stack/export UX changes and matching preflight/remediation wording
+- regenerate `project.pbxproj` from `project.yml` after the rebase
+- merge `PR #25` before starting `MCP5` transport work so the new default stack behavior is the baseline for client-facing clipboard expectations
+
 ## Track Gates
 
 ### Gate 1: Track Review
