@@ -253,55 +253,52 @@ Next rollout:
    - mark a note executed by updating `lastCopiedAt`
    - persist a matching `CopyEvent` with MCP actor metadata
 
-Current landed slice:
+4. `MCP5` stdio tool surface
+   - expose read/write/execute actions through an MCP server transport
+   - keep tool names aligned with Stack note semantics
 
-- `MCP2` Stack read bridge is now on `main`
-- service surface:
-  - list all, active, or copied Stack notes
-  - fetch note detail plus `CopyEvent` history
-- implementation:
+Current landed slices:
+
+- `MCP2` Stack read bridge is on `main`
   - `PromptCue/Services/StackReadService.swift`
   - `PromptCueTests/StackReadServiceTests.swift`
+  - lists all, active, and copied notes
+  - returns note detail plus `CopyEvent` history
+- `MCP3` Stack write bridge is on `main`
+  - `PromptCue/Services/StackWriteService.swift`
+  - `PromptCueTests/StackWriteServiceTests.swift`
+  - creates, updates, and deletes Stack notes directly
+  - cleans up managed screenshot attachments on delete
 
-`MCP2` verification gate:
+Verification gates run for landed MCP slices:
 
 - `xcodegen generate`
 - `swift test`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackReadServiceTests`
-- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
-
-Current queued PR:
-
-- `PR #23` `backtick-mcp-write-bridge`
-  - title: `Add Stack MCP write bridge service`
-  - keep scope limited to:
-    - create Stack notes
-    - update note text or metadata
-    - delete Stack notes
-    - managed attachment cleanup on delete
-  - do not add execution semantics or `CopyEvent` writes in this PR
-
-`PR #23` gate:
-
-- `xcodegen generate`
-- `swift test`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackWriteServiceTests`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
 
-`PR #23` merge mechanics:
+Current next slice:
 
-1. retarget `PR #23` from `backtick-mcp-read-bridge` to `main`
-2. resolve the expected overlap in:
-   - `docs/Implementation-Plan.md`
-   - `docs/Master-Board.md`
-   - `PromptCue.xcodeproj/project.pbxproj`
-3. keep read and write services in separate files and separate review slices
+- implement `MCP4` execution action over Stack storage
+- keep it app-internal for now; do not add stdio or tool-server wiring in this slice
+- execution must be the only path that flips copied state
+- when a note is executed:
+  - update `lastCopiedAt`
+  - persist a matching `CopyEvent` with MCP actor/session metadata
 
-Post-merge state after `PR #23`:
+Rules for `MCP4`:
+
+- no UI or menu changes
+- no derived item or board layer
+- do not blur plain write operations with execution semantics
+- keep stdio transport for `MCP5`
+
+Post-merge state after `MCP3`:
 
 - `main` contains both `StackReadService` and `StackWriteService`
 - Stack remains the only source of truth
-- copied state is still untouched by read/write PRs
+- copied state is still untouched by read/write slices
 - execution and stdio transport remain separate follow-up slices
 ## Phase 0: Research And Decisions
 

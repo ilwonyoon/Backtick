@@ -139,34 +139,31 @@ Active MCP rollout:
    - mark executed notes as copied
    - persist `CopyEvent` rows with MCP actor/session metadata
 
-Current landed slice:
+4. `MCP5` stdio tool surface
+   - expose Stack note tools to external MCP clients
+
+Current landed slices:
 
 - `MCP2` read bridge landed on `main`
-- `StackReadService` stays read-only
-- UI and transport remain out of scope
+- `MCP3` write bridge landed on `main`
+- UI and transport remain out of scope for both slices
 
-`MCP2` gate:
+Landed MCP gates:
 
-- service lists active and copied notes directly from Stack storage
-- service returns note detail plus `CopyEvent` history
-- no menu, settings, or panel behavior changes
-- app build and targeted read-service tests pass
-
-`PR #23` gate:
-
+- read service lists active and copied notes directly from Stack storage
+- read service returns note detail plus `CopyEvent` history
 - service creates, updates, and deletes Stack notes directly
 - service cleans up managed screenshot attachments on delete
 - service does not write `CopyEvent` rows yet
 - no menu, settings, or panel behavior changes
-- app build and targeted write-service tests pass
+- app build and targeted read/write service tests pass
 
-Conflict note:
+Immediate next slice:
 
-- expect overlap only in:
-  - `docs/Implementation-Plan.md`
-  - `docs/Master-Board.md`
-  - `PromptCue.xcodeproj/project.pbxproj`
-- `StackReadService` and `StackWriteService` live in disjoint files and should not be manually collapsed into one PR
+- implement `MCP4` execution action
+- keep copied-state mutation exclusive to execution
+- persist `CopyEvent` rows with MCP actor/session metadata
+- keep all UI and transport work out of scope until `MCP5`
 
 Rules:
 
