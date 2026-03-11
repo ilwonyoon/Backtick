@@ -129,6 +129,7 @@ struct MCPConnectorClientStatus: Equatable {
 
 struct MCPConnectorInspection: Equatable {
     let repositoryRootPath: String?
+    let bundledHelperPath: String?
     let launchSpec: MCPServerLaunchSpec?
     let clients: [MCPConnectorClientStatus]
 
@@ -208,25 +209,30 @@ struct MCPConnectorInspector {
     private let fileManager: FileManager
     private let environment: [String: String]
     private let homeDirectoryURL: URL
+    private let applicationBundleURL: URL?
     private let repositoryRootURL: URL?
 
     init(
         fileManager: FileManager = .default,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        applicationBundleURL: URL? = Bundle.main.bundleURL,
         repositoryRootURL: URL? = nil
     ) {
         self.fileManager = fileManager
         self.environment = environment
         self.homeDirectoryURL = homeDirectoryURL
+        self.applicationBundleURL = applicationBundleURL
         self.repositoryRootURL = repositoryRootURL ?? Self.detectRepositoryRoot(fileManager: fileManager)
     }
 
     func inspect() -> MCPConnectorInspection {
-        let launchSpec = launchSpecification()
+        let bundledHelperURL = bundledHelperURL()
+        let launchSpec = launchSpecification(bundledHelperURL: bundledHelperURL)
 
         return MCPConnectorInspection(
             repositoryRootPath: repositoryRootURL?.path,
+            bundledHelperPath: bundledHelperURL?.path,
             launchSpec: launchSpec,
             clients: MCPConnectorClient.allCases.map { client in
                 clientStatus(for: client, launchSpec: launchSpec)
@@ -254,7 +260,14 @@ struct MCPConnectorInspector {
         return nil
     }
 
-    private func launchSpecification() -> MCPServerLaunchSpec? {
+    private func launchSpecification(bundledHelperURL: URL?) -> MCPServerLaunchSpec? {
+        if let bundledHelperURL {
+            return MCPServerLaunchSpec(
+                command: bundledHelperURL.path,
+                arguments: []
+            )
+        }
+
         guard let repositoryRootURL else {
             return nil
         }
@@ -282,6 +295,23 @@ struct MCPConnectorInspector {
                 "BacktickMCP",
             ]
         )
+    }
+
+    private func bundledHelperURL() -> URL? {
+        guard let applicationBundleURL else {
+            return nil
+        }
+
+        let helperURL = applicationBundleURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Helpers", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+
+        if isExecutableFile(helperURL) {
+            return helperURL.standardizedFileURL
+        }
+
+        return nil
     }
 
     private func clientStatus(
@@ -502,6 +532,14 @@ final class MCPConnectorSettingsModel: ObservableObject {
         inspection.repositoryRootPath ?? "Not detected"
     }
 
+    var serverSourcePath: String {
+        inspection.bundledHelperPath ?? inspection.repositoryRootPath ?? "Not detected"
+    }
+
+    var serverSourceLabel: String {
+        inspection.bundledHelperPath == nil ? "Repository" : "Bundled helper"
+    }
+
     var serverStatusTitle: String {
         inspection.launchSpec == nil ? "Unavailable" : "Ready"
     }
@@ -512,6 +550,18 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         return "Backtick MCP needs a detectable source checkout or bundled helper before connector setup can be generated."
+    }
+
+    var serverStatusFootnote: String {
+        if let bundledHelperPath = inspection.bundledHelperPath {
+            return "Backtick MCP is bundled inside this app build at \(bundledHelperPath)."
+        }
+
+        if let repositoryRootPath = inspection.repositoryRootPath {
+            return "Backtick MCP is being launched from the current source checkout at \(repositoryRootPath)."
+        }
+
+        return "No bundled helper or source checkout was detected."
     }
 
     var clients: [MCPConnectorClientStatus] {

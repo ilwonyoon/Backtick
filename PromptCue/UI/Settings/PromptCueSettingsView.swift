@@ -312,8 +312,15 @@ struct PromptCueSettingsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                row("Repository") {
-                    Text(mcpConnectorSettingsModel.repositoryRootPath)
+                row("Source") {
+                    Text(mcpConnectorSettingsModel.serverSourceLabel)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                row("Location") {
+                    Text(mcpConnectorSettingsModel.serverSourcePath)
                         .font(PrimitiveTokens.Typography.body)
                         .foregroundStyle(SemanticTokens.Text.secondary)
                         .textSelection(.enabled)
@@ -322,11 +329,19 @@ struct PromptCueSettingsView: View {
             }
 
             detailPane(label: "What It Does") {
-                Text("Backtick MCP gives external coding agents direct read/write access to your Stack. Clients can list notes, inspect note detail, create notes, update notes, and mark notes executed without leaving Backtick as the source of truth.")
-                    .font(PrimitiveTokens.Typography.body)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                    Text("Backtick MCP gives external coding agents direct read/write access to your Stack. Clients can list notes, inspect note detail, create notes, update notes, and mark notes executed without leaving Backtick as the source of truth.")
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Text(mcpConnectorSettingsModel.serverStatusFootnote)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
 
             detailPane(label: "Setup Flow") {

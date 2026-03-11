@@ -90,6 +90,41 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertTrue(inspection.status(for: .codex).addCommand?.contains("codex mcp add") == true)
     }
 
+    func testInspectorPrefersBundledHelperOverRepositoryCheckout() throws {
+        let repoExecutableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: repoExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: repoExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: repoExecutableURL.path
+        )
+
+        let appBundleURL = tempDirectoryURL
+            .appendingPathComponent("Prompt Cue.app", isDirectory: true)
+        let bundledHelperURL = appBundleURL
+            .appendingPathComponent("Contents/Helpers", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: bundledHelperURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: bundledHelperURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: bundledHelperURL.path
+        )
+
+        let inspection = makeInspector(applicationBundleURL: appBundleURL).inspect()
+
+        XCTAssertEqual(inspection.bundledHelperPath, bundledHelperURL.path)
+        XCTAssertEqual(inspection.launchSpec?.command, bundledHelperURL.path)
+    }
+
     func testInspectorFallsBackToSwiftRunAndDetectsHomeConfigs() throws {
         let claudeHomeConfigURL = homeDirectoryURL.appendingPathComponent(".claude.json")
         try """
@@ -237,10 +272,11 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertTrue(example?.contains("mcp__backtick__mark_notes_executed") == true)
     }
 
-    private func makeInspector() -> MCPConnectorInspector {
+    private func makeInspector(applicationBundleURL: URL? = nil) -> MCPConnectorInspector {
         MCPConnectorInspector(
             environment: [:],
             homeDirectoryURL: homeDirectoryURL,
+            applicationBundleURL: applicationBundleURL,
             repositoryRootURL: repositoryRootURL
         )
     }
