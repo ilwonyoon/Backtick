@@ -10,9 +10,12 @@ final class AppCoordinator {
     private let retentionSettingsModel = CardRetentionSettingsModel()
     private let cloudSyncSettingsModel = CloudSyncSettingsModel()
     private let appearanceSettingsModel = AppearanceSettingsModel()
+    private lazy var executionMapStore = WorkItemStore()
+    private lazy var executionMapModel = ExecutionMapModel(workItemLoader: executionMapStore)
     private lazy var capturePanelController = CapturePanelController(model: model)
     private lazy var stackPanelController = StackPanelController(model: model)
     private lazy var designSystemWindowController = DesignSystemWindowController()
+    private lazy var executionMapWindowController = ExecutionMapWindowController(model: executionMapModel)
     private lazy var settingsWindowController = SettingsWindowController(
         screenshotSettingsModel: screenshotSettingsModel,
         exportTailSettingsModel: exportTailSettingsModel,
@@ -44,7 +47,7 @@ final class AppCoordinator {
                 self?.toggleStackPanel()
             }
         )
-        configureStatusItem()
+        configureStatusItem(isExecutionMapEnabled: environment.isExecutionMapEnabled)
         screenshotSettingsModel.presentOnboardingIfNeeded()
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 250_000_000)
@@ -76,6 +79,13 @@ final class AppCoordinator {
             }
         }
 
+        if environment.isExecutionMapEnabled, environment.shouldOpenExecutionMapOnStart {
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                self?.showExecutionMapWindow()
+            }
+        }
+
         if environment.shouldOpenCaptureOnStart {
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 250_000_000)
@@ -92,7 +102,7 @@ final class AppCoordinator {
         statusItem = nil
     }
 
-    private func configureStatusItem() {
+    private func configureStatusItem(isExecutionMapEnabled: Bool) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.image = NSImage(systemSymbolName: "quote.opening", accessibilityDescription: "Prompt Cue")
         item.button?.imagePosition = .imageOnly
@@ -105,6 +115,10 @@ final class AppCoordinator {
         let toggleStackItem = NSMenuItem(title: "Show Stack Panel", action: #selector(handleToggleStack), keyEquivalent: "")
         toggleStackItem.setShortcut(for: .toggleStackPanel)
         menu.addItem(toggleStackItem)
+
+        if isExecutionMapEnabled {
+            menu.addItem(NSMenuItem(title: "Show Execution Map", action: #selector(handleOpenExecutionMap), keyEquivalent: ""))
+        }
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(handleOpenSettings), keyEquivalent: ","))
@@ -125,6 +139,10 @@ final class AppCoordinator {
 
     @objc private func handleOpenSettings() {
         showSettingsWindow()
+    }
+
+    @objc private func handleOpenExecutionMap() {
+        showExecutionMapWindow()
     }
 
     @objc private func handleQuit() {
@@ -180,6 +198,10 @@ final class AppCoordinator {
         settingsWindowController.show()
     }
 
+    private func showExecutionMapWindow() {
+        executionMapWindowController.show()
+    }
+
     private func applyAppearance(_ appearance: NSAppearance?) {
         NSApp.windows.forEach { window in
             window.appearance = appearance
@@ -192,6 +214,7 @@ final class AppCoordinator {
         stackPanelController.applyAppearance(appearance)
         settingsWindowController.applyAppearance(appearance)
         designSystemWindowController.applyAppearance(appearance)
+        executionMapWindowController.applyAppearance(appearance)
     }
 
     private func terminateDuplicateDebugInstancesIfNeeded() {
