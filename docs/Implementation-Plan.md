@@ -322,34 +322,38 @@ Verification gates run for landed MCP slices:
 
 Current immediate next step:
 
-1. external MCP client smoke
-   - verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
-   - collect connector friction from real client setup
-   - use that friction to finalize the guided setup flow instead of guessing
+1. connector surface refinement
+   - keep the current `Connectors` functionality, but make the default view status-first instead of prose-first
+   - show one Backtick server summary card plus one card per supported client
+   - separate `client setup` from `local server verification` instead of collapsing both into a single `Connected` state
+   - make one primary action visible per client:
+     - `Copy Add Command` when setup is missing
+     - `Run Test` when setup exists but local verification has not passed
+     - no primary action after verification passes
+   - surface the refined product states:
+     - `CLI not found`
+     - `Needs setup`
+     - `Set up`
+     - `Not verified`
+     - `Local server OK`
+     - `Needs attention`
+   - move raw command lines, config paths, config snippets, and Claude automation examples behind `Advanced`
+   - keep all existing actions intact inside the refined hierarchy:
+     - `Run Test`
+     - `Copy Launch Command`
+     - `Copy Add Command`
+     - `Copy Config Snippet`
+     - `Reveal`
+     - `Open Docs`
+   - use these reference patterns while refining copy and hierarchy:
+     - Cursor `Tools & MCP` settings pattern: terse server rows, short status labels, errors behind detail reveal, not long always-visible prose
+       - https://cursor.com/docs/mcp
+     - Claude Code MCP setup pattern: scope-aware `mcp add` command plus config-path visibility
+       - https://docs.anthropic.com/en/docs/claude-code/mcp
+     - Codex MCP setup pattern: command/config driven setup, not bespoke product prose
+       - https://developers.openai.com/codex
 
-2. `MCP7` guided setup and validation
-   - add a product-facing explanation of what MCP is in Backtick terms
-   - explain that MCP gives external coding agents direct read/write access to Stack storage
-   - provide a concrete setup flow:
-     - choose client
-     - copy or install config
-     - run connection test
-   - validate the Backtick MCP launch command locally from Settings before sending the user back to an external client
-   - keep full external-client handshake validation as a follow-up, since app-owned validation can prove server launch/tool surface but not every client auth or permission mode
-   - add a Claude-specific automation lane for non-interactive runs:
-     - explain that `--permission-mode dontAsk` requires Backtick MCP tools to be present in `--allowedTools`
-     - provide an automation example for the current Backtick tool set
-   - surface friendly states:
-     - `Not configured`
-     - `Configured`
-     - `Connected`
-     - `Connection test failed`
-   - classify connection test failures by cause when possible:
-     - MCP server unreachable / launch failure
-     - tool permission denied
-     - unsupported or incomplete client configuration
-
-3. `MCP8` bundled helper packaging
+2. `MCP8` bundled helper packaging
    - package `BacktickMCP` with app builds so Settings can show a ready command outside local source checkouts
    - keep repository-root detection as the development fallback
    - make connector setup work for direct-download users without requiring a Swift toolchain
