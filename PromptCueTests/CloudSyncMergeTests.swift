@@ -436,7 +436,6 @@ final class CloudSyncMergeTests: XCTestCase {
     }
 }
 
-@MainActor
 private final class CountingAttachmentStore: AttachmentStoring {
     let baseDirectoryURL: URL
 

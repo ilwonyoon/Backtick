@@ -179,7 +179,7 @@ final class AppCoordinator {
     }
 
     private func showSettingsWindow() {
-        settingsWindowController.show()
+        settingsWindowController.show(selectedTab: startupSettingsTab())
     }
 
     private func applyAppearance(_ appearance: NSAppearance?) {
@@ -230,6 +230,21 @@ final class AppCoordinator {
 
         if let seededText = try? String(contentsOfFile: filePath, encoding: .utf8) {
             model.draftText = seededText
+        }
+    }
+
+    private func startupSettingsTab() -> SettingsTab? {
+        switch environment.startupSettingsTab {
+        case .general:
+            return .general
+        case .capture:
+            return .capture
+        case .stack:
+            return .stack
+        case .connectors:
+            return .connectors
+        case nil:
+            return nil
         }
     }
 }

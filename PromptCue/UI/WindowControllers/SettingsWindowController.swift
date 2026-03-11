@@ -67,8 +67,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         super.init()
     }
 
-    func show() {
+    func show(selectedTab preferredTab: SettingsTab? = nil) {
         let window = window ?? makeWindow()
+        if let preferredTab,
+           preferredTab != selectedTab {
+            selectedTab = preferredTab
+            updateContent(for: window)
+        }
         refreshModels()
         refreshToolbarTabsView()
         window.makeKeyAndOrderFront(nil)

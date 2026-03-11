@@ -1,5 +1,12 @@
 import Foundation
 
+enum StartupSettingsTab: String {
+    case general
+    case capture
+    case stack
+    case connectors
+}
+
 struct AppEnvironment {
     static var current: AppEnvironment {
         AppEnvironment()
@@ -21,6 +28,12 @@ struct AppEnvironment {
 
     var shouldOpenSettingsOnStart: Bool {
         boolFlag("PROMPTCUE_OPEN_SETTINGS_ON_START")
+    }
+
+    var startupSettingsTab: StartupSettingsTab? {
+        nonEmptyValue(for: "PROMPTCUE_OPEN_SETTINGS_TAB")
+            .map { $0.lowercased() }
+            .flatMap(StartupSettingsTab.init(rawValue:))
     }
 
     var shouldOpenCaptureOnStart: Bool {
