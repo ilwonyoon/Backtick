@@ -7,6 +7,10 @@ enum ClipboardFormatter {
         string(for: cards, suffix: PromptExportTailPreferences.load().exportSuffix)
     }
 
+    static func rawString(for card: CaptureCard) -> String {
+        card.text
+    }
+
     static func string(for cards: [CaptureCard], suffix: ExportSuffix) -> String {
         ExportFormatter.clipboardString(for: cards, suffix: suffix)
     }
@@ -21,6 +25,16 @@ enum ClipboardFormatter {
             return
         }
 
+        pasteboard.setString(value, forType: .string)
+    }
+
+    static func copyRawToPasteboard(card: CaptureCard) {
+        copyStringToPasteboard(rawString(for: card))
+    }
+
+    private static func copyStringToPasteboard(_ value: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
         pasteboard.setString(value, forType: .string)
     }
 

@@ -112,6 +112,33 @@ final class StackMultiCopyTests: XCTestCase {
         XCTAssertFalse(model.cards[0].isCopied)
     }
 
+    func testCopyRawCopiesSingleCardImmediatelyAndClearsDeferredState() throws {
+        let cards = [
+            CaptureCard(id: UUID(), text: "First staged", createdAt: Date(timeIntervalSinceReferenceDate: 300), sortOrder: 30),
+            CaptureCard(id: UUID(), text: "Second staged", createdAt: Date(timeIntervalSinceReferenceDate: 200), sortOrder: 20),
+            CaptureCard(id: UUID(), text: "Raw target", createdAt: Date(timeIntervalSinceReferenceDate: 100), sortOrder: 10),
+        ]
+        try saveCards(cards)
+
+        let model = makeModel()
+        model.reloadCards()
+        _ = model.toggleMultiCopiedCard(cards[0])
+        _ = model.toggleMultiCopiedCard(cards[1])
+
+        let payload = model.copyRaw(card: cards[2])
+
+        XCTAssertEqual(payload, cards[2].text)
+        XCTAssertFalse(model.isMultiSelectMode)
+        XCTAssertTrue(model.selectedCardIDs.isEmpty)
+        XCTAssertTrue(model.stagedCopiedCardIDs.isEmpty)
+        XCTAssertEqual(model.cards.filter(\.isCopied).map(\.id), [cards[2].id])
+        XCTAssertEqual(model.cards.filter { !$0.isCopied }.map(\.id), [cards[0].id, cards[1].id])
+
+        let loadedCards = try CardStore(databaseURL: databaseURL).load()
+        let sortedLoadedCards = CardStackOrdering.sort(loadedCards)
+        XCTAssertEqual(sortedLoadedCards.filter(\.isCopied).map(\.id), [cards[2].id])
+    }
+
     private func makeModel() -> AppModel {
         AppModel(
             cardStore: CardStore(databaseURL: databaseURL),
