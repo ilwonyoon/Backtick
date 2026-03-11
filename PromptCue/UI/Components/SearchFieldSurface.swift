@@ -56,7 +56,7 @@ struct SearchFieldSurface<Content: View>: View {
     private var captureShellBackground: some View {
         ZStack {
             VisualEffectBackdrop(
-                material: colorScheme == .dark ? .menu : .hudWindow,
+                material: colorScheme == .dark ? .menu : .underWindowBackground,
                 blendingMode: .withinWindow
             )
             .clipShape(shape)

@@ -23,6 +23,12 @@ final class AppCoordinator {
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?
 
+    init() {
+        appearanceSettingsModel.onAppearanceApplied = { [weak self] appearance in
+            self?.applyAppearance(appearance)
+        }
+    }
+
     func start() {
         terminateDuplicateDebugInstancesIfNeeded()
         ScreenshotDirectoryResolver.bootstrapPreferredDirectoryIfNeeded()
@@ -171,6 +177,20 @@ final class AppCoordinator {
 
     private func showSettingsWindow() {
         settingsWindowController.show()
+    }
+
+    private func applyAppearance(_ appearance: NSAppearance?) {
+        NSApp.windows.forEach { window in
+            window.appearance = appearance
+            window.invalidateShadow()
+            window.contentView?.needsDisplay = true
+            window.contentView?.subviews.forEach { $0.needsDisplay = true }
+        }
+
+        capturePanelController.applyAppearance(appearance)
+        stackPanelController.applyAppearance(appearance)
+        settingsWindowController.applyAppearance(appearance)
+        designSystemWindowController.applyAppearance(appearance)
     }
 
     private func terminateDuplicateDebugInstancesIfNeeded() {

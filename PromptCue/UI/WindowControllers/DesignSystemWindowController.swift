@@ -40,6 +40,13 @@ final class DesignSystemWindowController: NSObject, NSWindowDelegate {
         return window
     }
 
+    func applyAppearance(_ appearance: NSAppearance?) {
+        window?.appearance = appearance
+        window?.invalidateShadow()
+        window?.contentView?.needsDisplay = true
+        window?.contentView?.subviews.forEach { $0.needsDisplay = true }
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard let window else {
             return

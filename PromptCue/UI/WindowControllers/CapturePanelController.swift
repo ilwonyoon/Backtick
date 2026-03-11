@@ -133,6 +133,19 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         anchoredOriginX = nil
     }
 
+    func applyAppearance(_ appearance: NSAppearance?) {
+        panel?.appearance = appearance
+        panel?.contentViewController?.view.appearance = appearance
+        panel?.invalidateShadow()
+        panel?.contentView?.needsDisplay = true
+        runtimeViewController?.refreshAppearance()
+
+        suggestedTargetPanel?.appearance = appearance
+        suggestedTargetPanel?.contentViewController?.view.appearance = appearance
+        suggestedTargetPanel?.invalidateShadow()
+        (suggestedTargetPanel?.contentViewController as? CaptureSuggestedTargetPanelViewController)?.refreshAppearance()
+    }
+
     func windowDidChangeScreen(_ notification: Notification) {
         guard isVisible else {
             return
@@ -556,6 +569,19 @@ private final class CaptureSuggestedTargetPanelViewController: NSViewController 
         buildViewHierarchy()
     }
 
+    func refreshAppearance() {
+        let appliedAppearance = view.effectiveAppearance
+        view.appearance = appliedAppearance
+        shadowHostView.appearance = appliedAppearance
+        shadowCasterView.appearance = appliedAppearance
+        shellView.appearance = appliedAppearance
+        view.needsDisplay = true
+        shadowCasterView.refreshAppearance()
+        shellView.refreshAppearance()
+        hostingView.appearance = appliedAppearance
+        hostingView.needsDisplay = true
+    }
+
     private func buildViewHierarchy() {
         shadowHostView.translatesAutoresizingMaskIntoConstraints = false
         shadowCasterView.translatesAutoresizingMaskIntoConstraints = false
@@ -632,15 +658,20 @@ private final class CaptureSuggestedTargetShadowCasterView: NSView {
         updateShape()
     }
 
+    func refreshAppearance() {
+        updateAppearance()
+        needsDisplay = true
+    }
+
     private func updateAppearance() {
         ambientLayer.fillColor = NSColor.white.withAlphaComponent(0.02).cgColor
-        ambientLayer.shadowColor = NSColor(SemanticTokens.Shadow.captureShellAmbient).cgColor
+        ambientLayer.shadowColor = ambientShadowColor.cgColor
         ambientLayer.shadowOpacity = Float(PrimitiveTokens.Shadow.captureAmbientOpacity)
         ambientLayer.shadowRadius = PrimitiveTokens.Shadow.captureAmbientBlur / 2
         ambientLayer.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.captureAmbientY)
 
         keyLayer.fillColor = NSColor.white.withAlphaComponent(0.02).cgColor
-        keyLayer.shadowColor = NSColor(SemanticTokens.Shadow.captureShellKey).cgColor
+        keyLayer.shadowColor = keyShadowColor.cgColor
         keyLayer.shadowOpacity = Float(PrimitiveTokens.Shadow.captureKeyOpacity)
         keyLayer.shadowRadius = PrimitiveTokens.Shadow.captureKeyBlur / 2
         keyLayer.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.captureKeyY)
@@ -662,6 +693,23 @@ private final class CaptureSuggestedTargetShadowCasterView: NSView {
         keyLayer.frame = bounds
         keyLayer.path = path
         keyLayer.shadowPath = path
+    }
+
+    private var usesDarkAppearance: Bool {
+        let bestMatch = effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
+        return bestMatch == .darkAqua || bestMatch == .vibrantDark
+    }
+
+    private var ambientShadowColor: NSColor {
+        usesDarkAppearance
+            ? NSColor.black.withAlphaComponent(0.28)
+            : NSColor.black.withAlphaComponent(0.16)
+    }
+
+    private var keyShadowColor: NSColor {
+        usesDarkAppearance
+            ? NSColor.black.withAlphaComponent(0.36)
+            : NSColor.black.withAlphaComponent(0.22)
     }
 }
 
@@ -702,15 +750,20 @@ private final class CaptureSuggestedTargetShellView: NSVisualEffectView {
         updateShape()
     }
 
+    func refreshAppearance() {
+        updateAppearance()
+        needsDisplay = true
+    }
+
     private func updateAppearance() {
         guard let layer else { return }
 
-        material = usesDarkAppearance ? .menu : .hudWindow
-        fillLayer.fillColor = NSColor(SemanticTokens.Surface.captureShellFill).cgColor
-        borderLayer.strokeColor = NSColor(SemanticTokens.Surface.captureShellStroke).cgColor
+        material = usesDarkAppearance ? .menu : .underWindowBackground
+        fillLayer.fillColor = captureShellFillColor.cgColor
+        borderLayer.strokeColor = captureShellStrokeColor.cgColor
         borderLayer.lineWidth = PrimitiveTokens.Stroke.subtle
         borderLayer.fillColor = NSColor.clear.cgColor
-        topHighlightLayer.strokeColor = NSColor(SemanticTokens.Surface.captureShellTopHighlight).cgColor
+        topHighlightLayer.strokeColor = captureShellTopHighlightColor.cgColor
         topHighlightLayer.lineWidth = PrimitiveTokens.Stroke.subtle
         topHighlightLayer.fillColor = NSColor.clear.cgColor
         layer.cornerRadius = PrimitiveTokens.Radius.lg
@@ -755,9 +808,20 @@ private final class CaptureSuggestedTargetShellView: NSVisualEffectView {
     }
 
     private var usesDarkAppearance: Bool {
-        let resolvedAppearance = window?.effectiveAppearance ?? NSApp.effectiveAppearance
-        let bestMatch = resolvedAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
+        let bestMatch = effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
         return bestMatch == .darkAqua || bestMatch == .vibrantDark
+    }
+
+    private var captureShellFillColor: NSColor {
+        usesDarkAppearance ? PanelBackdropFamily.captureShellFillDark : PanelBackdropFamily.captureShellFillLight
+    }
+
+    private var captureShellStrokeColor: NSColor {
+        usesDarkAppearance ? PanelBackdropFamily.captureShellStrokeDark : PanelBackdropFamily.captureShellStrokeLight
+    }
+
+    private var captureShellTopHighlightColor: NSColor {
+        usesDarkAppearance ? PanelBackdropFamily.captureShellTopHighlightDark : PanelBackdropFamily.captureShellTopHighlightLight
     }
 }
 

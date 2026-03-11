@@ -110,6 +110,13 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
     }
 
+    func applyAppearance(_ appearance: NSAppearance?) {
+        panel?.appearance = appearance
+        panel?.invalidateShadow()
+        panel?.contentView?.needsDisplay = true
+        panel?.contentView?.subviews.forEach { $0.needsDisplay = true }
+    }
+
     func windowDidResignKey(_ notification: Notification) {
         close()
     }

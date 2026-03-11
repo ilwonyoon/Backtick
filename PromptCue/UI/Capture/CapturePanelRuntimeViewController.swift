@@ -153,6 +153,23 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         editorHost.focusIfPossible()
     }
 
+    func refreshAppearance() {
+        let appliedAppearance = view.effectiveAppearance
+        view.appearance = appliedAppearance
+        shadowHostView.appearance = appliedAppearance
+        shadowCasterView.appearance = appliedAppearance
+        shellView.appearance = appliedAppearance
+        screenshotContainer.appearance = appliedAppearance
+        screenshotSurface.appearance = appliedAppearance
+        editorHost.appearance = appliedAppearance
+        view.needsDisplay = true
+        shadowCasterView.refreshAppearance()
+        shellView.refreshAppearance()
+        screenshotSurface.refreshAppearance()
+        suggestedTargetAccessoryView.appearance = appliedAppearance
+        suggestedTargetAccessoryView.needsDisplay = true
+    }
+
     var currentPreferredPanelHeight: CGFloat {
         preferredPanelHeight
     }
@@ -734,9 +751,14 @@ private final class CapturePanelShadowCasterView: NSView {
         updateShape()
     }
 
+    func refreshAppearance() {
+        updateAppearance()
+        needsDisplay = true
+    }
+
     private func updateAppearance() {
         ambientLayer.fillColor = NSColor.white.withAlphaComponent(0.02).cgColor
-        ambientLayer.shadowColor = NSColor(SemanticTokens.Shadow.captureShellAmbient).cgColor
+        ambientLayer.shadowColor = ambientShadowColor.cgColor
         ambientLayer.shadowOpacity = Float(PrimitiveTokens.Shadow.captureAmbientOpacity)
         ambientLayer.shadowRadius = PrimitiveTokens.Shadow.captureAmbientBlur / 2
         // Light is assumed to come from above, so both ambient and key shadow
@@ -744,7 +766,7 @@ private final class CapturePanelShadowCasterView: NSView {
         ambientLayer.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.captureAmbientY)
 
         keyLayer.fillColor = NSColor.white.withAlphaComponent(0.02).cgColor
-        keyLayer.shadowColor = NSColor(SemanticTokens.Shadow.captureShellKey).cgColor
+        keyLayer.shadowColor = keyShadowColor.cgColor
         keyLayer.shadowOpacity = Float(PrimitiveTokens.Shadow.captureKeyOpacity)
         keyLayer.shadowRadius = PrimitiveTokens.Shadow.captureKeyBlur / 2
         keyLayer.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.captureKeyY)
@@ -766,6 +788,23 @@ private final class CapturePanelShadowCasterView: NSView {
         keyLayer.frame = bounds
         keyLayer.path = path
         keyLayer.shadowPath = path
+    }
+
+    private var usesDarkAppearance: Bool {
+        let bestMatch = effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
+        return bestMatch == .darkAqua || bestMatch == .vibrantDark
+    }
+
+    private var ambientShadowColor: NSColor {
+        usesDarkAppearance
+            ? NSColor.black.withAlphaComponent(0.28)
+            : NSColor.black.withAlphaComponent(0.16)
+    }
+
+    private var keyShadowColor: NSColor {
+        usesDarkAppearance
+            ? NSColor.black.withAlphaComponent(0.36)
+            : NSColor.black.withAlphaComponent(0.22)
     }
 }
 
@@ -806,10 +845,15 @@ private final class CapturePanelShellView: NSVisualEffectView {
         updateShape()
     }
 
+    func refreshAppearance() {
+        updateAppearance()
+        needsDisplay = true
+    }
+
     private func updateAppearance() {
         guard let layer else { return }
 
-        material = usesDarkAppearance ? .menu : .hudWindow
+        material = usesDarkAppearance ? .menu : .underWindowBackground
 
         fillLayer.fillColor = captureShellFillColor.cgColor
         borderLayer.strokeColor = captureShellStrokeColor.cgColor
@@ -854,21 +898,20 @@ private final class CapturePanelShellView: NSVisualEffectView {
     }
 
     private var usesDarkAppearance: Bool {
-        let resolvedAppearance = window?.effectiveAppearance ?? NSApp.effectiveAppearance
-        let bestMatch = resolvedAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
+        let bestMatch = effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
         return bestMatch == .darkAqua || bestMatch == .vibrantDark
     }
 
     private var captureShellFillColor: NSColor {
-        NSColor(SemanticTokens.Surface.captureShellFill)
+        usesDarkAppearance ? PanelBackdropFamily.captureShellFillDark : PanelBackdropFamily.captureShellFillLight
     }
 
     private var captureShellStrokeColor: NSColor {
-        NSColor(SemanticTokens.Surface.captureShellStroke)
+        usesDarkAppearance ? PanelBackdropFamily.captureShellStrokeDark : PanelBackdropFamily.captureShellStrokeLight
     }
 
     private var captureShellTopHighlightColor: NSColor {
-        NSColor(SemanticTokens.Surface.captureShellTopHighlight)
+        usesDarkAppearance ? PanelBackdropFamily.captureShellTopHighlightDark : PanelBackdropFamily.captureShellTopHighlightLight
     }
 }
 
@@ -912,9 +955,13 @@ private final class CaptureScreenshotSurfaceView: NSView {
         loadingOverlay.isHidden = !visible
     }
 
+    func refreshAppearance() {
+        updateAppearance()
+        needsDisplay = true
+    }
+
     private func updateAppearance() {
-        let resolvedAppearance = window?.effectiveAppearance ?? NSApp.effectiveAppearance
-        let bestMatch = resolvedAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
+        let bestMatch = effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
         let isDark = bestMatch == .darkAqua || bestMatch == .vibrantDark
         layer?.backgroundColor = (isDark
             ? NSColor.white.withAlphaComponent(0.08)

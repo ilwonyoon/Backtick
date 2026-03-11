@@ -27,10 +27,10 @@ enum SettingsTab: Int, CaseIterable {
             return "square.stack.3d.up"
         }
     }
+}
 
-    var toolbarIdentifier: NSToolbarItem.Identifier {
-        NSToolbarItem.Identifier("settings.\(title.lowercased())")
-    }
+private enum SettingsToolbarIdentifiers {
+    static let tabs = NSToolbarItem.Identifier("settings.tabs")
 }
 
 @MainActor
@@ -42,6 +42,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let cloudSyncSettingsModel: CloudSyncSettingsModel
     private let appearanceSettingsModel: AppearanceSettingsModel
     private var selectedTab: SettingsTab = .general
+    private var toolbarTabsHostingView: NSHostingView<SettingsToolbarTabsView>?
 
     init(
         screenshotSettingsModel: ScreenshotSettingsModel,
@@ -61,8 +62,18 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     func show() {
         let window = window ?? makeWindow()
         refreshModels()
+        refreshToolbarTabsView()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applyAppearance(_ appearance: NSAppearance?) {
+        window?.appearance = appearance
+        window?.invalidateShadow()
+        window?.contentView?.needsDisplay = true
+        window?.contentView?.subviews.forEach { $0.needsDisplay = true }
+        toolbarTabsHostingView?.appearance = appearance
+        toolbarTabsHostingView?.needsDisplay = true
     }
 
     private func refreshModels() {
@@ -98,19 +109,22 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             height: PanelMetrics.settingsPanelHeight
         )
         window.delegate = self
-
-        let toolbar = NSToolbar(identifier: "SettingsToolbar")
-        toolbar.delegate = self
-        toolbar.displayMode = .iconAndLabel
-        toolbar.allowsUserCustomization = false
-        window.toolbar = toolbar
+        window.toolbar = makeToolbar()
         window.toolbarStyle = .preference
-        toolbar.selectedItemIdentifier = selectedTab.toolbarIdentifier
 
         updateContent(for: window)
 
         self.window = window
         return window
+    }
+
+    private func makeToolbar() -> NSToolbar {
+        let toolbar = NSToolbar(identifier: "SettingsToolbar")
+        toolbar.delegate = self
+        toolbar.displayMode = .default
+        toolbar.allowsUserCustomization = false
+        toolbar.centeredItemIdentifier = SettingsToolbarIdentifiers.tabs
+        return toolbar
     }
 
     private func updateContent(for window: NSWindow) {
@@ -126,6 +140,22 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         )
     }
 
+    private func refreshToolbarTabsView() {
+        let rootView = SettingsToolbarTabsView(selectedTab: selectedTab) { [weak self] tab in
+            self?.switchTab(tab)
+        }
+
+        if let toolbarTabsHostingView {
+            toolbarTabsHostingView.rootView = rootView
+            toolbarTabsHostingView.invalidateIntrinsicContentSize()
+            toolbarTabsHostingView.needsLayout = true
+            return
+        }
+
+        toolbarTabsHostingView = NSHostingView(rootView: rootView)
+        toolbarTabsHostingView?.translatesAutoresizingMaskIntoConstraints = false
+    }
+
     private func switchTab(_ tab: SettingsTab) {
         guard tab != selectedTab, let window else {
             return
@@ -133,15 +163,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
         selectedTab = tab
         updateContent(for: window)
-        window.toolbar?.selectedItemIdentifier = selectedTab.toolbarIdentifier
-    }
-
-    @objc private func toolbarItemTapped(_ sender: NSToolbarItem) {
-        guard let tab = SettingsTab.allCases.first(where: { $0.toolbarIdentifier == sender.itemIdentifier }) else {
-            return
-        }
-
-        switchTab(tab)
+        refreshToolbarTabsView()
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -159,27 +181,62 @@ extension SettingsWindowController: NSToolbarDelegate {
         itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
-        guard let tab = SettingsTab.allCases.first(where: { $0.toolbarIdentifier == itemIdentifier }) else {
+        guard itemIdentifier == SettingsToolbarIdentifiers.tabs else {
             return nil
         }
 
+        refreshToolbarTabsView()
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-        item.label = tab.title
-        item.image = NSImage(systemSymbolName: tab.iconName, accessibilityDescription: tab.title)
-        item.target = self
-        item.action = #selector(toolbarItemTapped(_:))
+        item.label = ""
+        item.paletteLabel = "Settings Tabs"
+        if let toolbarTabsHostingView {
+            item.view = toolbarTabsHostingView
+            let size = toolbarTabsHostingView.fittingSize
+            item.minSize = size
+            item.maxSize = size
+        }
         return item
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        SettingsTab.allCases.map(\.toolbarIdentifier)
+        [SettingsToolbarIdentifiers.tabs]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        SettingsTab.allCases.map(\.toolbarIdentifier)
+        [SettingsToolbarIdentifiers.tabs]
     }
+}
 
-    func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        SettingsTab.allCases.map(\.toolbarIdentifier)
+private struct SettingsToolbarTabsView: View {
+    let selectedTab: SettingsTab
+    let onSelect: (SettingsTab) -> Void
+
+    var body: some View {
+        HStack(spacing: PrimitiveTokens.Space.xs) {
+            ForEach(SettingsTab.allCases, id: \.rawValue) { tab in
+                Button {
+                    onSelect(tab)
+                } label: {
+                    VStack(spacing: PrimitiveTokens.Space.xxxs) {
+                        Image(systemName: tab.iconName)
+                            .font(.system(size: 15, weight: .semibold))
+                        Text(tab.title)
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(tab == selectedTab ? SemanticTokens.Accent.primary : SemanticTokens.Text.secondary)
+                    .frame(width: 62)
+                    .padding(.vertical, PrimitiveTokens.Space.xxs)
+                    .background(
+                        RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous)
+                            .fill(tab == selectedTab
+                                ? SemanticTokens.Accent.selection.opacity(0.18)
+                                : Color.clear)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, PrimitiveTokens.Space.xxs)
+        .padding(.vertical, PrimitiveTokens.Space.xxxs)
     }
 }

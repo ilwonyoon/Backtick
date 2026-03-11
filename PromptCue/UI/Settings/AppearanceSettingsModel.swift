@@ -31,6 +31,8 @@ enum AppearanceMode: Int, CaseIterable {
 
 enum AppearancePreferences {
     private static let modeKey = "appearance.mode"
+    private static let globalDomain = UserDefaults.globalDomain
+    private static let systemThemeKey = "AppleInterfaceStyle"
 
     static func load(defaults: UserDefaults = .standard) -> AppearanceMode {
         let raw = defaults.integer(forKey: modeKey)
@@ -40,14 +42,49 @@ enum AppearancePreferences {
     static func save(_ mode: AppearanceMode, defaults: UserDefaults = .standard) {
         defaults.set(mode.rawValue, forKey: modeKey)
     }
+
+    static func resolvedAppearance(defaults: UserDefaults = .standard) -> NSAppearance? {
+        switch load(defaults: defaults) {
+        case .auto:
+            return NSAppearance(named: currentSystemAppearanceName(defaults: defaults))
+        case .light:
+            return NSAppearance(named: .aqua)
+        case .dark:
+            return NSAppearance(named: .darkAqua)
+        }
+    }
+
+    private static func currentSystemAppearanceName(defaults: UserDefaults) -> NSAppearance.Name {
+        let globalDefaults = defaults.persistentDomain(forName: globalDomain)
+        let isDark = (globalDefaults?[systemThemeKey] as? String) == "Dark"
+        return isDark ? .darkAqua : .aqua
+    }
 }
 
 @MainActor
 final class AppearanceSettingsModel: ObservableObject {
     @Published var mode: AppearanceMode = .auto
+    var onAppearanceApplied: ((NSAppearance?) -> Void)?
+    private var systemThemeObserver: NSObjectProtocol?
 
     init() {
         refresh()
+        systemThemeObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            if self.mode == .auto {
+                self.applyAppearance()
+            }
+        }
+    }
+
+    deinit {
+        if let systemThemeObserver {
+            DistributedNotificationCenter.default().removeObserver(systemThemeObserver)
+        }
     }
 
     func refresh() {
@@ -61,6 +98,8 @@ final class AppearanceSettingsModel: ObservableObject {
     }
 
     func applyAppearance() {
-        NSApp.appearance = mode.nsAppearance
+        let appearance = AppearancePreferences.resolvedAppearance()
+        NSApp.appearance = appearance
+        onAppearanceApplied?(appearance)
     }
 }
