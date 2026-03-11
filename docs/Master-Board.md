@@ -163,7 +163,8 @@ Current landed slices:
 - `MCP5` stdio tool surface landed on `main`
 - `MCP6` connector settings surface landed on `main`
 - `MCP7` guided setup and local server validation landed on `main`
-- execution-map style UI remains out of scope while helper packaging is still in flight
+- `MCP8` bundled helper packaging landed on `main`
+- execution-map style UI remains out of scope while post-MCP rollout work is prioritized
 - Settings-based connector UI is now the user-facing MCP rollout surface, including setup and local validation
 
 Landed MCP gates:
@@ -193,15 +194,12 @@ Landed `MCP5` gate:
 - end-to-end smoke coverage exists for the shared DB path
 - `main` contains the read, write, execution, and stdio transport layers together
 
-Immediate next step:
+Current external smoke finding:
 
-- package a bundled `BacktickMCP` helper for release builds
-- keep the repository-checkout launch path as a development fallback
-- rerun connector validation against the packaged helper path
-- preserve the current external smoke finding:
-  - `Claude Code` and `Codex` both connect successfully on merged `main`
-  - `Claude Code` in `--permission-mode dontAsk` requires Backtick MCP tools in `--allowedTools`
-  - treat non-interactive permission denial as client setup friction, not as an MCP server failure
+- `Claude Code` and `Codex` both connect successfully on merged `main`
+- both smokes ran from a temp directory with no source checkout present and used the bundled `BacktickMCP` helper path directly
+- `Claude Code` in `--permission-mode dontAsk` requires Backtick MCP tools in `--allowedTools`
+- treat non-interactive permission denial as client setup friction, not as an MCP server failure
 
 Landed `MCP6` gate:
 

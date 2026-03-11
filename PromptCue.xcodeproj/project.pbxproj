@@ -561,6 +561,7 @@
 			buildPhases = (
 				836CC1B945C49EBCEFF34881 /* Sources */,
 				CBFA3BFF7DF445E571152FE2 /* Frameworks */,
+				3879EF547AF6D3141524E813 /* Bundle BacktickMCP Helper */,
 				F776B19EA489508F6627F24F /* Sign Dev App */,
 			);
 			buildRules = (
@@ -614,6 +615,25 @@
 /* End PBXProject section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		3879EF547AF6D3141524E813 /* Bundle BacktickMCP Helper */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle BacktickMCP Helper";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh \"${SRCROOT}/scripts/build_backtick_mcp_helper.sh\"\n";
+		};
 		F776B19EA489508F6627F24F /* Sign Dev App */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;

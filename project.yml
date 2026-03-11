@@ -46,6 +46,10 @@ targets:
     sources:
       - path: PromptCue
     postBuildScripts:
+      - name: Bundle BacktickMCP Helper
+        basedOnDependencyAnalysis: false
+        script: |
+          /bin/sh "${SRCROOT}/scripts/build_backtick_mcp_helper.sh"
       - path: scripts/sign_dev_app.sh
         name: Sign Dev App
         basedOnDependencyAnalysis: false
