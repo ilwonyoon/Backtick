@@ -214,29 +214,49 @@ private struct SettingsToolbarTabsView: View {
     var body: some View {
         HStack(spacing: PrimitiveTokens.Space.xs) {
             ForEach(SettingsTab.allCases, id: \.rawValue) { tab in
-                Button {
-                    onSelect(tab)
-                } label: {
-                    VStack(spacing: PrimitiveTokens.Space.xxxs) {
-                        Image(systemName: tab.iconName)
-                            .font(.system(size: 15, weight: .semibold))
-                        Text(tab.title)
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundStyle(tab == selectedTab ? SemanticTokens.Accent.primary : SemanticTokens.Text.secondary)
-                    .frame(width: 62)
-                    .padding(.vertical, PrimitiveTokens.Space.xxs)
-                    .background(
-                        RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous)
-                            .fill(tab == selectedTab
-                                ? SemanticTokens.Accent.selection.opacity(0.18)
-                                : Color.clear)
-                    )
-                }
-                .buttonStyle(.plain)
+                tabButton(tab)
             }
         }
         .padding(.horizontal, PrimitiveTokens.Space.xxs)
         .padding(.vertical, PrimitiveTokens.Space.xxxs)
+    }
+
+    private func tabButton(_ tab: SettingsTab) -> some View {
+        Button {
+            onSelect(tab)
+        } label: {
+            tabLabel(tab)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func tabLabel(_ tab: SettingsTab) -> some View {
+        VStack(spacing: PrimitiveTokens.Space.xxxs) {
+            Image(systemName: tab.iconName)
+                .font(.system(size: 15, weight: .semibold))
+            Text(tab.title)
+                .font(.system(size: 11, weight: .medium))
+        }
+        .foregroundStyle(tabForegroundStyle(for: tab))
+        .frame(width: PanelMetrics.settingsToolbarTabWidth)
+        .frame(minHeight: PanelMetrics.settingsToolbarTabHeight)
+        .padding(.vertical, PrimitiveTokens.Space.xxs)
+        .contentShape(
+            RoundedRectangle(
+                cornerRadius: PrimitiveTokens.Radius.sm,
+                style: .continuous
+            )
+        )
+        .background(tabBackground(tab))
+    }
+
+    private func tabForegroundStyle(for tab: SettingsTab) -> Color {
+        tab == selectedTab ? SemanticTokens.Accent.primary : SemanticTokens.Text.secondary
+    }
+
+    @ViewBuilder
+    private func tabBackground(_ tab: SettingsTab) -> some View {
+        RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous)
+            .fill(tab == selectedTab ? SemanticTokens.Accent.selection.opacity(0.18) : Color.clear)
     }
 }
