@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import XCTest
 @testable import Prompt_Cue
 import PromptCueCore
@@ -167,6 +168,102 @@ final class StorageServicesTests: XCTestCase {
 
         XCTAssertEqual(loadedCards.map(\.id), [second.id])
         XCTAssertEqual(loadedCards.first?.text, second.text)
+    }
+
+    func testPromptCueDatabaseMigratesLegacyCardSchemaAndPreservesRows() throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let legacyCardID = UUID()
+        let createdAt = Date(timeIntervalSinceReferenceDate: 250)
+        let copiedAt = Date(timeIntervalSinceReferenceDate: 300)
+        let legacyQueue = try DatabaseQueue(path: databaseURL.path)
+
+        try legacyQueue.write { db in
+            try db.create(table: "grdb_migrations") { table in
+                table.column("identifier", .text).notNull().primaryKey()
+            }
+            try db.execute(
+                sql: "INSERT INTO grdb_migrations (identifier) VALUES (?), (?)",
+                arguments: ["createCards", "addLastCopiedAt"]
+            )
+            try db.create(table: "cards") { table in
+                table.column("id", .text).notNull().primaryKey()
+                table.column("text", .text).notNull()
+                table.column("createdAt", .datetime).notNull()
+                table.column("screenshotPath", .text)
+                table.column("lastCopiedAt", .datetime)
+            }
+            try db.execute(
+                sql: """
+                INSERT INTO cards (id, text, createdAt, screenshotPath, lastCopiedAt)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    legacyCardID.uuidString,
+                    "Legacy note",
+                    createdAt,
+                    "/tmp/legacy.png",
+                    copiedAt,
+                ]
+            )
+        }
+
+        let database = PromptCueDatabase(databaseURL: databaseURL)
+        let store = CardStore(database: database)
+
+        let loadedCards = try store.load()
+        let cardColumns = try XCTUnwrap(database.dbQueue).read { db in
+            try db.columns(in: PromptCueDatabaseSchema.cardsTableName).map(\.name)
+        }
+
+        XCTAssertEqual(loadedCards.count, 1)
+        XCTAssertEqual(loadedCards.first?.id, legacyCardID)
+        XCTAssertEqual(loadedCards.first?.text, "Legacy note")
+        XCTAssertEqual(loadedCards.first?.screenshotPath, "/tmp/legacy.png")
+        XCTAssertEqual(loadedCards.first?.lastCopiedAt, copiedAt)
+        XCTAssertEqual(loadedCards.first?.sortOrder, createdAt.timeIntervalSinceReferenceDate)
+        XCTAssertTrue(cardColumns.contains("sortOrder"))
+        XCTAssertTrue(cardColumns.contains("suggestedTargetJSON"))
+    }
+
+    func testCardStoreAndWorkItemStoreShareDatabaseWhenBootstrappedSeparately() throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let cardStore = CardStore(databaseURL: databaseURL)
+        let workItemStore = WorkItemStore(databaseURL: databaseURL)
+        let card = CaptureCard(
+            id: UUID(),
+            text: "Raw note stays intact",
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            sortOrder: 10
+        )
+        let workItem = WorkItem(
+            id: UUID(),
+            title: "Derived execution card",
+            createdAt: Date(timeIntervalSinceReferenceDate: 110),
+            createdBy: .user,
+            sourceNoteCount: 1
+        )
+
+        try cardStore.save([card])
+        try workItemStore.upsert(workItem)
+        try workItemStore.replaceSources(
+            for: workItem.id,
+            with: [
+                WorkItemSource(workItemID: workItem.id, noteID: card.id, relationType: .primary),
+            ]
+        )
+
+        let loadedCards = try cardStore.load()
+        let loadedWorkItems = try workItemStore.loadWorkItems()
+        let loadedSources = try workItemStore.loadSources(for: workItem.id)
+
+        XCTAssertEqual(loadedCards, [card])
+        XCTAssertEqual(loadedWorkItems, [workItem])
+        XCTAssertEqual(
+            loadedSources,
+            [
+                WorkItemSource(workItemID: workItem.id, noteID: card.id, relationType: .primary),
+            ]
+        )
     }
 
     func testWorkItemStoreRoundTripsItemsSourcesAndCopyEvents() throws {
