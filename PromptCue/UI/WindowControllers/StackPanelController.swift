@@ -16,7 +16,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         isVisible || isAnimatingClose || panel?.isVisible == true
     }
 
-    init(model: AppModel) {
+    init(
+        model: AppModel
+    ) {
         self.model = model
     }
 

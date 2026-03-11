@@ -96,108 +96,55 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 7. Phase R9 stack card overflow and click expansion
 8. Full verification pass
 
-## Next Merge Plan
+## MCP Direction
 
-`PR #18` (`backtick-mcp-contracts`) is being landed as three independent slices.
+Current MCP direction is narrower than the old plan:
 
-1. `MCP contract seed in PromptCueCore`
-   Files:
-   `Sources/PromptCueCore/CopyEvent.swift`
-   `Sources/PromptCueCore/WorkItem.swift`
-   `Sources/PromptCueCore/WorkItemSource.swift`
-   `Tests/PromptCueCoreTests/PromptCueCoreTests.swift`
-   Why first:
-   Pure models only, no app-target wiring, lowest merge risk.
-   Known contract notes:
-   `noteID`, `sourceNoteCount`, and actor naming (`mcp` vs `mcpAI`) should stay internal until a later persistence/API slice normalizes terminology.
-   Gate:
-   `xcodegen generate`
-   `swift test`
-   optional app build after landing
-   Status:
-   landed on `main`
+- build MCP over `Stack` storage directly
+- do not keep board or work-item experiments alive
 
-2. `AppEnvironment refactor and MCP rollout flags`
-   Files:
-   `PromptCue/App/AppEnvironment.swift`
-   `PromptCue/App/AppCoordinator.swift`
-   `PromptCueTests/AppEnvironmentTests.swift`
-   `PromptCue.xcodeproj/project.pbxproj`
-   Why second:
-   Isolated startup contract refactor, but it touches `AppCoordinator.swift`, which is master-owned and currently diverged from the PR branch.
-   Required adaptation before landing:
-   add `PROMPTCUE_OPEN_SETTINGS_ON_START` to `AppEnvironment`
-   preserve current `main` startup behavior
-   keep `PROMPTCUE_ENABLE_MCP` and `PROMPTCUE_OPEN_MCP_ON_START` additive and unused
-   Gate:
-   `xcodegen generate`
-   `swift test`
-   `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
-   Status:
-   landed on `main`
+Carry forward:
 
-3. `Planning docs`
-   Files:
-   `docs/Backtick-MCP-Execution-Plan.md`
-   `docs/Backtick-MCP-User-Scenarios.md`
-   `docs/Implementation-Plan.md`
-   `docs/Master-Board.md`
-   Why last:
-   These are useful once the contract and flag slices are already on `main`; otherwise docs would describe code that has not landed yet.
-   Gate:
-   docs-only self-review
+- `CaptureCard`
+- `CardStore`
+- `CopyEvent`
+- `copy_events` persistence
 
-Explicitly deferred from `PR #18`:
+Remove from active planning:
 
-- persistence for work items or copy events
-- UI for execution map / MCP boards
-- any rollout that changes default user behavior
-- feature wiring beyond additive flags
+- `ExecutionMap*`
+- `Work Board`
+- `Create Item`
+- `WorkItem`
+- `WorkItemSource`
+- `WorkItemStore`
+- startup or menu flags that only existed for board experiments
 
-Follow-up MCP rollout after the initial contract lane:
+Reason:
 
-1. `MCP2` read-only execution map board
-2. `MCP3` manual work item creation
-3. `MCP4` execution handoff and copied-state application
-4. `MCP5` AI regrouping
-5. `MCP6` settings surface for execution map rollout controls
-6. `MCP7` in-product guidance inside the execution map board
+- the real requirement is Stack DB `read/write` from `Claude Code CLI` and `Codex CLI`
+- copied state should update when an AI actually executes a note
+- derived planning surfaces add merge surface and conceptual debt without helping that path
 
-Ownership split for the last two slices:
+Active MCP rollout:
 
-- Settings owns preference controls and brief explanatory copy only.
-- The execution map board owns first-run guidance, empty-state education, and contextual usage instruction.
+1. `MCP2` Stack read bridge
+   - expose active and copied Stack notes
+   - expose note text, target metadata, and copied metadata
 
-Integration order:
+2. `MCP3` Stack write bridge
+   - create, update, and delete Stack notes directly
 
-1. land `PromptCueCore` contract seed
-2. adapt and land `AppEnvironment` on latest `main`
-3. land docs after code is already on `main`
+3. `MCP4` execution action
+   - mark executed notes as copied
+   - persist `CopyEvent` rows with MCP actor/session metadata
 
-## PR20 Landing Plan
+Rules:
 
-`PR #20` (`backtick-mcp-board`) should not merge whole. Land it as three slices:
-
-1. `ExecutionMapModel` + `ExecutionMapModelTests`
-2. `ExecutionMapView` + `ExecutionMapWindowController`
-3. `AppCoordinator` menu/startup/appearance wiring
-
-Why this order:
-
-- `ExecutionMapModel` is the lowest-risk read-only contract over already-landed MCP persistence
-- board window UI is safe after the model exists
-- `AppCoordinator` is master-owned and is the only part that changes menu and startup behavior
-
-Required smoke checks before the final slice lands:
-
-- MCP disabled:
-  no execution-map menu item, no board on launch
-- MCP enabled:
-  menu item appears and opens one reusable board window
-- MCP enabled + open-on-start:
-  board opens once without interfering with capture/stack startup
-- appearance:
-  board follows the same light/dark propagation as capture, stack, and settings
+- Stack remains the only source of truth
+- no derived item layer should sit between Stack and MCP tools
+- copied state means execution happened, not that planning or grouping happened
+- cleanup of board and work-item code is not optional follow-up; it is part of getting MCP scope back into focus
 
 ## Track Gates
 

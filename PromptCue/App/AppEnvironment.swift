@@ -27,14 +27,6 @@ struct AppEnvironment {
         boolFlag("PROMPTCUE_OPEN_CAPTURE_ON_START")
     }
 
-    var isExecutionMapEnabled: Bool {
-        boolFlag("PROMPTCUE_ENABLE_MCP")
-    }
-
-    var shouldOpenExecutionMapOnStart: Bool {
-        boolFlag("PROMPTCUE_OPEN_MCP_ON_START")
-    }
-
     var qaDraftText: String? {
         nonEmptyValue(for: "PROMPTCUE_QA_DRAFT_TEXT")
     }

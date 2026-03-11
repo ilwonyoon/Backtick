@@ -3,8 +3,6 @@ import GRDB
 
 enum PromptCueDatabaseSchema {
     static let cardsTableName = "cards"
-    static let workItemsTableName = "work_items"
-    static let workItemSourcesTableName = "work_item_sources"
     static let copyEventsTableName = "copy_events"
 }
 
@@ -101,54 +99,6 @@ final class PromptCueDatabase {
             try db.alter(table: PromptCueDatabaseSchema.cardsTableName) { table in
                 table.add(column: "suggestedTargetJSON", .text)
             }
-        }
-
-        migrator.registerMigration("createWorkItems") { db in
-            try db.create(table: PromptCueDatabaseSchema.workItemsTableName) { table in
-                table.column("id", .text).notNull().primaryKey()
-                table.column("title", .text).notNull()
-                table.column("summary", .text)
-                table.column("repoName", .text)
-                table.column("branchName", .text)
-                table.column("status", .text).notNull()
-                table.column("createdAt", .datetime).notNull()
-                table.column("updatedAt", .datetime).notNull()
-                table.column("createdBy", .text).notNull()
-                table.column("difficultyHint", .text)
-                table.column("sourceNoteCount", .integer).notNull()
-            }
-
-            try db.create(
-                index: "work_items_status_updated_at",
-                on: PromptCueDatabaseSchema.workItemsTableName,
-                columns: ["status", "updatedAt"]
-            )
-            try db.create(
-                index: "work_items_repo_name",
-                on: PromptCueDatabaseSchema.workItemsTableName,
-                columns: ["repoName"]
-            )
-        }
-
-        migrator.registerMigration("createWorkItemSources") { db in
-            try db.create(table: PromptCueDatabaseSchema.workItemSourcesTableName) { table in
-                table.column("workItemID", .text)
-                    .notNull()
-                    .references(PromptCueDatabaseSchema.workItemsTableName, onDelete: .cascade)
-                table.column("noteID", .text).notNull()
-                table.column("relationType", .text).notNull()
-            }
-
-            try db.create(
-                index: "work_item_sources_work_item_id",
-                on: PromptCueDatabaseSchema.workItemSourcesTableName,
-                columns: ["workItemID"]
-            )
-            try db.create(
-                index: "work_item_sources_note_id",
-                on: PromptCueDatabaseSchema.workItemSourcesTableName,
-                columns: ["noteID"]
-            )
         }
 
         migrator.registerMigration("createCopyEvents") { db in

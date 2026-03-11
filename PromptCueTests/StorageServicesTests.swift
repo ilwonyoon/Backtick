@@ -225,71 +225,42 @@ final class StorageServicesTests: XCTestCase {
         XCTAssertTrue(cardColumns.contains("suggestedTargetJSON"))
     }
 
-    func testCardStoreAndWorkItemStoreShareDatabaseWhenBootstrappedSeparately() throws {
+    func testCardStoreAndCopyEventStoreShareDatabaseWhenBootstrappedSeparately() throws {
         let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
         let cardStore = CardStore(databaseURL: databaseURL)
-        let workItemStore = WorkItemStore(databaseURL: databaseURL)
+        let copyEventStore = CopyEventStore(databaseURL: databaseURL)
         let card = CaptureCard(
             id: UUID(),
             text: "Raw note stays intact",
             createdAt: Date(timeIntervalSinceReferenceDate: 100),
             sortOrder: 10
         )
-        let workItem = WorkItem(
+        let copyEvent = CopyEvent(
             id: UUID(),
-            title: "Derived execution card",
-            createdAt: Date(timeIntervalSinceReferenceDate: 110),
-            createdBy: .user,
-            sourceNoteCount: 1
+            noteID: card.id,
+            sessionID: "run-17",
+            copiedAt: Date(timeIntervalSinceReferenceDate: 140),
+            copiedVia: .agentRun,
+            copiedBy: .mcp
         )
 
         try cardStore.save([card])
-        try workItemStore.upsert(workItem)
-        try workItemStore.replaceSources(
-            for: workItem.id,
-            with: [
-                WorkItemSource(workItemID: workItem.id, noteID: card.id, relationType: .primary),
-            ]
-        )
+        try copyEventStore.recordCopyEvents([copyEvent])
 
         let loadedCards = try cardStore.load()
-        let loadedWorkItems = try workItemStore.loadWorkItems()
-        let loadedSources = try workItemStore.loadSources(for: workItem.id)
+        let loadedCopyEvents = try copyEventStore.loadCopyEvents(for: card.id)
 
         XCTAssertEqual(loadedCards, [card])
-        XCTAssertEqual(loadedWorkItems, [workItem])
-        XCTAssertEqual(
-            loadedSources,
-            [
-                WorkItemSource(workItemID: workItem.id, noteID: card.id, relationType: .primary),
-            ]
-        )
+        XCTAssertEqual(loadedCopyEvents, [copyEvent])
     }
 
-    func testWorkItemStoreRoundTripsItemsSourcesAndCopyEvents() throws {
+    func testCopyEventStoreRoundTripsEvents() throws {
         let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
         let database = PromptCueDatabase(databaseURL: databaseURL)
-        let store = WorkItemStore(database: database)
-        let workItem = WorkItem(
-            id: UUID(),
-            title: "Stabilize MCP lane",
-            summary: "Keep raw notes and derived work items separate",
-            repoName: "PromptCue",
-            branchName: "backtick-mcp",
-            status: .inProgress,
-            createdAt: Date(timeIntervalSinceReferenceDate: 100),
-            updatedAt: Date(timeIntervalSinceReferenceDate: 120),
-            createdBy: .mcpAI,
-            difficultyHint: .large,
-            sourceNoteCount: 2
-        )
+        let store = CopyEventStore(database: database)
         let firstNoteID = UUID()
         let secondNoteID = UUID()
-        let sources = [
-            WorkItemSource(workItemID: UUID(), noteID: firstNoteID, relationType: .primary),
-            WorkItemSource(workItemID: UUID(), noteID: secondNoteID, relationType: .supporting),
-        ]
-        let copyEvent = CopyEvent(
+        let firstEvent = CopyEvent(
             id: UUID(),
             noteID: firstNoteID,
             sessionID: "run-17",
@@ -297,105 +268,49 @@ final class StorageServicesTests: XCTestCase {
             copiedVia: .agentRun,
             copiedBy: .mcp
         )
-
-        try store.upsert(workItem)
-        try store.replaceSources(for: workItem.id, with: sources)
-        try store.recordCopyEvents([copyEvent])
-
-        let loadedWorkItems = try store.loadWorkItems()
-        let loadedSources = try store.loadSources(for: workItem.id)
-        let loadedCopyEvents = try store.loadCopyEvents(for: firstNoteID)
-
-        XCTAssertEqual(loadedWorkItems, [workItem])
-        XCTAssertEqual(
-            loadedSources,
-            [
-                WorkItemSource(workItemID: workItem.id, noteID: firstNoteID, relationType: .primary),
-                WorkItemSource(workItemID: workItem.id, noteID: secondNoteID, relationType: .supporting),
-            ]
+        let secondEvent = CopyEvent(
+            id: UUID(),
+            noteID: secondNoteID,
+            copiedAt: Date(timeIntervalSinceReferenceDate: 120),
+            copiedVia: .clipboard,
+            copiedBy: .user
         )
-        XCTAssertEqual(loadedCopyEvents, [copyEvent])
+
+        try store.recordCopyEvents([secondEvent, firstEvent])
+
+        let loadedForFirstNote = try store.loadCopyEvents(for: firstNoteID)
+        let loadedAllEvents = try store.loadCopyEvents()
+
+        XCTAssertEqual(loadedForFirstNote, [firstEvent])
+        XCTAssertEqual(loadedAllEvents, [firstEvent, secondEvent])
     }
 
-    func testWorkItemStoreSourceReplacementDoesNotDuplicateMappings() throws {
-        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
-        let store = WorkItemStore(databaseURL: databaseURL)
-        let workItemID = UUID()
-        let firstNoteID = UUID()
-        let secondNoteID = UUID()
-        let workItem = WorkItem(
-            id: workItemID,
-            title: "Replace mappings",
-            createdAt: Date(timeIntervalSinceReferenceDate: 100),
-            createdBy: .user,
-            sourceNoteCount: 1
-        )
-
-        try store.upsert(workItem)
-
-        try store.replaceSources(
-            for: workItemID,
-            with: [
-                WorkItemSource(workItemID: workItemID, noteID: firstNoteID, relationType: .primary),
-                WorkItemSource(workItemID: workItemID, noteID: firstNoteID, relationType: .duplicate),
-            ]
-        )
-        try store.replaceSources(
-            for: workItemID,
-            with: [
-                WorkItemSource(workItemID: workItemID, noteID: secondNoteID, relationType: .supporting),
-            ]
-        )
-
-        let loadedSources = try store.loadSources(for: workItemID)
-
-        XCTAssertEqual(
-            loadedSources,
-            [
-                WorkItemSource(workItemID: workItemID, noteID: secondNoteID, relationType: .supporting),
-            ]
-        )
-    }
-
-    func testWorkItemStoreCoexistsWithCardStoreOnSharedDatabase() throws {
+    func testCopyEventStoreCoexistsWithCardStoreOnSharedDatabase() throws {
         let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
         let database = PromptCueDatabase(databaseURL: databaseURL)
         let cardStore = CardStore(database: database)
-        let workItemStore = WorkItemStore(database: database)
+        let copyEventStore = CopyEventStore(database: database)
         let card = CaptureCard(
             id: UUID(),
             text: "Raw note stays intact",
             createdAt: Date(timeIntervalSinceReferenceDate: 100),
             sortOrder: 10
         )
-        let workItem = WorkItem(
+        let copyEvent = CopyEvent(
             id: UUID(),
-            title: "Derived execution card",
-            createdAt: Date(timeIntervalSinceReferenceDate: 110),
-            createdBy: .user,
-            sourceNoteCount: 1
+            noteID: card.id,
+            copiedAt: Date(timeIntervalSinceReferenceDate: 110),
+            copiedVia: .clipboard,
+            copiedBy: .user
         )
 
         try cardStore.save([card])
-        try workItemStore.upsert(workItem)
-        try workItemStore.replaceSources(
-            for: workItem.id,
-            with: [
-                WorkItemSource(workItemID: workItem.id, noteID: card.id, relationType: .primary),
-            ]
-        )
+        try copyEventStore.recordCopyEvents([copyEvent])
 
         let loadedCards = try cardStore.load()
-        let loadedWorkItems = try workItemStore.loadWorkItems()
-        let loadedSources = try workItemStore.loadSources(for: workItem.id)
+        let loadedCopyEvents = try copyEventStore.loadCopyEvents(for: card.id)
 
         XCTAssertEqual(loadedCards, [card])
-        XCTAssertEqual(loadedWorkItems, [workItem])
-        XCTAssertEqual(
-            loadedSources,
-            [
-                WorkItemSource(workItemID: workItem.id, noteID: card.id, relationType: .primary),
-            ]
-        )
+        XCTAssertEqual(loadedCopyEvents, [copyEvent])
     }
 }

@@ -18,18 +18,6 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertTrue(environment.shouldOpenCaptureOnStart)
     }
 
-    func testExecutionMapFlagsUseMCPEnvironmentKeys() {
-        let environment = AppEnvironment(
-            values: [
-                "PROMPTCUE_ENABLE_MCP": "1",
-                "PROMPTCUE_OPEN_MCP_ON_START": "1",
-            ]
-        )
-
-        XCTAssertTrue(environment.isExecutionMapEnabled)
-        XCTAssertTrue(environment.shouldOpenExecutionMapOnStart)
-    }
-
     func testDraftSeedValuesTrimWhitespaceAndTreatEmptyAsMissing() {
         let environment = AppEnvironment(
             values: [
