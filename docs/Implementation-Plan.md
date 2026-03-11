@@ -307,6 +307,13 @@ Current landed slices:
    - `PromptCueTests/MCPConnectorSettingsModelTests.swift`
    - shows `Claude Code` and `Codex` connector status, launch command, add command, and config snippets
    - supports repository-checkout launch commands while bundled helper packaging is still pending
+- `MCP7` guided setup and validation is on `main`
+   - `PromptCue/UI/Settings/MCPConnectorSettingsModel.swift`
+   - `PromptCue/UI/Settings/PromptCueSettingsView.swift`
+   - `PromptCueTests/MCPConnectorSettingsModelTests.swift`
+   - explains what Backtick MCP does, shows a concrete setup flow, and runs a local server self-test from Settings
+   - promotes configured clients to `Connected` after a successful local launch/tool-surface validation
+   - includes a Claude-specific automation example for `--permission-mode dontAsk` with explicit `--allowedTools`
 
 Verification gates run for landed MCP slices:
 
@@ -322,49 +329,16 @@ Verification gates run for landed MCP slices:
 
 Current immediate next step:
 
-1. connector surface refinement
-   - keep the current `Connectors` functionality, but make the default view action-first instead of prose-first
-   - show one Backtick server summary card plus one card per supported client
-   - separate `client setup` from `local server verification` instead of collapsing both into a single `Connected` state
-   - make one primary action visible per client:
-     - `Open Docs` when the client CLI is missing
-     - `Copy Add Command` when setup is missing
-     - `Run Test` when setup exists but local verification has not passed
-     - no loud primary action after verification passes
-   - surface the refined product states:
-     - `CLI not found`
-     - `Needs setup`
-     - `Set up`
-     - `Not verified`
-     - `Local server OK`
-     - `Needs attention`
-   - replace generic `Advanced` with action-specific disclosures:
-     - `Manual Setup`
-     - `Troubleshooting`
-     - `Automation`
-   - make disclosures action-driven instead of informational:
-     - `Manual Setup` holds config locations, add commands, and config snippets
-     - `Troubleshooting` holds failure detail, CLI state, and fix actions
-     - `Automation` holds Claude allowlist guidance only when relevant
-   - keep all existing actions intact inside the refined hierarchy:
-     - `Run Test`
-     - `Copy Launch Command`
-     - `Copy Add Command`
-     - `Copy Config Snippet`
-     - `Reveal`
-     - `Open Docs`
-   - use these reference patterns while refining copy and hierarchy:
-     - Cursor `Tools & MCP` settings pattern: terse server rows, short status labels, errors behind detail reveal, not long always-visible prose
-       - https://cursor.com/docs/mcp
-     - Claude Code MCP setup pattern: scope-aware `mcp add` command plus config-path visibility
-       - https://docs.anthropic.com/en/docs/claude-code/mcp
-     - Codex MCP setup pattern: command/config driven setup, not bespoke product prose
-       - https://developers.openai.com/codex
-
-2. `MCP8` bundled helper packaging
+1. `MCP8` bundled helper packaging
    - package `BacktickMCP` with app builds so Settings can show a ready command outside local source checkouts
    - keep repository-root detection as the development fallback
    - make connector setup work for direct-download users without requiring a Swift toolchain
+   - preserve the repository-checkout launch path as the developer fallback while release packaging lands
+
+2. release-path connector validation
+   - rerun the Settings server test against a packaged helper, not just a source checkout
+   - verify `Claude Code` and `Codex` setup still works when the user has no local Swift toolchain
+   - keep treating `tool permission denied` as client setup friction instead of a Backtick MCP launch failure
 
 Why this rollout is required:
 
@@ -380,6 +354,7 @@ Rules after `MCP5`:
 - keep Stack as the only source of truth
 - reuse the landed services instead of duplicating note logic in the transport layer
 - `main` already contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
+
 ## Phase 0: Research And Decisions
 
 ### Goal

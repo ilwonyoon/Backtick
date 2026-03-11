@@ -162,8 +162,9 @@ Current landed slices:
 - `MCP4` execution action landed on `main`
 - `MCP5` stdio tool surface landed on `main`
 - `MCP6` connector settings surface landed on `main`
-- execution-map style UI remains out of scope while guided setup and helper packaging are still in flight
-- Settings-based connector UI is now the user-facing MCP rollout surface
+- `MCP7` guided setup and local server validation landed on `main`
+- execution-map style UI remains out of scope while helper packaging is still in flight
+- Settings-based connector UI is now the user-facing MCP rollout surface, including setup and local validation
 
 Landed MCP gates:
 
@@ -194,10 +195,10 @@ Landed `MCP5` gate:
 
 Immediate next step:
 
-- run an external MCP client smoke against merged `main`
-- verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
-- capture connector friction before finalizing guided setup UX
-- latest smoke result:
+- package a bundled `BacktickMCP` helper for release builds
+- keep the repository-checkout launch path as a development fallback
+- rerun connector validation against the packaged helper path
+- preserve the current external smoke finding:
   - `Claude Code` and `Codex` both connect successfully on merged `main`
   - `Claude Code` in `--permission-mode dontAsk` requires Backtick MCP tools in `--allowedTools`
   - treat non-interactive permission denial as client setup friction, not as an MCP server failure
@@ -208,7 +209,15 @@ Landed `MCP6` gate:
 - `Claude Code` and `Codex` sections expose CLI path, project/home config status, quick-add command, and config snippet
 - `Copy Command`, `Copy Add Command`, `Copy Config Snippet`, `Reveal`, and `Open Docs` all worked in manual smoke
 - `MCP2` through `MCP5` behavior remains unchanged; this slice is read-mostly UI
-- external MCP client smoke passed against merged `main`
+- external MCP client smoke has now run against merged `main` and feeds `MCP7`
+
+Landed `MCP7` gate:
+
+- Settings `Connectors` now shows `What It Does`, `Setup Flow`, `Launch Command`, and `Server Test`
+- the local server self-test validates `initialize` and `tools/list` directly from Settings and promotes a configured client to `Connected`
+- failure states keep specific detail for launch failure, invalid response, missing tools, and other local validation issues
+- `Claude Code` now shows an automation lane for `--permission-mode dontAsk` with a copyable `--allowedTools` example
+- existing connector inspection actions remain intact while setup guidance moved into the same Settings surface
 
 Post-`MCP5` rollout:
 
