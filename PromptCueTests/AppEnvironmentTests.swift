@@ -30,6 +30,27 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertNil(environment.startupSettingsTab)
     }
 
+    func testStartupSettingsTabImplicitlyOpensSettings() {
+        let environment = AppEnvironment(
+            values: [
+                "PROMPTCUE_OPEN_SETTINGS_TAB": "connectors",
+            ]
+        )
+
+        XCTAssertTrue(environment.shouldOpenSettingsOnStart)
+        XCTAssertEqual(environment.startupSettingsTab, .connectors)
+    }
+
+    func testStartupSettingsTabReadsCommandLineArgument() {
+        let environment = AppEnvironment(
+            values: [:],
+            arguments: ["Prompt Cue", "--open-settings-tab", "connectors"]
+        )
+
+        XCTAssertTrue(environment.shouldOpenSettingsOnStart)
+        XCTAssertEqual(environment.startupSettingsTab, .connectors)
+    }
+
     func testDraftSeedValuesTrimWhitespaceAndTreatEmptyAsMissing() {
         let environment = AppEnvironment(
             values: [

@@ -170,11 +170,11 @@ enum MCPConnectorPrimaryAction: Equatable {
     var title: String {
         switch self {
         case .copyAddCommand:
-            return "Copy Add Command"
+            return "Set Up"
         case .openDocumentation:
-            return "Open Docs"
+            return "Open Install Guide"
         case .runServerTest:
-            return "Run Test"
+            return "Verify Setup"
         }
     }
 }
@@ -617,14 +617,14 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     var serverSummary: String {
         if inspection.bundledHelperPath != nil {
-            return "This build already includes Backtick MCP. Run a local test, then finish setup in Claude Code or Codex."
+            return "Backtick is already built into this app. Choose Claude Code or Codex below to finish setup."
         }
 
         if inspection.repositoryRootPath != nil {
-            return "Backtick MCP is available from the current source checkout. Run a local test, then finish setup in Claude Code or Codex."
+            return "Backtick can launch its MCP helper from this source checkout. Choose Claude Code or Codex below to finish setup."
         }
 
-        return "Build or bundle the Backtick MCP helper before setting up a client."
+        return "Backtick cannot generate setup commands until its MCP helper is available."
     }
 
     var serverVerificationTitle: String {
@@ -638,6 +638,42 @@ final class MCPConnectorSettingsModel: ObservableObject {
         case .failed:
             return "Test failed"
         }
+    }
+
+    var hasConfiguredClients: Bool {
+        clients.contains(where: \.hasConfiguredScope)
+    }
+
+    var serverOverviewTitle: String {
+        if !isServerAvailable {
+            return "Fix Backtick first"
+        }
+
+        return "Start with a client below"
+    }
+
+    var serverOverviewDetail: String {
+        if !isServerAvailable {
+            return "Backtick itself is unavailable right now. Open the fix section below before trying Claude Code or Codex."
+        }
+
+        if hasConfiguredClients {
+            return "Backtick is ready in this build. Each client below will tell you whether to verify setup or fix a problem."
+        }
+
+        return "Backtick is ready in this build. Pick Claude Code or Codex below and follow the next step shown there."
+    }
+
+    var serverTroubleshootingTitle: String {
+        if !isServerAvailable {
+            return "Fix This"
+        }
+
+        if case .failed = connectionState {
+            return "Fix This"
+        }
+
+        return "Troubleshooting"
     }
 
     func refresh() {
@@ -714,6 +750,124 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
     }
 
+    func clientProgressSummary(for client: MCPConnectorClientStatus) -> String {
+        if !client.hasDetectedCLI {
+            return "\(client.client.title) is required before Backtick can connect here."
+        }
+
+        if !client.hasConfiguredScope {
+            if client.hasOtherConfigFiles {
+                return "A config file already exists here, but Backtick has not been added yet."
+            }
+
+            return "Backtick is not added to \(client.client.title) yet."
+        }
+
+        let location = client.configuredScope?.title ?? "Unknown"
+
+        switch connectionState {
+        case .idle:
+            return "Backtick is configured in \(location), but not verified yet."
+        case .running:
+            return "Backtick is configured in \(location). Local verification is running now."
+        case .passed:
+            return "Backtick is configured in \(location) and verified locally."
+        case .failed:
+            return "Backtick is configured in \(location), but local verification failed."
+        }
+    }
+
+    func clientNextStepTitle(for client: MCPConnectorClientStatus) -> String {
+        if !client.hasDetectedCLI {
+            return "Install \(client.client.title)"
+        }
+
+        if !client.hasConfiguredScope {
+            return "Add Backtick to \(client.client.title)"
+        }
+
+        switch connectionState {
+        case .idle:
+            return "Verify the setup"
+        case .running:
+            return "Verifying setup"
+        case .passed:
+            return "Backtick is ready"
+        case .failed:
+            return "Fix the setup and verify again"
+        }
+    }
+
+    func clientNextStepDetail(for client: MCPConnectorClientStatus) -> String {
+        if !client.hasDetectedCLI {
+            return "Backtick works through \(client.client.title). Install it first, then come back here to finish setup."
+        }
+
+        if !client.hasConfiguredScope {
+            if client.hasOtherConfigFiles {
+                return "Open setup steps, then either run the terminal command or add Backtick manually in the config file."
+            }
+
+            return "Open setup steps, paste the command into Terminal, then come back here."
+        }
+
+        switch connectionState {
+        case .idle:
+            return "Run one local verification before you rely on Backtick inside \(client.client.title)."
+        case .running:
+            return "Backtick is launching its local MCP helper and checking the tool surface now."
+        case .passed:
+            if client.client == .claudeCode {
+                return "Setup is verified locally. If you automate Claude with `--permission-mode dontAsk`, keep Backtick tools in `--allowedTools`."
+            }
+
+            return "Setup is verified locally. You can use Backtick from \(client.client.title) now."
+        case .failed:
+            return "Read the fix below, correct the issue, then run verification again."
+        }
+    }
+
+    func primaryActionTitle(for client: MCPConnectorClientStatus) -> String? {
+        switch primaryAction(for: client) {
+        case .copyAddCommand:
+            return "Set Up"
+        case .openDocumentation:
+            return "Install \(client.client.title)"
+        case .runServerTest:
+            if clientFailureDetail(for: client) != nil {
+                return "Verify Again"
+            }
+
+            return "Verify Setup"
+        case nil:
+            return nil
+        }
+    }
+
+    func configButtonTitle(for client: MCPConnectorClientStatus) -> String {
+        if client.hasConfiguredScope || client.hasOtherConfigFiles {
+            return "Open Config File"
+        }
+
+        return "Show Config Location"
+    }
+
+    func troubleshootingTitle(for client: MCPConnectorClientStatus) -> String {
+        if clientFailureDetail(for: client) != nil {
+            return "Fix This"
+        }
+
+        if client.hasOtherConfigFiles, !client.hasConfiguredScope {
+            return "Fix This"
+        }
+
+        if !client.hasDetectedCLI {
+            return "Install Help"
+        }
+
+        return "Troubleshooting"
+    }
+
     func clientFailureDetail(for client: MCPConnectorClientStatus) -> String? {
         guard client.hasConfiguredScope else {
             return nil
@@ -724,6 +878,18 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         return failure.detail
+    }
+
+    func connectedToolNames(for client: MCPConnectorClientStatus) -> [String] {
+        guard client.hasConfiguredScope else {
+            return []
+        }
+
+        guard case .passed(let report) = connectionState else {
+            return []
+        }
+
+        return report.toolNames
     }
 
     func primaryAction(for client: MCPConnectorClientStatus) -> MCPConnectorPrimaryAction? {
@@ -833,6 +999,17 @@ final class MCPConnectorSettingsModel: ObservableObject {
         revealPath(inspection.status(for: client).homeConfig.path)
     }
 
+    func openPreferredConfig(for client: MCPConnectorClient) {
+        let status = inspection.status(for: client)
+
+        if let projectConfig = status.projectConfig {
+            openConfigPath(projectConfig.path)
+            return
+        }
+
+        openConfigPath(status.homeConfig.path)
+    }
+
     func automationExample(for client: MCPConnectorClient) -> String? {
         switch client {
         case .claudeCode:
@@ -868,6 +1045,21 @@ final class MCPConnectorSettingsModel: ObservableObject {
         let url = URL(fileURLWithPath: path)
         let existingURL = fileManagerItemURL(for: url)
         workspace.activateFileViewerSelecting([existingURL])
+    }
+
+    private func openConfigPath(_ path: String) {
+        let url = URL(fileURLWithPath: path).standardizedFileURL
+        let parentDirectoryURL = url.deletingLastPathComponent()
+
+        if !FileManager.default.fileExists(atPath: url.path) {
+            try? FileManager.default.createDirectory(
+                at: parentDirectoryURL,
+                withIntermediateDirectories: true
+            )
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+        }
+
+        workspace.open(url)
     }
 
     private func fileManagerItemURL(for url: URL) -> URL {

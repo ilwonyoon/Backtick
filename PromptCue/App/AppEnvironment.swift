@@ -13,9 +13,14 @@ struct AppEnvironment {
     }
 
     let values: [String: String]
+    let arguments: [String]
 
-    init(values: [String: String] = ProcessInfo.processInfo.environment) {
+    init(
+        values: [String: String] = ProcessInfo.processInfo.environment,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) {
         self.values = values
+        self.arguments = arguments
     }
 
     var shouldOpenDesignSystemOnStart: Bool {
@@ -27,11 +32,11 @@ struct AppEnvironment {
     }
 
     var shouldOpenSettingsOnStart: Bool {
-        boolFlag("PROMPTCUE_OPEN_SETTINGS_ON_START")
+        boolFlag("PROMPTCUE_OPEN_SETTINGS_ON_START") || startupSettingsTab != nil
     }
 
     var startupSettingsTab: StartupSettingsTab? {
-        nonEmptyValue(for: "PROMPTCUE_OPEN_SETTINGS_TAB")
+        startupSettingsTabValue
             .map { $0.lowercased() }
             .flatMap(StartupSettingsTab.init(rawValue:))
     }
@@ -52,9 +57,32 @@ struct AppEnvironment {
         values[key] == "1"
     }
 
+    private var startupSettingsTabValue: String? {
+        nonEmptyValue(for: "PROMPTCUE_OPEN_SETTINGS_TAB")
+            ?? argumentValue(for: "--open-settings-tab")
+    }
+
     private func nonEmptyValue(for key: String) -> String? {
         guard let value = values[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
               !value.isEmpty else {
+            return nil
+        }
+
+        return value
+    }
+
+    private func argumentValue(for flag: String) -> String? {
+        guard let flagIndex = arguments.firstIndex(of: flag) else {
+            return nil
+        }
+
+        let valueIndex = arguments.index(after: flagIndex)
+        guard arguments.indices.contains(valueIndex) else {
+            return nil
+        }
+
+        let value = arguments[valueIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else {
             return nil
         }
 

@@ -47,6 +47,7 @@ let package = Package(
                 "PromptCue/App",
                 "PromptCue/Domain",
                 "PromptCue/PromptCue.entitlements",
+                "PromptCue/Resources",
                 "PromptCue/UI",
                 "PromptCue/Services/ClipboardFormatter.swift",
                 "PromptCue/Services/CloudSyncControlling.swift",

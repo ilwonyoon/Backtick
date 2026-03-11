@@ -76,7 +76,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         }
         refreshModels()
         refreshToolbarTabsView()
+        window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
+        window.makeMain()
+        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
         NSApp.activate(ignoringOtherApps: true)
     }
 

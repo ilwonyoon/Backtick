@@ -1,213 +1,372 @@
 # Connector Settings Action-First Plan
 
 Date: 2026-03-11
-Status: proposed follow-up after MCP7 guided setup
+Status: proposed UX reset for MCP connector setup
 
-## Goal
+## Product Framing
 
-Refactor `Settings > Connectors` so the screen answers three user questions in order:
+`Settings > Connectors` is not a diagnostics dashboard.
 
-1. Is this client set up?
-2. What should I do next?
-3. If it failed, how do I fix it?
+It is a phase router for people who already use Claude Code and want Backtick to work there without understanding MCP internals.
 
-The screen should stop behaving like an information dump. Every visible element must either:
+If a user opens the screen and still asks "what am I supposed to do here?", the design has failed.
 
-- trigger setup
-- trigger verification
-- help fix a failure
-- open the exact config the user must edit
+## Assumptions
 
-## Primary User Jobs
+- the target user already wants to use Claude Code
+- the target user does not need to learn what MCP is
+- the target user should not need to understand config formats, helper binaries, repo paths, or launch commands before they can make progress
+- the default screen should optimize for Claude Code first
 
-### 1. Install / Set Up
+Implication:
 
-The user arrives because they want Backtick available in `Claude Code` or `Codex`.
+- non-Claude flows must not complicate the default information architecture
 
-Primary action:
+## Non-Goals
 
-- `Copy Add Command`
+- teaching users how to choose between Claude Code and other clients
+- teaching users Claude Code from scratch
+- exposing raw helper or config implementation detail on the default surface
+- treating "copied a command" as a completed setup action
 
-Supporting actions:
+## Success Bar
 
-- `Open Config`
-- `Copy Config Snippet`
-- `Open Docs`
+The screen should pass these tests:
 
-### 2. Verify
+1. Three-second test: within three seconds, the user can name the one button they should press next.
+2. Grandparent test: an 80-year-old vibe coder can finish setup without learning new infrastructure vocabulary.
+3. Single-CTA test: every default-state card has exactly one dominant CTA.
+4. No-riddle test: the screen never says something is wrong unless it also tells the user what to do next.
 
-The user already added Backtick and now wants to confirm the local server works.
+## Core UX Rule
 
-Primary action:
+The main screen shows only:
+
+- what phase the user is in
+- the one action they should take now
+
+Everything else moves behind the next click.
+
+## User Phases
+
+### Phase A: Needs Setup
+
+Definition:
+
+- Claude Code is the intended client
+- Backtick is not connected yet
+
+Default card content:
+
+- title: `Connect Backtick to Claude Code`
+- supporting line: `Set up takes one terminal command.`
+- primary CTA: `Set Up`
+
+What `Set Up` does:
+
+- opens a guided setup sheet
+- shows the command
+- explains exactly what to do with it
+- offers manual fallback only after the primary path
+
+What should not appear on the main screen:
+
+- `Copy Setup Command`
+- config snippets
+- raw config paths
+- `Backtick is not in this config yet`
+
+Reason:
+
+- those are implementation details, not user decisions
+
+### Phase B: Needs Verification
+
+Definition:
+
+- Backtick appears to be connected
+- the user has not confirmed that it works locally yet
+
+Default card content:
+
+- title: `Verify the connection`
+- supporting line: `Confirm that Claude Code can talk to Backtick.`
+- primary CTA: `Verify`
+
+What `Verify` does:
+
+- runs the current connection test
+- returns either to `Healthy` or `Needs Repair`
+
+What should not appear on the main screen:
 
 - `Run Test`
+- low-level server wording
+- launch command detail
 
-Supporting actions:
+Reason:
 
-- `Copy Launch Command`
-- `Open Config`
+- the user intent is verification, not "running a server test"
 
-### 3. Fix
+### Phase C: Needs Repair
 
-The user hit a failure and needs a concrete next step.
+Definition:
 
-Failure handling must be cause-specific:
+- setup is incomplete
+- verification failed
+- Claude Code CLI/path/config state is inconsistent
+- bundled helper or launch state is blocking progress
 
-- `CLI not found` -> install client / open docs
-- `Backtick missing from config` -> copy add command / open config
-- `Launch command unavailable` -> show build/setup path
-- `Server test failed` -> show last failure detail and rerun
-- `Claude automation allowlist missing` -> copy allowlist example
+Default card content:
 
-### 4. Manual Setup / Troubleshooting
+- title: `Fix the connection`
+- supporting line: one sentence that points to the action, not the diagnosis
+- primary CTA: `Fix`
 
-This is not default content. It only exists as a fallback path for users who need to edit files manually or inspect error detail.
+What `Fix` does:
 
-## Information Hierarchy
+- opens a guided repair sheet
+- shows the exact recommended next step
+- exposes diagnostics only after the repair path starts
 
-### Default Surface
+Examples of acceptable supporting lines:
 
-The first visible content should be:
+- `Backtick needs one repair step before Claude Code can use it.`
+- `The connection check failed. Follow the fix steps, then verify again.`
 
-- Backtick MCP server status
-- Claude Code setup status
-- Codex setup status
-- one primary action per card
+Examples of unacceptable supporting lines:
 
-The default surface should not show:
-
-- raw repository path
-- raw CLI path
-- long prose
-- full config snippets
-- diagnostic detail that does not change the next action
-
-### Secondary Surface
-
-Replace generic `Advanced` with intent-based disclosures:
-
-- `Manual Setup`
-- `Troubleshooting`
-- `Automation` for Claude-specific allowlist friction
-
-## State Model
-
-Server state:
-
-- `Needs build`
-- `Available`
-- `Testing`
-- `Local server OK`
-- `Local test failed`
-
-Client state:
-
+- `Backtick is not in this config yet`
+- `Launch command unavailable`
 - `CLI not found`
-- `Needs setup`
-- `Set up in project`
-- `Set up in home`
-- `Set up in both`
-- `Needs attention`
 
-These states must stay separate. A server test pass must not label a client as generically `Connected`.
+Reason:
 
-## Card Layout
+- these describe system state but do not tell the user what to do
 
-Each connector card should contain:
+### Phase D: Healthy
+
+Definition:
+
+- setup completed
+- latest verification succeeded
+
+Default card content:
+
+- title: `Backtick is ready`
+- supporting line: optional and quiet
+- primary CTA: none, or a low-emphasis `Details`
+
+What belongs here:
+
+- confidence
+- optional entry to monitoring details
+
+What does not belong here:
+
+- another loud button
+- success chips
+- raw status clutter
+
+Reason:
+
+- healthy state should feel finished, not like another workflow start
+
+## Special Handling: Claude Code Missing
+
+This is the first implementation gate.
+
+If `Claude Code CLI` is missing, the default Connectors surface should collapse to one card only:
+
+- title: `Install Claude Code`
+- supporting line: one sentence only
+- primary CTA: `Install Claude Code`
+
+What this CTA does:
+
+- opens an install sheet
+- tells the user, in order:
+1. open the install guide
+2. install Claude Code
+3. return here
+
+What must not appear in this gate:
+
+- the top-level `Backtick MCP` server card
+- Codex alongside Claude Code
+- setup commands
+- config files
+- troubleshooting disclosures
+
+Reason:
+
+- until Claude Code exists, everything else is noise
+- the user should not be asked to compare install, setup, verify, and repair at the same time
+
+## Surface Model
+
+### 1. Main Connectors Screen
+
+The main screen is a router, not a workspace.
+
+It should contain only:
 
 - client name
-- setup chip
-- verification chip
-- one-line summary
+- phase title
+- one action-helping sentence
 - one primary CTA
-- at most two secondary actions
 
-Suggested CTA priority:
+It should not contain:
 
-- `Needs setup` -> `Copy Add Command`
-- `Set up but not verified` -> `Run Test`
-- `Needs attention` -> `Show Fix`
-- `CLI not found` -> `Open Docs`
-- `Local server OK` -> no loud CTA, keep `Open Config` or `Run Test`
+- a top-level `Backtick MCP` server card
+- bundled-helper copy
+- repository path
+- launch command
+- config snippet
+- config file paths
+- passive warning text
+- chips that look interactive but are not
 
-## Content Rules
+Important:
 
-Good labels:
+- if Backtick server health matters, it should surface only when it changes the current Claude action
 
-- `Needs setup`
+### 2. Setup Sheet
+
+This is where implementation detail becomes acceptable.
+
+Required structure:
+
+1. `Copy the command`
+2. `Paste it into Terminal and press Return`
+3. `Come back here and press Verify`
+
+Allowed elements:
+
+- `Copy Setup Command`
+- `Open Config File`
+- `Copy Config Snippet`
+- `Manual Setup`
+- install/docs fallback
+
+### 3. Repair Sheet
+
+This is where diagnosis becomes acceptable.
+
+Required structure:
+
+- problem summary in plain language
+- recommended next action first
+- optional technical detail second
+- clear route back to `Verify`
+
+Allowed elements:
+
+- last failure detail
+- config reveal
+- docs link
+- command/snippet only if the repair actually requires them
+
+### 4. Details Sheet
+
+This is optional and quiet.
+
+Allowed content:
+
+- latest successful verification
+- current config location
+- Claude automation note
+- manual setup reference
+
+This surface is for reassurance and inspection, not for primary setup.
+
+## CTA Language Rules
+
+Allowed primary CTA labels:
+
+- `Set Up`
+- `Verify`
+- `Fix`
+- `Details`
+
+Disallowed primary CTA labels:
+
+- `Copy Setup Command`
 - `Run Test`
 - `Open Config`
-- `Copy Add Command`
-- `Manual Setup`
-- `Troubleshooting`
-- `Automation`
+- `Open Docs`
+- `Copy Launch Command`
 
-Bad labels:
+Reason:
 
-- `Config file present, Backtick missing`
-- `Backtick is configured, but the latest local server test failed...`
-- generic `Advanced`
+- primary buttons must name the user goal, not the implementation step
 
-## Keep / Remove Audit
+## Default Copy Rules
 
-Keep on the default surface:
+Keep only text that changes the next action.
 
-- setup status
-- verification status
-- primary action
-- short summary
+Good default copy:
 
-Move behind disclosure:
+- `Set up takes one terminal command.`
+- `Confirm that Claude Code can talk to Backtick.`
+- `Backtick needs one repair step before Claude Code can use it.`
+- `Backtick is ready.`
 
-- project config path
-- home config path
-- full snippet
-- launch command
-- last test detail
-- automation example
+Bad default copy:
 
-Remove from the default surface:
+- `Backtick is not in this config yet`
+- `Backtick is already built into this app`
+- `Local server OK`
+- any sentence that explains mechanics before the user has chosen an action
 
-- repository path
-- raw CLI path when the CLI is already detected
-- explanatory prose that does not unlock an action
+Rule:
 
-## Implementation Targets
+- if removing a sentence does not stop the user from completing the next action, remove it
 
-Primary implementation files:
+## State Mapping
 
-- `PromptCue/UI/Settings/MCPConnectorSettingsModel.swift`
-- `PromptCue/UI/Settings/PromptCueSettingsView.swift`
-- `PromptCueTests/MCPConnectorSettingsModelTests.swift`
+The UI should collapse implementation states into user phases.
 
-Follow-up docs to align after implementation:
+Suggested mapping:
 
-- `docs/Implementation-Plan.md`
-- `docs/Master-Board.md`
+- no configured Claude scope -> `Needs Setup`
+- configured Claude scope plus no successful verification -> `Needs Verification`
+- any blocking failure or inconsistent environment -> `Needs Repair`
+- successful verification -> `Healthy`
 
-## Test Plan
+Important:
 
-Automated:
+- raw states such as helper source, CLI path, config presence, and server launch detail should not appear directly on the default surface
+- they only matter insofar as they determine the current user phase
 
-- `Needs setup` prefers `Copy Add Command`
-- `CLI not found` has no misleading setup CTA
-- `Configured but not verified` prefers `Run Test`
-- `Failure states` surface fix detail, not only error text
-- `Claude automation` exposes allowlist example only when relevant
+## Implementation Implications
 
-Manual:
+The next implementation pass should do the following:
 
-- default surface shows next action without opening disclosures
-- `Manual Setup` contains config editing actions only
-- `Troubleshooting` contains failure detail only
-- success state becomes visually quiet
+- remove the standalone `Backtick MCP` summary card from the default surface
+- make Claude Code the first-class default card
+- move all command, snippet, and path content behind `Set Up`, `Fix`, or `Details`
+- replace passive warnings with guided sheets
+- rename technical actions to user-goal actions
+- ensure healthy state is visually quiet
+
+If Codex remains supported:
+
+- it must not dilute the Claude-first default flow
+- it should follow the same phase model
+- it should not force the user to compare two clients on first read
 
 ## Acceptance Criteria
 
-The screen passes if a user can answer these immediately:
+The design passes when a user can open `Settings > Connectors` and immediately answer:
 
-- `Am I set up?`
-- `What should I click now?`
-- `If this failed, where do I fix it?`
+1. Am I trying to set up, verify, fix, or just confirm a healthy state?
+2. What is the one button I should click right now?
+3. If that button opens another surface, are the next steps explicit and ordered?
 
-The screen fails if users must read long descriptions or inspect raw paths before they know what to do next.
+The design fails when:
+
+- the user sees multiple plausible next actions on the same card
+- the user has to interpret diagnostic copy before acting
+- the user can copy a command without being told what to do with it
+- the default surface behaves like an MCP reference page instead of a guided flow

@@ -245,6 +245,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.clientSetupTitle(for: claude), "Set up")
         XCTAssertEqual(model.clientVerificationTitle(for: claude), "Not verified")
         XCTAssertEqual(model.primaryAction(for: claude), .runServerTest)
+        XCTAssertEqual(model.primaryActionTitle(for: claude), "Verify Setup")
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Verify the setup")
 
         await model.performServerTest()
 
@@ -252,6 +254,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.clientSetupTitle(for: claude), "Set up")
         XCTAssertEqual(model.clientVerificationTitle(for: claude), "Local server OK")
         XCTAssertTrue(model.clientSummary(for: claude).contains("allowed tool list"))
+        XCTAssertEqual(model.connectedToolNames(for: claude), expectedReport.toolNames)
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Backtick is ready")
         XCTAssertNil(model.primaryAction(for: claude))
     }
 
@@ -296,7 +300,10 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.serverTestDetail, "boom")
         XCTAssertEqual(model.clientVerificationTitle(for: claude), "Needs attention")
         XCTAssertEqual(model.clientFailureDetail(for: claude), "boom")
+        XCTAssertTrue(model.connectedToolNames(for: claude).isEmpty)
         XCTAssertEqual(model.primaryAction(for: claude), .runServerTest)
+        XCTAssertEqual(model.primaryActionTitle(for: claude), "Verify Again")
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Fix the setup and verify again")
     }
 
     @MainActor
@@ -338,6 +345,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.clientSetupTitle(for: claude), "Needs setup")
         XCTAssertEqual(model.clientScopeTitle(for: claude), nil)
         XCTAssertEqual(model.primaryAction(for: claude), .copyAddCommand)
+        XCTAssertEqual(model.primaryActionTitle(for: claude), "Set Up")
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Add Backtick to Claude Code")
     }
 
     @MainActor
@@ -357,6 +366,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
 
         XCTAssertEqual(model.clientSetupTitle(for: claude), "CLI not found")
         XCTAssertEqual(model.primaryAction(for: claude), .openDocumentation)
+        XCTAssertEqual(model.primaryActionTitle(for: claude), "Install Claude Code")
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Install Claude Code")
         XCTAssertTrue(model.clientSummary(for: claude).contains("Install"))
     }
 
@@ -394,7 +405,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertTrue(model.isServerAvailable)
         XCTAssertEqual(model.serverSourceLabel, "Bundled helper")
         XCTAssertEqual(model.serverSourcePath, bundledHelperURL.path)
-        XCTAssertTrue(model.serverSummary.contains("already includes Backtick MCP"))
+        XCTAssertTrue(model.serverSummary.contains("already built into this app"))
+        XCTAssertEqual(model.serverOverviewTitle, "Start with a client below")
         XCTAssertTrue(model.serverStatusFootnote.contains(bundledHelperURL.path))
     }
 
