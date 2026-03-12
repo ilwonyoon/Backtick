@@ -5,7 +5,6 @@ enum SettingsTokens {
     enum Layout {
         static let sidebarWidth: CGFloat = PanelMetrics.settingsSidebarWidth
         static let labelColumnWidth: CGFloat = PanelMetrics.settingsLabelColumnWidth
-        static let advancedLabelColumnWidth: CGFloat = 92
         static let trailingRailMinWidth: CGFloat = 140
 
         static let pageLeadingPadding: CGFloat = 24
@@ -40,7 +39,6 @@ enum SettingsTokens {
         static let inlineEditorTopInset: CGFloat = 10
         static let inlineEditorBottomInset: CGFloat = 10
         static let inlineEditorViewportBottomBreathing: CGFloat = 10
-        static let connectorCardPadding: CGFloat = 14
         static let formRowMinHeight: CGFloat = 42
         static let rowLabelToValueGap: CGFloat = 16
         static let rowVerticalPadding: CGFloat = 6
