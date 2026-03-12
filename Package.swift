@@ -62,6 +62,7 @@ let package = Package(
                 "PromptCue/Services/ScreenshotAttachmentPersistencePolicy.swift",
                 "PromptCue/Services/ScreenshotDirectoryResolver.swift",
                 "PromptCue/Services/ScreenshotFolderAccess.swift",
+                "PromptCue/Services/ScreenshotScanResultHandler.swift",
                 "PromptCue/Services/TargetDetailResolver.swift",
                 "PromptCue/Services/TerminalWindowSnapshotProvider.swift",
                 "PromptCue/Services/TransientScreenshotCache.swift",
