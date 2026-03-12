@@ -64,7 +64,7 @@ enum MCPPromptCatalog {
         ### "이거 해줘" / "execute" / "implement this"
         1. Identify relevant notes with `classify_notes` or `list_notes`
         2. Use the **execute** prompt to guide implementation
-        3. After verified implementation, call `mark_notes_executed` on the source notes
+        3. After verified implementation, call `mark_notes_executed` on the source notes before the final response
 
         ### "현황" / "status" / "what do I have"
         1. `classify_notes` with `scope: active`
@@ -73,7 +73,8 @@ enum MCPPromptCatalog {
         ## Rules
         - Only process active notes by default. Copied notes are already executed.
         - `group_notes` creates a merged card but does not archive sources unless `archiveSources` is set.
-        - Never call `mark_notes_executed` until the user confirms the work is complete.
+        - Do not call `mark_notes_executed` during planning, triage, or diagnosis.
+        - For an explicit execute request, call `mark_notes_executed` after verification for the notes that were actually completed, unless the user asks to keep them active.
         - When unsure whether to diagnose or execute, default to diagnose.
         - Show results before taking further action. Do not chain silently.
         """
@@ -155,6 +156,8 @@ enum MCPPromptCatalog {
         - Keep changes focused
         - Verify each step compiles
         - Do not refactor unrelated code
+        - When the requested work is actually completed and verified, call `mark_notes_executed` for the completed source notes before returning the final result
+        - If only part of the work was completed, only mark the completed notes executed and leave the rest active
         """
     )
 }

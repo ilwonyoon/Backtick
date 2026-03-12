@@ -420,6 +420,35 @@ final class BacktickMCPServerTests: XCTestCase {
 
         XCTAssertTrue(text.contains("classify_notes"))
         XCTAssertTrue(text.contains("mark_notes_executed"))
+        XCTAssertTrue(text.contains("before the final response"))
+        XCTAssertTrue(text.contains("Do not call `mark_notes_executed` during planning"))
+    }
+
+    func testPromptsGetExecuteRequiresMarkingCompletedNotesExecuted() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let getResponse = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "prompts/get",
+            params: [
+                "name": "execute",
+                "arguments": [
+                    "noteText": "Polish settings sidebar",
+                    "repositoryName": "PromptCue",
+                    "branch": "main",
+                ],
+            ]
+        )
+        let result = try XCTUnwrap(getResponse["result"] as? [String: Any])
+        let messages = try XCTUnwrap(result["messages"] as? [[String: Any]])
+        let content = try XCTUnwrap(messages.first?["content"] as? [String: Any])
+        let text = try XCTUnwrap(content["text"] as? String)
+
+        XCTAssertTrue(text.contains("mark_notes_executed"))
+        XCTAssertTrue(text.contains("before returning the final result"))
+        XCTAssertTrue(text.contains("leave the rest active"))
     }
 
     func testPromptsGetDiagnoseRendersTemplate() async throws {
