@@ -20,29 +20,16 @@ enum SettingsTab: Int, CaseIterable, Hashable {
         }
     }
 
-    var iconName: String {
+    var sidebarIcon: SettingsSidebarIcon {
         switch self {
         case .general:
-            return "gearshape"
+            return .asset("BacktickSidebarMark")
         case .capture:
-            return "rectangle.dashed"
+            return .system("rectangle.dashed")
         case .stack:
-            return "square.stack.3d.up"
+            return .system("square.stack.3d.up.fill")
         case .connectors:
-            return "link"
-        }
-    }
-
-    var sidebarIconName: String {
-        switch self {
-        case .general:
-            return "gearshape.fill"
-        case .capture:
-            return "rectangle.dashed"
-        case .stack:
-            return "square.stack.3d.up.fill"
-        case .connectors:
-            return "link"
+            return .system("link")
         }
     }
 

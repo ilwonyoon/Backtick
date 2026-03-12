@@ -132,7 +132,7 @@ struct PromptCueSettingsView: View {
                     ForEach(SettingsTab.allCases, id: \.self) { tab in
                         SettingsSidebarItem(
                             title: tab.title,
-                            systemImage: tab.sidebarIconName,
+                            icon: tab.sidebarIcon,
                             iconFill: tab.sidebarIconColor,
                             isSelected: tab == selectedTab,
                             usesManualSelection: true

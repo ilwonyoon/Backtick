@@ -106,8 +106,9 @@ final class AppCoordinator: AppLifecycleCoordinating {
 
     private func configureStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: "quote.opening", accessibilityDescription: "Prompt Cue")
+        item.button?.image = makeStatusItemImage()
         item.button?.imagePosition = .imageOnly
+        item.button?.imageScaling = .scaleProportionallyUpOrDown
 
         let menu = NSMenu()
         let quickCaptureItem = NSMenuItem(title: "Quick Capture", action: #selector(handleQuickCapture), keyEquivalent: "")
@@ -125,6 +126,19 @@ final class AppCoordinator: AppLifecycleCoordinating {
         menu.items.forEach { $0.target = self }
         item.menu = menu
         statusItem = item
+    }
+
+    private func makeStatusItemImage() -> NSImage? {
+        if let image = NSImage(named: NSImage.Name("BacktickStatusMark")) {
+            image.isTemplate = true
+            image.size = NSSize(width: 18, height: 18)
+            return image
+        }
+
+        return NSImage(
+            systemSymbolName: "quote.opening",
+            accessibilityDescription: "Backtick"
+        )
     }
 
     @objc private func handleQuickCapture() {

@@ -39,6 +39,7 @@ let package = Package(
                 ".github",
                 ".swiftpm",
                 "AGENTS.md",
+                "Backtick_thick.svg",
                 "CLAUDE.md",
                 "Config",
                 "PromptCue.xcodeproj",

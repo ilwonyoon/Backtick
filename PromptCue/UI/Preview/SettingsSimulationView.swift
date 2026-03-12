@@ -14,7 +14,7 @@ struct SettingsSimulationView: View {
     private struct SidebarEntry: Identifiable {
         let page: Page?
         let title: String
-        let systemImage: String
+        let icon: SettingsSidebarIcon
         let color: Color
 
         var id: String { title }
@@ -54,10 +54,10 @@ struct SettingsSimulationView: View {
     @State private var selectedPage: Page = .general
 
     private let sidebarEntries: [SidebarEntry] = [
-        .init(page: .general, title: "General", systemImage: "gearshape.fill", color: Color(nsColor: .systemGray)),
-        .init(page: .capture, title: "Capture", systemImage: "rectangle.dashed", color: Color(nsColor: .systemPurple)),
-        .init(page: .stack, title: "Stack", systemImage: "shippingbox.fill", color: Color(nsColor: .systemOrange)),
-        .init(page: nil, title: "Connectors", systemImage: "link", color: Color(nsColor: .systemBlue)),
+        .init(page: .general, title: "General", icon: .asset("BacktickSidebarMark"), color: Color(nsColor: .systemGray)),
+        .init(page: .capture, title: "Capture", icon: .system("rectangle.dashed"), color: Color(nsColor: .systemPurple)),
+        .init(page: .stack, title: "Stack", icon: .system("square.stack.3d.up.fill"), color: Color(nsColor: .systemOrange)),
+        .init(page: nil, title: "Connectors", icon: .system("link"), color: Color(nsColor: .systemBlue)),
     ]
 
     var body: some View {
@@ -123,7 +123,7 @@ struct SettingsSimulationView: View {
                 ForEach(sidebarEntries) { entry in
                     SettingsSidebarItem(
                         title: entry.title,
-                        systemImage: entry.systemImage,
+                        icon: entry.icon,
                         iconFill: entry.color,
                         isSelected: entry.page == selectedPage,
                         action: entry.page == nil ? nil : { selectedPage = entry.page! }

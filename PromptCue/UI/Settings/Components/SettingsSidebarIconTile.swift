@@ -1,7 +1,12 @@
 import SwiftUI
 
+enum SettingsSidebarIcon: Equatable {
+    case system(String)
+    case asset(String)
+}
+
 struct SettingsSidebarIconTile: View {
-    let systemImage: String
+    let icon: SettingsSidebarIcon
     let fill: Color
 
     var body: some View {
@@ -61,13 +66,28 @@ struct SettingsSidebarIconTile: View {
             }
             .shadow(color: Color.black.opacity(0.14), radius: 1.5, x: 0, y: 0.75)
 
-            Image(systemName: systemImage)
-                .font(.system(size: SettingsTokens.Layout.sidebarIconGlyphSize, weight: .semibold))
-                .foregroundStyle(Color.white)
+            iconImage
         }
         .frame(
             width: SettingsTokens.Layout.sidebarIconSize,
             height: SettingsTokens.Layout.sidebarIconSize
         )
+    }
+
+    @ViewBuilder
+    private var iconImage: some View {
+        switch icon {
+        case .system(let systemImage):
+            Image(systemName: systemImage)
+                .font(.system(size: SettingsTokens.Layout.sidebarIconGlyphSize, weight: .semibold))
+                .foregroundStyle(Color.white)
+        case .asset(let assetName):
+            Image(assetName)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(Color.white)
+                .padding(4)
+        }
     }
 }

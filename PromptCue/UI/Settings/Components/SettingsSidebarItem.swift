@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsSidebarItem: View {
     let title: String
-    let systemImage: String
+    let icon: SettingsSidebarIcon
     let iconFill: Color
     var isSelected: Bool = false
     var usesManualSelection: Bool = true
@@ -65,7 +65,7 @@ struct SettingsSidebarItem: View {
     private var rowContent: some View {
         HStack(spacing: SettingsTokens.Layout.sidebarIconTextSpacing) {
             SettingsSidebarIconTile(
-                systemImage: systemImage,
+                icon: icon,
                 fill: iconFill
             )
 
