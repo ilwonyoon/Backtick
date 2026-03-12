@@ -40,10 +40,10 @@ enum MCPPromptCatalog {
 
     static let triage = MCPPromptTemplate(
         name: "triage",
-        description: "Classify and group Stack notes by function, intent, and difficulty.",
+        description: "Classify, group, and plan execution for Stack notes with safety checks.",
         arguments: sharedArguments,
         bodyTemplate: """
-        You are a senior engineering triage analyst.
+        You are a senior engineering triage analyst. Your job is to organize raw notes into safe, reviewable execution groups — not to execute anything.
 
         ## Notes to classify
 
@@ -53,20 +53,68 @@ enum MCPPromptCatalog {
         Repository: {repositoryName}
         Branch: {branch}
 
-        ## Instructions
+        ## Classification Rules
 
-        1. Classify each note by function/intent (bug fix, feature, refactor, config, docs, test).
-        2. Group related notes that should be addressed together.
-           - Same intent but different modules = separate groups.
-           - User should understand the group just from the title.
-        3. For each group provide:
-           - Title (clear, specific to module + problem)
-           - Difficulty: trivial | easy | medium | hard | complex
-           - Scope: single-file | multi-file | cross-module
-        4. Suggest execution order (easy first, dependencies respected).
-        5. Flag ambiguous notes needing clarification.
+        1. **Group by functional surface**, not just intent. Same intent (e.g. "bug fix") but different modules = separate groups. User should understand the group just from the title.
+        2. **Assign a group type** to each group:
+           - `implement` — clear task, ready to execute
+           - `investigate` — needs exploration before action
+           - `refine` — existing work needs iteration
+           - `follow-up` — depends on another group completing first
+           - `decision-needed` — ambiguous, requires user input before proceeding
+        3. **Do NOT over-interpret notes.** If a note is exploratory, speculative, or ambiguous, classify it as `investigate` or `decision-needed`. Never promote a vague thought into a definitive `implement` task.
+        4. **Assign confidence** (high / medium / low) to each group. Low confidence = auto-execution forbidden.
 
-        Return structured JSON: groups array with title, difficulty, scope, noteIDs, executionOrder, rationale.
+        ## Priority & Ordering
+
+        Assign a shallow priority tier to each group:
+        - `must_do_now` — blocking, urgent, or prerequisite for others
+        - `should_do` — valuable, clear, not blocking
+        - `later` — nice to have, exploratory, or waiting on decisions
+
+        Suggest execution order: must_do_now first, then should_do by ascending difficulty, then later. Respect dependencies between groups.
+
+        ## Execution Topology
+
+        For each group, assess:
+        - **Surface overlap**: does this group touch the same files/modules as another group?
+        - **Dependency**: does this group depend on another completing first?
+        - **Branch strategy**: `same-branch` (tiny, same flow) | `separate-branch` (independent, reviewable) | `separate-worktree` (parallel, needs isolation) | `must-serialize` (strict ordering required)
+        - **Merge order**: independent | merge-after-group-X
+        - **Commit checkpoints**: suggested commit boundaries within the group
+
+        Only recommend `separate-worktree` for high-risk parallel work. Default to `separate-branch`.
+
+        ## Output Format
+
+        Return structured JSON:
+        ```json
+        {
+          "groups": [
+            {
+              "title": "string — clear, specific to module + problem",
+              "type": "implement | investigate | refine | follow-up | decision-needed",
+              "confidence": "high | medium | low",
+              "priority": "must_do_now | should_do | later",
+              "difficulty": "trivial | easy | medium | hard | complex",
+              "scope": "single-file | multi-file | cross-module",
+              "noteIDs": ["uuid", ...],
+              "sourceExcerpts": ["first 80 chars of each source note..."],
+              "rationale": "why these notes belong together",
+              "executionOrder": 1,
+              "topology": {
+                "branchStrategy": "same-branch | separate-branch | separate-worktree | must-serialize",
+                "dependsOn": null,
+                "mergeOrder": "independent | merge-after-group-X",
+                "surfaceOverlap": ["group titles that touch same files"],
+                "commitCheckpoints": ["step1", "step2"]
+              }
+            }
+          ],
+          "ungrouped": ["noteIDs that don't fit any group"],
+          "warnings": ["any ambiguities or risks detected"]
+        }
+        ```
         """
     )
 

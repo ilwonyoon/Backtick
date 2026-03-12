@@ -12,7 +12,7 @@ struct StackGroupRequest: Equatable, Sendable {
         sourceNoteIDs: [UUID],
         title: String,
         separator: String = "---",
-        archiveSources: Bool = true,
+        archiveSources: Bool = false,
         sessionID: String? = nil
     ) {
         self.sourceNoteIDs = sourceNoteIDs

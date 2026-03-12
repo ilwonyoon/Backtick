@@ -345,7 +345,7 @@ final class BacktickMCPServerSession {
                         ],
                         "archiveSources": [
                             "type": "boolean",
-                            "description": "Mark source notes as executed (copied). Default: true.",
+                            "description": "Mark source notes as executed (copied). Default: false. Only set true at actual execution start, not during grouping or planning.",
                         ],
                         "sessionID": [
                             "type": ["string", "null"],
@@ -524,7 +524,7 @@ final class BacktickMCPServerSession {
         let title = try requiredString(arguments, key: "title")
         let separatorRaw = try parseOptionalString(arguments["separator"])
         let separator = separatorRaw ?? "---"
-        let archiveSources = (arguments["archiveSources"] as? Bool) ?? true
+        let archiveSources = (arguments["archiveSources"] as? Bool) ?? false
         let sessionID = try parseOptionalString(arguments["sessionID"])
 
         let result = try groupService.groupNotes(

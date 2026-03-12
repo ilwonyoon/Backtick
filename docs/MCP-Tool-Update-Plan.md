@@ -10,39 +10,75 @@ BacktickMCP 서버에 2개 신규 도구(`classify_notes`, `group_notes`)와 MCP
 
 ```
 노트 쌓임 → classify_notes(scope: "active", 1차 메타데이터 분류)
-         → LLM이 triage 템플릿으로 의미 기반 2차 분류 + 난이도 태깅
-         → 사용자 confirm (분류 결과)
+         → triage 템플릿으로 의미 기반 2차 분류
+           - 그룹 타입 (implement/investigate/refine/follow-up/decision-needed)
+           - confidence 스코어링 (high/medium/low)
+           - 우선순위 (must_do_now/should_do/later)
+           - execution topology (branch/worktree/commit/merge 가이드)
+         → ⚠️ 사용자 confirm (분류 + topology 결과)
          → 난이도별 단계적 실행 (아래 참고)
 ```
+
+### 안전 설계 원칙
+
+1. **grouping은 항상 제안 (suggestion)** — 사용자가 확인 전까지 확정 아님
+2. **copied는 실행 시작 시에만** — plan/preview/confirm 단계에서는 절대 copied 처리하지 않음 (group_notes의 archiveSources 기본값 = false)
+3. **과한 의도 추론 금지** — 불확실한 노트는 `investigate` 또는 `decision-needed`로 보수적 분류
+4. **confidence gate** — low confidence 그룹은 자동 실행 금지
+5. **sequential checkpoints** — 외부는 auto-run처럼 보여도 내부는 그룹별 validate → next
+6. **source traceability** — 어떤 raw notes로 무엇을 실행했는지 항상 추적 가능
+
+### 상태 전이 (내부)
+
+```
+active → grouped → planned → confirmed → executing → copied
+                                                   ↘ execution_failed (copied 유지, 이벤트 기록)
+```
+
+- preview = copied 아님
+- confirm = copied 아님
+- actual execution start = copied (mark_notes_executed 호출)
 
 ### 실행 전략: 난이도별 단계적 처리
 
 한큐에 모든 그룹을 처리하지 않는다. 난이도별로 사용자 확인 구간을 둔다.
 
 ```
-[trivial/easy 그룹들]
-  → group_notes → structured prompt → 실행
+[trivial/easy — must_do_now 우선]
+  → group_notes(archiveSources: false) → structured prompt → 실행
+  → mark_notes_executed (실행 시작 시점에 copied)
   → ⚠️ 사용자 결과 확인
   → confirm 후 다음 단계
 
-[medium 그룹들]
-  → group_notes → structured prompt → 실행
+[medium — should_do]
+  → group_notes(archiveSources: false) → structured prompt → 실행
+  → mark_notes_executed
   → ⚠️ 사용자 결과 확인
   → confirm 후 다음 단계
 
-[hard/complex 그룹들]
-  → group_notes → structured prompt (plan/diagnose 우선)
+[hard/complex — 또는 investigate/decision-needed]
+  → group_notes(archiveSources: false) → plan/diagnose 먼저
   → ⚠️ 사용자가 계획/진단 결과 검토
-  → confirm 후 실행
+  → confirm 후 실행 → mark_notes_executed
   → ⚠️ 사용자 결과 확인
 ```
 
+### Execution Topology 가이드
+
+triage 결과에 각 그룹별 topology 포함:
+
+| 전략 | 조건 | 예시 |
+|------|------|------|
+| `same-branch` | 아주 작은 후속 수정, 동일 흐름 | typo fix, 같은 기능 내 polish |
+| `separate-branch` | 독립 구현, 리뷰/머지 단위 분리 필요 (기본값) | 기능별 구현 |
+| `separate-worktree` | 병렬 진행, 파일 충돌 가능, 격리 필요 | 고위험 병렬 작업 |
+| `must-serialize` | 선행/후행 의존성 큼 | 구조 변경 후 후속 작업 |
+
 **원칙:**
-- 쉬운 것부터 처리해서 빠른 진척 확보
-- 난이도가 올라갈수록 사용자 확인 빈도 증가
-- hard/complex는 실행 전에 plan 또는 diagnose를 먼저 거침
-- 각 단계 결과를 사용자가 확인한 후에야 다음 단계 진행
-- LLM이 자율적으로 전체를 끝내려 하지 않음
+- worktree는 high-risk/high-parallel에서만
+- surface overlap 높으면 직렬화 우선
+- Backtick은 Git을 관리하지 않고 topology-aware guidance만 제공
+- 각 그룹에 commit checkpoints 제안 (baseline → implementation → validation)
 
 ---
 

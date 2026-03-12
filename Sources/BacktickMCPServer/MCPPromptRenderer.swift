@@ -19,11 +19,28 @@ enum MCPPromptRenderer {
             }
         }
 
-        var result = template.bodyTemplate
-        for argument in template.arguments {
-            let placeholder = "{\(argument.name)}"
-            let replacement = arguments[argument.name] ?? "(not specified)"
-            result = result.replacingOccurrences(of: placeholder, with: replacement)
+        let templateBody = template.bodyTemplate
+        let placeholderPattern = #"\{([A-Za-z0-9_]+)\}"#
+        let placeholderRegex = try NSRegularExpression(pattern: placeholderPattern)
+        let placeholderMatches = placeholderRegex.matches(
+            in: templateBody,
+            range: NSRange(templateBody.startIndex..., in: templateBody)
+        )
+
+        var result = templateBody
+        for match in placeholderMatches.reversed() {
+            guard let placeholderRange = Range(match.range(at: 0), in: result),
+                  let nameRange = Range(match.range(at: 1), in: templateBody) else {
+                continue
+            }
+
+            let name = String(templateBody[nameRange])
+            guard knownNames.contains(name) else {
+                continue
+            }
+
+            let replacement = arguments[name] ?? "(not specified)"
+            result.replaceSubrange(placeholderRange, with: replacement)
         }
 
         return result
