@@ -82,9 +82,11 @@ final class AppModel: ObservableObject {
     private let attachmentStore: AttachmentStoring
     private let recentScreenshotCoordinator: RecentScreenshotCoordinating
     private let suggestedTargetProvider: any SuggestedTargetProviding
+    private let cleanupInterval: TimeInterval
     private var cloudSyncEngine: (any CloudSyncControlling)?
     private var cleanupTimer: Timer?
     private var captureSubmissionTask: Task<Bool, Never>?
+    private var retentionSettingsObserver: NSObjectProtocol?
     private var syncToggleObserver: NSObjectProtocol?
     private var deferredStartupMaintenanceTask: Task<Void, Never>?
     private var deferredCloudSyncFetchTask: Task<Void, Never>?
@@ -97,13 +99,15 @@ final class AppModel: ObservableObject {
         attachmentStore: AttachmentStoring,
         recentScreenshotCoordinator: RecentScreenshotCoordinating,
         suggestedTargetProvider: (any SuggestedTargetProviding)? = nil,
-        cloudSyncEngine: (any CloudSyncControlling)? = nil
+        cloudSyncEngine: (any CloudSyncControlling)? = nil,
+        cleanupInterval: TimeInterval = 60
     ) {
         self.cardStore = cardStore
         self.attachmentStore = attachmentStore
         self.recentScreenshotCoordinator = recentScreenshotCoordinator
         self.suggestedTargetProvider = suggestedTargetProvider ?? NoopSuggestedTargetProvider()
         self.cloudSyncEngine = cloudSyncEngine
+        self.cleanupInterval = cleanupInterval
         self.suggestedTargetProvider.onChange = { [weak self] in
             Task { @MainActor [weak self] in
                 self?.syncAvailableSuggestedTargets()
@@ -213,6 +217,15 @@ final class AppModel: ObservableObject {
     func start(startupMode: AppStartupMode = .immediateMaintenance) {
         suggestedTargetProvider.start()
         syncAvailableSuggestedTargets()
+        retentionSettingsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshCleanupTimer()
+            }
+        }
         recentScreenshotCoordinator.onStateChange = { [weak self] state in
             Task { @MainActor [weak self] in
                 self?.applyRecentScreenshotState(state)
@@ -221,11 +234,7 @@ final class AppModel: ObservableObject {
         recentScreenshotCoordinator.start()
         applyRecentScreenshotState(recentScreenshotCoordinator.state)
         reloadCards(runNonCriticalMaintenance: startupMode == .immediateMaintenance)
-        cleanupTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.purgeExpiredCards()
-            }
-        }
+        refreshCleanupTimer()
         if startupMode == .deferredMaintenance {
             scheduleDeferredStartupMaintenance()
         }
@@ -244,6 +253,10 @@ final class AppModel: ObservableObject {
         pendingRemoteChanges.removeAll()
         cleanupTimer?.invalidate()
         cleanupTimer = nil
+        if let retentionSettingsObserver {
+            NotificationCenter.default.removeObserver(retentionSettingsObserver)
+        }
+        retentionSettingsObserver = nil
         suggestedTargetProvider.stop()
         recentScreenshotCoordinator.onStateChange = nil
         recentScreenshotCoordinator.stop()
@@ -297,6 +310,7 @@ final class AppModel: ObservableObject {
         draftSuggestedTargetOverride = nil
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
+        recentScreenshotCoordinator.endCaptureSession()
         syncRecentScreenshotState()
     }
 
@@ -898,6 +912,25 @@ final class AppModel: ObservableObject {
         migrateLegacyExternalAttachmentsIfNeeded()
         purgeExpiredCards()
         pruneOrphanedManagedAttachments()
+    }
+
+    private func refreshCleanupTimer() {
+        guard cleanupInterval > 0, CardRetentionPreferences.load().effectiveTTL != nil else {
+            cleanupTimer?.invalidate()
+            cleanupTimer = nil
+            return
+        }
+
+        guard cleanupTimer == nil else {
+            return
+        }
+
+        cleanupTimer = Timer.scheduledTimer(withTimeInterval: cleanupInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.purgeExpiredCards()
+            }
+        }
+        cleanupTimer?.tolerance = min(cleanupInterval * 0.25, 15)
     }
 
     private func scheduleDeferredStartupMaintenance() {

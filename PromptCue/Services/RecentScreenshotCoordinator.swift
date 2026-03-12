@@ -34,6 +34,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     private var scanInFlight = false
     private var pendingScanReferenceDate: Date?
     private var pendingPreviewCacheRequest: PendingPreviewCacheRequest?
+    private var isCaptureSessionMonitoringActive = false
 
     init(
         observer: RecentScreenshotObserving? = nil,
@@ -68,8 +69,6 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
 
         try? cache.clear()
         clipboardProvider.start()
-        observer.start()
-        refreshState()
     }
 
     func stop() {
@@ -79,8 +78,10 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
 
         observer.onChange = nil
         observer.stop()
+        clipboardProvider.setMonitoringActive(false)
         clipboardProvider.stop()
         isStarted = false
+        isCaptureSessionMonitoringActive = false
 
         settleTimer?.invalidate()
         settleTimer = nil
@@ -100,9 +101,18 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     }
 
     func prepareForCaptureSession() {
+        setCaptureSessionMonitoringActive(true)
         clipboardProvider.refreshNow()
         refreshState(allowSynchronousSignalProbe: true)
         scheduleSettlePolling()
+    }
+
+    func endCaptureSession() {
+        guard isStarted else {
+            return
+        }
+
+        setCaptureSessionMonitoringActive(false)
     }
 
     func refreshNow() {
@@ -196,6 +206,29 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
 
         refreshState()
         scheduleSettlePolling()
+    }
+
+    private func setCaptureSessionMonitoringActive(_ isActive: Bool) {
+        guard isCaptureSessionMonitoringActive != isActive else {
+            return
+        }
+
+        isCaptureSessionMonitoringActive = isActive
+        clipboardProvider.setMonitoringActive(isActive)
+
+        if isActive {
+            observer.start()
+            return
+        }
+
+        observer.stop()
+        pendingScanReferenceDate = nil
+        pendingPreviewCacheRequest = nil
+        scanGeneration &+= 1
+        previewGeneration &+= 1
+        scanInFlight = false
+        invalidateTimers()
+        state = .idle
     }
 
     private func refreshState(allowSynchronousSignalProbe: Bool = false) {

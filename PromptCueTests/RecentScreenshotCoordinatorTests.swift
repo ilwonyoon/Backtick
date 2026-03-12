@@ -52,6 +52,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         var states: [RecentScreenshotState] = []
         coordinator.onStateChange = { states.append($0) }
         coordinator.start()
+        coordinator.prepareForCaptureSession()
 
         let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-07 at 10.00.00.png")
         try Data().write(to: screenshotURL)
@@ -118,6 +119,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         )
 
         coordinator.start()
+        coordinator.prepareForCaptureSession()
 
         let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-07 at 10.08.00.png")
         try Data("png".utf8).write(to: screenshotURL)
@@ -251,6 +253,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         )
 
         coordinator.start()
+        coordinator.prepareForCaptureSession()
         let screenshotURL = secondScreenshotsURL.appendingPathComponent("Screenshot 2026-03-07 at 10.12.35 PM.png")
         try Data("png".utf8).write(to: screenshotURL)
 
@@ -349,6 +352,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         )
 
         coordinator.start()
+        coordinator.prepareForCaptureSession()
 
         let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-07 at 10.05.00.png")
         try Data("png".utf8).write(to: screenshotURL)
@@ -429,6 +433,40 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .idle)
     }
 
+    func testMonitoringStartsOnlyDuringCaptureSession() {
+        let observer = TestRecentScreenshotObserver()
+        let clipboardProvider = CountingClipboardImageProvider()
+        let coordinator = RecentScreenshotCoordinator(
+            observer: observer,
+            locator: DelayedSignalProbeLocator(
+                fullScanDelay: 0,
+                signalResult: .init(signalCandidate: nil, readableCandidate: nil),
+                fullResult: .init(signalCandidate: nil, readableCandidate: nil)
+            ),
+            cache: TransientScreenshotCache(baseDirectoryURL: tempDirectoryURL.appendingPathComponent("TransientScreenshots")),
+            clipboardProvider: clipboardProvider,
+            maxAge: 30,
+            settleGrace: 0.2
+        )
+
+        coordinator.start()
+
+        XCTAssertEqual(observer.startCallCount, 0)
+        XCTAssertEqual(observer.stopCallCount, 0)
+        XCTAssertEqual(clipboardProvider.monitoringTransitions, [])
+
+        coordinator.prepareForCaptureSession()
+
+        XCTAssertEqual(observer.startCallCount, 1)
+        XCTAssertEqual(clipboardProvider.monitoringTransitions, [true])
+
+        coordinator.endCaptureSession()
+
+        XCTAssertEqual(observer.stopCallCount, 1)
+        XCTAssertEqual(clipboardProvider.monitoringTransitions, [true, false])
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
     private func drainMainQueue(seconds: TimeInterval = 0.05) {
         RunLoop.main.run(until: Date().addingTimeInterval(seconds))
     }
@@ -478,10 +516,25 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 private final class TestRecentScreenshotObserver: RecentScreenshotObserving {
     var onChange: ((RecentScreenshotObservationEvent) -> Void)?
 
-    func start() {}
-    func stop() {}
+    private(set) var startCallCount = 0
+    private(set) var stopCallCount = 0
+    private var isStarted = false
+
+    func start() {
+        isStarted = true
+        startCallCount += 1
+    }
+
+    func stop() {
+        isStarted = false
+        stopCallCount += 1
+    }
 
     func signalChange(_ event: RecentScreenshotObservationEvent) {
+        guard isStarted else {
+            return
+        }
+
         onChange?(event)
     }
 }
@@ -490,6 +543,21 @@ private final class TestRecentScreenshotObserver: RecentScreenshotObserving {
 private final class NilClipboardImageProvider: RecentClipboardImageProviding {
     func start() {}
     func stop() {}
+    func refreshNow() {}
+    func recentImage(referenceDate: Date, maxAge: TimeInterval) -> RecentClipboardImage? { nil }
+    func consumeCurrent() {}
+    func dismissCurrent() {}
+}
+
+@MainActor
+private final class CountingClipboardImageProvider: RecentClipboardImageProviding {
+    private(set) var monitoringTransitions: [Bool] = []
+
+    func start() {}
+    func stop() {}
+    func setMonitoringActive(_ isActive: Bool) {
+        monitoringTransitions.append(isActive)
+    }
     func refreshNow() {}
     func recentImage(referenceDate: Date, maxAge: TimeInterval) -> RecentClipboardImage? { nil }
     func consumeCurrent() {}

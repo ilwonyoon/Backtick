@@ -74,6 +74,7 @@ protocol RecentScreenshotCoordinating: AnyObject {
     func start()
     func stop()
     func prepareForCaptureSession()
+    func endCaptureSession()
     func refreshNow()
     func resolveCurrentCaptureAttachment(timeout: TimeInterval) async -> URL?
     func consumeCurrent()
@@ -81,6 +82,8 @@ protocol RecentScreenshotCoordinating: AnyObject {
 }
 
 extension RecentScreenshotCoordinating {
+    func endCaptureSession() {}
+
     func resolveCurrentCaptureAttachment(timeout: TimeInterval) async -> URL? {
         switch state {
         case .previewReady(_, let cacheURL, _):
