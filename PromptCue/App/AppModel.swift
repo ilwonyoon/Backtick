@@ -82,9 +82,15 @@ final class AppModel: ObservableObject {
     private let attachmentStore: AttachmentStoring
     private let recentScreenshotCoordinator: RecentScreenshotCoordinating
     private let suggestedTargetProvider: any SuggestedTargetProviding
+    private let cleanupInterval: TimeInterval
     private var cloudSyncEngine: (any CloudSyncControlling)?
     private var cleanupTimer: Timer?
     private var captureSubmissionTask: Task<Bool, Never>?
+    private var hasStartedSuggestedTargetProvider = false
+    private var hasStartedRecentScreenshotCoordinator = false
+    private var isCaptureSuggestedTargetPresentationActive = false
+    private var isStackSuggestedTargetPresentationActive = false
+    private var retentionSettingsObserver: NSObjectProtocol?
     private var syncToggleObserver: NSObjectProtocol?
     private var deferredStartupMaintenanceTask: Task<Void, Never>?
     private var deferredCloudSyncFetchTask: Task<Void, Never>?
@@ -97,13 +103,15 @@ final class AppModel: ObservableObject {
         attachmentStore: AttachmentStoring,
         recentScreenshotCoordinator: RecentScreenshotCoordinating,
         suggestedTargetProvider: (any SuggestedTargetProviding)? = nil,
-        cloudSyncEngine: (any CloudSyncControlling)? = nil
+        cloudSyncEngine: (any CloudSyncControlling)? = nil,
+        cleanupInterval: TimeInterval = 60
     ) {
         self.cardStore = cardStore
         self.attachmentStore = attachmentStore
         self.recentScreenshotCoordinator = recentScreenshotCoordinator
         self.suggestedTargetProvider = suggestedTargetProvider ?? NoopSuggestedTargetProvider()
         self.cloudSyncEngine = cloudSyncEngine
+        self.cleanupInterval = cleanupInterval
         self.suggestedTargetProvider.onChange = { [weak self] in
             Task { @MainActor [weak self] in
                 self?.syncAvailableSuggestedTargets()
@@ -137,7 +145,11 @@ final class AppModel: ObservableObject {
     }
 
     var automaticSuggestedTarget: CaptureSuggestedTarget? {
-        suggestedTargetProvider.currentFreshSuggestedTarget(
+        guard hasStartedSuggestedTargetProvider else {
+            return nil
+        }
+
+        return suggestedTargetProvider.currentFreshSuggestedTarget(
             relativeTo: Date(),
             freshness: AppUIConstants.suggestedTargetFreshness
         )
@@ -211,21 +223,23 @@ final class AppModel: ObservableObject {
     }
 
     func start(startupMode: AppStartupMode = .immediateMaintenance) {
-        suggestedTargetProvider.start()
-        syncAvailableSuggestedTargets()
+        retentionSettingsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshCleanupTimer()
+            }
+        }
         recentScreenshotCoordinator.onStateChange = { [weak self] state in
             Task { @MainActor [weak self] in
                 self?.applyRecentScreenshotState(state)
             }
         }
-        recentScreenshotCoordinator.start()
         applyRecentScreenshotState(recentScreenshotCoordinator.state)
         reloadCards(runNonCriticalMaintenance: startupMode == .immediateMaintenance)
-        cleanupTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.purgeExpiredCards()
-            }
-        }
+        refreshCleanupTimer()
         if startupMode == .deferredMaintenance {
             scheduleDeferredStartupMaintenance()
         }
@@ -244,9 +258,18 @@ final class AppModel: ObservableObject {
         pendingRemoteChanges.removeAll()
         cleanupTimer?.invalidate()
         cleanupTimer = nil
-        suggestedTargetProvider.stop()
+        if let retentionSettingsObserver {
+            NotificationCenter.default.removeObserver(retentionSettingsObserver)
+        }
+        retentionSettingsObserver = nil
+        isCaptureSuggestedTargetPresentationActive = false
+        isStackSuggestedTargetPresentationActive = false
+        stopSuggestedTargetProvider()
         recentScreenshotCoordinator.onStateChange = nil
-        recentScreenshotCoordinator.stop()
+        if hasStartedRecentScreenshotCoordinator {
+            recentScreenshotCoordinator.stop()
+            hasStartedRecentScreenshotCoordinator = false
+        }
         applyRecentScreenshotState(.idle)
         availableSuggestedTargets = []
         draftSuggestedTargetOverride = nil
@@ -283,7 +306,10 @@ final class AppModel: ObservableObject {
         draftSuggestedTargetOverride = nil
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
+        isCaptureSuggestedTargetPresentationActive = true
+        refreshSuggestedTargetProviderLifecycle()
         refreshAvailableSuggestedTargets()
+        ensureRecentScreenshotCoordinatorStarted()
         recentScreenshotCoordinator.prepareForCaptureSession()
         syncRecentScreenshotState()
     }
@@ -297,15 +323,30 @@ final class AppModel: ObservableObject {
         draftSuggestedTargetOverride = nil
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
+        isCaptureSuggestedTargetPresentationActive = false
+        refreshSuggestedTargetProviderLifecycle()
+        recentScreenshotCoordinator.endCaptureSession()
         syncRecentScreenshotState()
     }
 
+    func beginStackSuggestedTargetPresentation() {
+        isStackSuggestedTargetPresentationActive = true
+        refreshSuggestedTargetProviderLifecycle()
+    }
+
+    func endStackSuggestedTargetPresentation() {
+        isStackSuggestedTargetPresentationActive = false
+        refreshSuggestedTargetProviderLifecycle()
+    }
+
     func refreshPendingScreenshot() {
+        ensureRecentScreenshotCoordinatorStarted()
         recentScreenshotCoordinator.prepareForCaptureSession()
         syncRecentScreenshotState()
     }
 
     func refreshAvailableSuggestedTargets() {
+        ensureSuggestedTargetProviderStarted()
         suggestedTargetProvider.refreshAvailableSuggestedTargets()
         syncAvailableSuggestedTargets()
     }
@@ -898,6 +939,67 @@ final class AppModel: ObservableObject {
         migrateLegacyExternalAttachmentsIfNeeded()
         purgeExpiredCards()
         pruneOrphanedManagedAttachments()
+    }
+
+    private func refreshCleanupTimer() {
+        guard cleanupInterval > 0, CardRetentionPreferences.load().effectiveTTL != nil else {
+            cleanupTimer?.invalidate()
+            cleanupTimer = nil
+            return
+        }
+
+        guard cleanupTimer == nil else {
+            return
+        }
+
+        cleanupTimer = Timer.scheduledTimer(withTimeInterval: cleanupInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.purgeExpiredCards()
+            }
+        }
+        cleanupTimer?.tolerance = min(cleanupInterval * 0.25, 15)
+    }
+
+    private func ensureRecentScreenshotCoordinatorStarted() {
+        guard !hasStartedRecentScreenshotCoordinator else {
+            return
+        }
+
+        recentScreenshotCoordinator.start()
+        hasStartedRecentScreenshotCoordinator = true
+        applyRecentScreenshotState(recentScreenshotCoordinator.state)
+    }
+
+    private func ensureSuggestedTargetProviderStarted() {
+        guard !hasStartedSuggestedTargetProvider else {
+            return
+        }
+
+        suggestedTargetProvider.start()
+        hasStartedSuggestedTargetProvider = true
+        syncAvailableSuggestedTargets()
+    }
+
+    private func refreshSuggestedTargetProviderLifecycle() {
+        guard isCaptureSuggestedTargetPresentationActive || isStackSuggestedTargetPresentationActive else {
+            stopSuggestedTargetProvider()
+            return
+        }
+
+        ensureSuggestedTargetProviderStarted()
+    }
+
+    private func stopSuggestedTargetProvider() {
+        guard hasStartedSuggestedTargetProvider else {
+            availableSuggestedTargets = []
+            syncCaptureSuggestedTargetSelection()
+            return
+        }
+
+        suggestedTargetProvider.stop()
+        hasStartedSuggestedTargetProvider = false
+        availableSuggestedTargets = []
+        syncCaptureSuggestedTargetSelection()
     }
 
     private func scheduleDeferredStartupMaintenance() {

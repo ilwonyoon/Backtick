@@ -6,6 +6,7 @@ import PromptCueCore
 @MainActor
 final class AppStartupPerformanceTests: XCTestCase {
     private var tempDirectoryURL: URL!
+    private var originalRetentionState: CardRetentionState!
     private let fixtureCardCount = 600
     private let benchmarkRunEnabled: Bool = {
 #if PROMPTCUE_RUN_PERF_BENCHMARKS
@@ -26,12 +27,18 @@ final class AppStartupPerformanceTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
+        originalRetentionState = CardRetentionPreferences.load()
+        CardRetentionPreferences.save(CardRetentionState(isAutoExpireEnabled: false))
         tempDirectoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true)
     }
 
     override func tearDownWithError() throws {
+        if let originalRetentionState {
+            CardRetentionPreferences.save(originalRetentionState)
+        }
+        originalRetentionState = nil
         if let tempDirectoryURL, FileManager.default.fileExists(atPath: tempDirectoryURL.path) {
             try FileManager.default.removeItem(at: tempDirectoryURL)
         }
@@ -55,6 +62,55 @@ final class AppStartupPerformanceTests: XCTestCase {
 
         XCTAssertEqual(attachmentStore.pruneCallCount, 1)
         model.stop()
+    }
+
+    func testCleanupTimerRemainsIdleWhenTTLIsDisabled() throws {
+        let (model, _) = try makeModel(
+            pruneDelayNanoseconds: 0,
+            cleanupInterval: 0.02,
+            databaseLabel: "cleanup-disabled"
+        )
+        defer { model.stop() }
+
+        model.start(startupMode: .deferredMaintenance)
+        drainMainQueue(seconds: 0.08)
+
+        XCTAssertEqual(model.cards.count, fixtureCardCount)
+    }
+
+    func testCleanupTimerPurgesExpiredCardsWhenTTLEnabled() throws {
+        CardRetentionPreferences.save(CardRetentionState(isAutoExpireEnabled: true))
+
+        let (model, _) = try makeModel(
+            pruneDelayNanoseconds: 0,
+            cleanupInterval: 0.02,
+            databaseLabel: "cleanup-enabled"
+        )
+        defer { model.stop() }
+
+        model.start(startupMode: .deferredMaintenance)
+        drainMainQueue(seconds: 0.08)
+
+        XCTAssertTrue(model.cards.isEmpty)
+    }
+
+    func testCleanupTimerRespondsToRetentionPreferenceChanges() throws {
+        let (model, _) = try makeModel(
+            pruneDelayNanoseconds: 0,
+            cleanupInterval: 0.02,
+            databaseLabel: "cleanup-live-toggle"
+        )
+        defer { model.stop() }
+
+        model.start(startupMode: .deferredMaintenance)
+        drainMainQueue(seconds: 0.04)
+        XCTAssertEqual(model.cards.count, fixtureCardCount)
+
+        CardRetentionPreferences.save(CardRetentionState(isAutoExpireEnabled: true))
+        NotificationCenter.default.post(name: UserDefaults.didChangeNotification, object: UserDefaults.standard)
+        drainMainQueue(seconds: 0.08)
+
+        XCTAssertTrue(model.cards.isEmpty)
     }
 
     func testStartupDeferredMaintenanceBenchmark() throws {
@@ -132,6 +188,7 @@ final class AppStartupPerformanceTests: XCTestCase {
 
     private func makeModel(
         pruneDelayNanoseconds: UInt64,
+        cleanupInterval: TimeInterval = 60,
         databaseLabel: String = "PromptCue"
     ) throws -> (AppModel, RecordingAttachmentStore) {
         let databaseURL = tempDirectoryURL.appendingPathComponent("\(databaseLabel).sqlite")
@@ -145,10 +202,15 @@ final class AppStartupPerformanceTests: XCTestCase {
         let model = AppModel(
             cardStore: cardStore,
             attachmentStore: attachmentStore,
-            recentScreenshotCoordinator: StartupRecentScreenshotCoordinator()
+            recentScreenshotCoordinator: StartupRecentScreenshotCoordinator(),
+            cleanupInterval: cleanupInterval
         )
 
         return (model, attachmentStore)
+    }
+
+    private func drainMainQueue(seconds: TimeInterval) {
+        RunLoop.main.run(until: Date().addingTimeInterval(seconds))
     }
 
     private func makeFixtureCards(count: Int) -> [CaptureCard] {

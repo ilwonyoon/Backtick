@@ -166,6 +166,39 @@ final class RecentClipboardImageMonitorTests: XCTestCase {
 
         XCTAssertNil(monitor.recentImage(referenceDate: Date(), maxAge: 30))
     }
+
+    func testPollingOnlyRunsWhileMonitoringIsActive() throws {
+        let pasteboard = TestClipboardPasteboard()
+        let monitor = RecentClipboardImageMonitor(
+            pasteboard: pasteboard,
+            cache: TransientScreenshotCache(baseDirectoryURL: tempDirectoryURL),
+            now: Date.init,
+            pollInterval: 0.01
+        )
+
+        monitor.start()
+        pasteboard.changeCount = 1
+        pasteboard.storage[.png] = Data("png".utf8)
+
+        RunLoop.main.run(until: Date().addingTimeInterval(0.04))
+        XCTAssertNil(monitor.recentImage(referenceDate: Date(), maxAge: 30))
+
+        monitor.setMonitoringActive(true)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.04))
+
+        XCTAssertNotNil(monitor.recentImage(referenceDate: Date(), maxAge: 30))
+
+        monitor.setMonitoringActive(false)
+        pasteboard.changeCount = 2
+        pasteboard.storage[.png] = Data("png2".utf8)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.04))
+
+        guard let image = monitor.recentImage(referenceDate: Date(), maxAge: 30) else {
+            return XCTFail("Expected last active clipboard image to remain cached")
+        }
+
+        XCTAssertEqual(try Data(contentsOf: image.cacheURL), Data("png".utf8))
+    }
 }
 
 private final class TestClipboardPasteboard: ClipboardPasteboardReading {

@@ -19,10 +19,15 @@ struct RecentClipboardImage: Equatable {
 protocol RecentClipboardImageProviding: AnyObject {
     func start()
     func stop()
+    func setMonitoringActive(_ isActive: Bool)
     func refreshNow()
     func recentImage(referenceDate: Date, maxAge: TimeInterval) -> RecentClipboardImage?
     func consumeCurrent()
     func dismissCurrent()
+}
+
+extension RecentClipboardImageProviding {
+    func setMonitoringActive(_ isActive: Bool) {}
 }
 
 protocol ClipboardPasteboardReading {
@@ -52,6 +57,7 @@ final class RecentClipboardImageMonitor: RecentClipboardImageProviding {
     private var ignoredChangeCounts: [Int: Date] = [:]
     private var pollingTimer: Timer?
     private var isStarted = false
+    private var isMonitoringActive = false
 
     init(
         pasteboard: ClipboardPasteboardReading = SystemClipboardPasteboard(),
@@ -72,32 +78,31 @@ final class RecentClipboardImageMonitor: RecentClipboardImageProviding {
 
         isStarted = true
         lastObservedChangeCount = pasteboard.changeCount
-
-        guard pollInterval > 0 else {
-            return
-        }
-
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] timer in
-            Task { @MainActor [weak self] in
-                guard let self else {
-                    timer.invalidate()
-                    return
-                }
-
-                self.refreshNow()
-            }
-        }
+        updatePollingTimerState()
     }
 
     func stop() {
         pollingTimer?.invalidate()
         pollingTimer = nil
         isStarted = false
+        isMonitoringActive = false
 
         clearCurrentImageCache()
         currentImage = nil
         lastObservedChangeCount = nil
         ignoredChangeCounts.removeAll()
+    }
+
+    func setMonitoringActive(_ isActive: Bool) {
+        guard isMonitoringActive != isActive else {
+            return
+        }
+
+        isMonitoringActive = isActive
+        if isActive, lastObservedChangeCount == nil {
+            lastObservedChangeCount = pasteboard.changeCount
+        }
+        updatePollingTimerState()
     }
 
     func refreshNow() {
@@ -117,7 +122,9 @@ final class RecentClipboardImageMonitor: RecentClipboardImageProviding {
 
     func recentImage(referenceDate: Date, maxAge: TimeInterval) -> RecentClipboardImage? {
         purgeIgnoredChangeCounts(referenceDate: referenceDate)
-        refreshNow()
+        if isMonitoringActive {
+            refreshNow()
+        }
 
         guard let currentImage else {
             return nil
@@ -202,6 +209,29 @@ final class RecentClipboardImageMonitor: RecentClipboardImageProviding {
         }
 
         try? cache.removeCachedFile(at: cacheURL)
+    }
+
+    private func updatePollingTimerState() {
+        guard isStarted, isMonitoringActive, pollInterval > 0 else {
+            pollingTimer?.invalidate()
+            pollingTimer = nil
+            return
+        }
+
+        guard pollingTimer == nil else {
+            return
+        }
+
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] timer in
+            Task { @MainActor [weak self] in
+                guard let self, self.isMonitoringActive else {
+                    timer.invalidate()
+                    return
+                }
+
+                self.refreshNow()
+            }
+        }
     }
 }
 
