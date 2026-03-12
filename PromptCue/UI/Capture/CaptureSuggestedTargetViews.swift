@@ -518,15 +518,21 @@ private struct SuggestedTargetControlChrome<Content: View>: View {
             .padding(.vertical, PrimitiveTokens.Space.xxxs + 3)
             .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .leading)
             .background {
-                Capsule(style: .continuous)
+                chromeShape
                     .fill(backgroundFill)
                     .overlay {
-                        Capsule(style: .continuous)
-                            .stroke(borderColor)
+                        chromeShape
+                            .strokeBorder(borderColor, lineWidth: PrimitiveTokens.Stroke.subtle)
                     }
             }
+            .clipShape(chromeShape)
+            .contentShape(chromeShape)
             .frame(width: controlWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: controlWidth == nil ? .leading : .center)
+    }
+
+    private var chromeShape: Capsule {
+        Capsule(style: .continuous)
     }
 }
 
@@ -599,13 +605,27 @@ private struct SuggestedTargetIdentityLine: View {
     }
 
     private var secondaryLabel: String? {
-        guard let target,
-              let shortBranchLabel = target.shortBranchLabel,
-              shortBranchLabel.localizedCaseInsensitiveCompare(target.workspaceLabel) != .orderedSame else {
+        guard let target else {
             return nil
         }
 
-        return shortBranchLabel
+        switch style {
+        case .accessory:
+            guard let shortBranchLabel = target.shortBranchLabel,
+                  shortBranchLabel.localizedCaseInsensitiveCompare(target.workspaceLabel) != .orderedSame else {
+                return nil
+            }
+
+            return shortBranchLabel
+
+        case .chooser:
+            guard let chooserDetailLabel = target.chooserDetailLabel,
+                  chooserDetailLabel.localizedCaseInsensitiveCompare(target.workspaceLabel) != .orderedSame else {
+                return nil
+            }
+
+            return chooserDetailLabel
+        }
     }
 
     private var primaryColor: Color {

@@ -197,6 +197,7 @@ struct PromptCueCoreTests {
         )
 
         #expect(target.workspaceLabel == "Backtick")
+        #expect(target.chooserDetailLabel == "codex")
         #expect(target.chooserSecondaryLabel == "Terminal · codex")
     }
 
@@ -212,7 +213,25 @@ struct PromptCueCoreTests {
 
         #expect(target.workspaceLabel == "Backtick")
         #expect(target.shortBranchLabel == "main")
+        #expect(target.chooserDetailLabel == "main")
         #expect(target.chooserSecondaryLabel == "Cursor · main")
+    }
+
+    @Test
+    func suggestedTargetWorkspaceLabelUsesPathLeafWhenOnlyPathLikeWindowTitleIsAvailable() {
+        let target = makeSuggestedTarget(
+            appName: "Terminal",
+            windowTitle: "~/workspace/PromptCue",
+            sessionIdentifier: "window-7",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil,
+            branch: nil
+        )
+
+        #expect(target.workspaceLabel == "PromptCue")
+        #expect(target.chooserDetailLabel == "~/workspace/PromptCue")
+        #expect(target.chooserSecondaryLabel == "Terminal · ~/workspace/PromptCue")
     }
 
     @Test
@@ -240,6 +259,7 @@ struct PromptCueCoreTests {
         )
 
         #expect(target.workspaceLabel == "PromptCue")
+        #expect(target.chooserDetailLabel == "tab-2")
         #expect(target.chooserSecondaryLabel == "Cursor · tab-2")
     }
 

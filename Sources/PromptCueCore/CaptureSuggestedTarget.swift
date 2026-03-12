@@ -74,6 +74,10 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
             }
         }
 
+        if let pathWorkspaceLabel = Self.pathWorkspaceLabel(from: windowTitle) {
+            return Self.truncate(pathWorkspaceLabel, maxLength: 28)
+        }
+
         if let derivedTitleMetadata = Self.derivedTitleMetadata(from: windowTitle) {
             return Self.truncate(derivedTitleMetadata.workspaceLabel, maxLength: 28)
         }
@@ -157,22 +161,33 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
         return Self.truncate(branchComponent, maxLength: 18)
     }
 
-    public var chooserSecondaryLabel: String {
-        if let shortBranchLabel {
-            return Self.combinedLabel(appName: appName, detail: shortBranchLabel)
+    public var chooserDetailLabel: String? {
+        if let shortBranchLabel,
+           shortBranchLabel.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
+            return shortBranchLabel
         }
 
         if let detail = Self.derivedTitleMetadata(from: windowTitle)?.secondaryDetail,
            detail.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
-            return Self.combinedLabel(appName: appName, detail: detail)
+            return detail
         }
 
-        if let windowTitle, windowTitle != workspaceLabel {
-            return Self.combinedLabel(appName: appName, detail: windowTitle)
+        if let windowTitle,
+           windowTitle.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
+            return windowTitle
         }
 
-        if let sessionIdentifier, sessionIdentifier != workspaceLabel {
-            return Self.combinedLabel(appName: appName, detail: sessionIdentifier)
+        if let sessionIdentifier,
+           sessionIdentifier.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
+            return sessionIdentifier
+        }
+
+        return nil
+    }
+
+    public var chooserSecondaryLabel: String {
+        if let chooserDetailLabel {
+            return Self.combinedLabel(appName: appName, detail: chooserDetailLabel)
         }
 
         return appName
@@ -232,6 +247,28 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
         return trimmed
     }
 
+    private static func pathWorkspaceLabel(from windowTitle: String?) -> String? {
+        guard let trimmedTitle = sanitizedOptional(windowTitle) else {
+            return nil
+        }
+
+        let expandedPath: String
+        if trimmedTitle.hasPrefix("~/") {
+            expandedPath = NSString(string: trimmedTitle).expandingTildeInPath
+        } else if trimmedTitle.hasPrefix("/") {
+            expandedPath = trimmedTitle
+        } else {
+            return nil
+        }
+
+        let leaf = URL(fileURLWithPath: expandedPath).lastPathComponent
+        guard !leaf.isEmpty, leaf != "/" else {
+            return nil
+        }
+
+        return leaf
+    }
+
     private struct DerivedTitleMetadata {
         let workspaceLabel: String
         let secondaryDetail: String?
@@ -266,7 +303,7 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
 
             if isLikelyBranchLabel(left), !isLikelyBranchLabel(right) {
                 return DerivedTitleMetadata(
-                    workspaceLabel: right,
+                    workspaceLabel: normalizedWorkspaceLabel(right),
                     secondaryDetail: nil,
                     branch: left
                 )
@@ -274,7 +311,7 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
 
             if isLikelyBranchLabel(right) {
                 return DerivedTitleMetadata(
-                    workspaceLabel: left,
+                    workspaceLabel: normalizedWorkspaceLabel(left),
                     secondaryDetail: nil,
                     branch: right
                 )
@@ -282,14 +319,14 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
 
             if isLikelyGenericTitleComponent(left), !isLikelyGenericTitleComponent(right) {
                 return DerivedTitleMetadata(
-                    workspaceLabel: right,
+                    workspaceLabel: normalizedWorkspaceLabel(right),
                     secondaryDetail: nil,
                     branch: nil
                 )
             }
 
             return DerivedTitleMetadata(
-                workspaceLabel: left,
+                workspaceLabel: normalizedWorkspaceLabel(left),
                 secondaryDetail: right,
                 branch: nil
             )
@@ -317,13 +354,17 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
             }
 
             return DerivedTitleMetadata(
-                workspaceLabel: workspace,
+                workspaceLabel: normalizedWorkspaceLabel(workspace),
                 secondaryDetail: nil,
                 branch: branchCandidate
             )
         }
 
         return nil
+    }
+
+    private static func normalizedWorkspaceLabel(_ value: String) -> String {
+        pathWorkspaceLabel(from: value) ?? value
     }
 
     private static func isLikelyBranchLabel(_ value: String) -> Bool {
