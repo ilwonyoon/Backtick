@@ -16,11 +16,10 @@
 ## 현재 전제
 
 - `main`에서는 Settings 디자인 시스템 리팩토링 머지가 진행 중이다.
-- 이 브랜치는 `main` 안정화 후 리베이스해서 머지한다.
-- `PromptCue/UI/Settings/PromptCueSettingsView.swift`는 지금 건드리지 않는다.
+- 이 브랜치는 `main` 안정화 후 리베이스했고, Phase 3 Settings 분해까지 완료했다.
+- `PromptCue/UI/Settings/PromptCueSettingsView.swift`는 더 이상 대형 파일이 아니며 shell만 남는다.
 - `PromptCue/App/AppModel.swift`, `PromptCue/Services/RecentSuggestedAppTargetTracker.swift`,
-  `PromptCue/Services/RecentScreenshotCoordinator.swift`는 현재 브랜치에서 안전하게 분해 가능한
-  우선 대상이다.
+  `PromptCue/Services/RecentScreenshotCoordinator.swift`는 분해 완료 상태다.
 
 ## 실행 원칙
 
@@ -36,9 +35,10 @@
 
 | 파일 | 줄 수 | 판정 | main 수정 중 | 실행 우선순위 |
 | --- | ---: | --- | --- | --- |
-| `PromptCue/UI/Settings/PromptCueSettingsView.swift` | 1702 | SPLIT | YES | Phase 3, 리베이스 후 |
+| `PromptCue/UI/Settings/PromptCueSettingsView.swift` | 207 | DONE | no | 완료 |
 | `PromptCue/App/AppModel.swift` | 1340 | SPLIT | no | Phase 1 |
 | `PromptCue/UI/Settings/MCPConnectorSettingsModel.swift` | 1251 | OK | YES | 건드리지 않음 |
+| `PromptCue/UI/Settings/ConnectorSettingsTab.swift` | 611 | OK | no | 완료 |
 | `PromptCue/UI/Capture/CapturePanelRuntimeViewController.swift` | 977 | OK | no | Phase 4 |
 | `PromptCue/UI/WindowControllers/CapturePanelController.swift` | 852 | OK | no | Phase 4 |
 | `PromptCue/Services/RecentScreenshotCoordinator.swift` | 750 | SPLIT | no | Phase 2B |
@@ -417,18 +417,16 @@ Track B/C는 병렬 분석 또는 분리 구현 후 순차 통합한다.
 
 실행:
 
-1. `docs/Settings-View-Decomposition-Plan.md` Phase 1~4 적용
-2. 미사용 코드 삭제
-3. 탭 뷰 추출
-4. 커넥터 탭과 시트 분리
-5. 공통 헬퍼를 components로 정리
+1. `docs/Settings-View-Decomposition-Plan.md` 기준선 확인
+2. 미사용 connector section과 미연결 guided sheet flow 삭제
+3. 탭 뷰를 `GeneralSettingsTab.swift`, `CaptureSettingsTab.swift`, `StackSettingsTab.swift`로 추출
+4. live connector surface를 `ConnectorSettingsTab.swift`로 추출
+5. 공통 Settings helper를 `SettingsViewHelpers.swift`로 이동
 
 커밋:
 
-- `chore: remove unused connector section views`
-- `refactor: extract settings tab views`
-- `refactor: extract connector settings and sheets`
-- `refactor: move shared settings helpers to components`
+- `refactor: decompose settings view extensions`
+- `docs: mark settings cleanup complete`
 
 ## Phase 4: 경미한 추출
 
@@ -511,7 +509,8 @@ Track B/C는 병렬 분석 또는 분리 구현 후 순차 통합한다.
 - [x] Phase 1 검증 및 커밋 완료
 - [x] Phase 2A Track B 완료
 - [x] Phase 2B Track C 완료
-- [ ] `main` 리베이스 후 Phase 3 착수
+- [x] `main` 리베이스 완료
+- [x] Phase 3 Settings 분해 완료
 
 현재 검증 메모:
 
@@ -522,6 +521,11 @@ Track B/C는 병렬 분석 또는 분리 구현 후 순차 통합한다.
   `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
   통과
 - 2026-03-12: Phase 2B 통합 후
+  `xcodegen generate`, `swift test`,
+  `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`,
+  `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test`
+  통과
+- 2026-03-12: Phase 3 Settings 분해 후
   `xcodegen generate`, `swift test`,
   `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`,
   `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test`
