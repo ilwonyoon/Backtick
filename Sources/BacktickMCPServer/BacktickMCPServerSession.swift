@@ -138,6 +138,12 @@ final class BacktickMCPServerSession {
         case "tools/list":
             return successResponse(id: id, result: ["tools": toolDefinitions()])
 
+        case "prompts/list":
+            return successResponse(id: id, result: promptsList())
+
+        case "prompts/get":
+            return promptsGet(id: id, params: params)
+
         case "tools/call":
             guard let toolName = params["name"] as? String, !toolName.isEmpty else {
                 return errorResponse(
@@ -171,6 +177,9 @@ final class BacktickMCPServerSession {
             "protocolVersion": protocolVersion,
             "capabilities": [
                 "tools": [
+                    "listChanged": false,
+                ],
+                "prompts": [
                     "listChanged": false,
                 ],
             ],
@@ -536,6 +545,67 @@ final class BacktickMCPServerSession {
         ]
     }
 
+    private func promptsList() -> [String: Any] {
+        [
+            "prompts": MCPPromptCatalog.all.map { template in
+                [
+                    "name": template.name,
+                    "description": template.description,
+                    "arguments": template.arguments.map { arg in
+                        [
+                            "name": arg.name,
+                            "description": arg.description,
+                            "required": arg.required,
+                        ] as [String: Any]
+                    },
+                ] as [String: Any]
+            },
+        ]
+    }
+
+    private func promptsGet(id: Any?, params: [String: Any]) -> [String: Any] {
+        guard let promptName = params["name"] as? String, !promptName.isEmpty else {
+            return errorResponse(
+                id: id,
+                code: .invalidParams,
+                message: "prompts/get requires a prompt name"
+            )
+        }
+
+        guard let template = MCPPromptCatalog.template(named: promptName) else {
+            return errorResponse(
+                id: id,
+                code: .invalidParams,
+                message: "Unknown prompt: \(promptName)"
+            )
+        }
+
+        let promptArguments = params["arguments"] as? [String: String] ?? [:]
+
+        do {
+            let rendered = try MCPPromptRenderer.render(
+                template: template,
+                arguments: promptArguments
+            )
+            return successResponse(id: id, result: [
+                "description": template.description,
+                "messages": [
+                    [
+                        "role": "user",
+                        "content": [
+                            "type": "text",
+                            "text": rendered,
+                        ],
+                    ],
+                ],
+            ])
+        } catch let error as BacktickMCPToolError {
+            return errorResponse(id: id, code: .invalidParams, message: error.message)
+        } catch {
+            return errorResponse(id: id, code: .invalidParams, message: error.localizedDescription)
+        }
+    }
+
     private func parseGroupBy(_ value: Any?) throws -> StackClassifyGroupBy {
         guard let rawValue = value as? String else {
             return .repository
@@ -829,9 +899,7 @@ private enum JSONRPCErrorCode: Int {
     case invalidParams = -32602
 }
 
-private struct BacktickMCPToolError: Error {
-    let message: String
-}
+// BacktickMCPToolError is defined in BacktickMCPToolError.swift
 
 private extension StackReadScope {
     var serializedValue: String {
