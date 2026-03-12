@@ -1,0 +1,160 @@
+import Foundation
+
+struct MCPPromptTemplate: Equatable, Sendable {
+    let name: String
+    let description: String
+    let arguments: [MCPPromptArgument]
+    let bodyTemplate: String
+}
+
+struct MCPPromptArgument: Equatable, Sendable {
+    let name: String
+    let description: String
+    let required: Bool
+}
+
+enum MCPPromptCatalog {
+    static let all: [MCPPromptTemplate] = [workflow, triage, diagnose, execute]
+
+    static func template(named name: String) -> MCPPromptTemplate? {
+        all.first { $0.name == name }
+    }
+
+    private static let sharedArguments: [MCPPromptArgument] = [
+        MCPPromptArgument(
+            name: "noteText",
+            description: "The raw note text or merged note text to process.",
+            required: true
+        ),
+        MCPPromptArgument(
+            name: "repositoryName",
+            description: "Repository name for context.",
+            required: false
+        ),
+        MCPPromptArgument(
+            name: "branch",
+            description: "Branch name for context.",
+            required: false
+        ),
+    ]
+
+    static let workflow = MCPPromptTemplate(
+        name: "workflow",
+        description: "Playbook for routing natural-language requests to Backtick Stack MCP tools.",
+        arguments: [],
+        bodyTemplate: """
+        You are an assistant connected to Backtick Stack, a note capture system for developers.
+
+        ## Available Workflows
+
+        Map the user's natural language request to one of these workflows:
+
+        ### "정리해줘" / "triage" / "organize my notes"
+        1. `classify_notes` (scope: active, groupBy: repository) to see what is currently active
+        2. Use the **triage** prompt with the note texts to get grouping suggestions
+        3. Show the suggested groups to the user and wait for confirmation
+        4. `group_notes` for each confirmed group to merge related cards
+        5. Source notes stay active. Only call `mark_notes_executed` after the work is actually done.
+
+        ### "이거 왜 그래" / "diagnose" / "why is this broken"
+        1. Identify relevant notes with `classify_notes` or `list_notes`
+        2. Use the **diagnose** prompt for root cause analysis only
+        3. Present hypotheses before taking action
+
+        ### "이거 해줘" / "execute" / "implement this"
+        1. Identify relevant notes with `classify_notes` or `list_notes`
+        2. Use the **execute** prompt to guide implementation
+        3. After verified implementation, call `mark_notes_executed` on the source notes
+
+        ### "현황" / "status" / "what do I have"
+        1. `classify_notes` with `scope: active`
+        2. Present a brief grouped overview
+
+        ## Rules
+        - Only process active notes by default. Copied notes are already executed.
+        - `group_notes` creates a merged card but does not archive sources unless `archiveSources` is set.
+        - Never call `mark_notes_executed` until the user confirms the work is complete.
+        - When unsure whether to diagnose or execute, default to diagnose.
+        - Show results before taking further action. Do not chain silently.
+        """
+    )
+
+    static let triage = MCPPromptTemplate(
+        name: "triage",
+        description: "Classify and group Stack notes for review before execution.",
+        arguments: sharedArguments,
+        bodyTemplate: """
+        You are an engineering triage assistant.
+
+        ## Notes
+
+        {noteText}
+
+        ## Context
+        Repository: {repositoryName}
+        Branch: {branch}
+
+        ## Instructions
+
+        1. Group related notes that should be addressed together.
+           - Same intent but different modules should usually become separate groups.
+           - Each title should be understandable without extra context.
+        2. For each group, provide: title, intent tag (diagnose/execute/investigate), difficulty (easy/medium/hard).
+        3. If a note is ambiguous or exploratory, tag it as investigate.
+        4. Suggest a processing order that respects dependencies.
+
+        Return JSON: { groups: [{ title, intent, difficulty, noteIDs, rationale }] }
+        """
+    )
+
+    static let diagnose = MCPPromptTemplate(
+        name: "diagnose",
+        description: "Perform root cause analysis on grouped notes without executing fixes.",
+        arguments: sharedArguments,
+        bodyTemplate: """
+        You are a senior debugger performing root cause analysis.
+
+        ## Problem Description
+
+        {noteText}
+
+        ## Context
+        Repository: {repositoryName}
+        Branch: {branch}
+
+        ## Goal
+        Identify the root cause. Do NOT execute fixes.
+
+        ## Constraints
+        - Rank hypotheses by likelihood
+        - Include a verification method for each hypothesis
+        - Distinguish symptoms from causes
+        """
+    )
+
+    static let execute = MCPPromptTemplate(
+        name: "execute",
+        description: "Implement changes described in grouped notes step by step.",
+        arguments: sharedArguments,
+        bodyTemplate: """
+        You are an implementer working in an existing codebase.
+
+        ## Task
+
+        {noteText}
+
+        ## Context
+        Repository: {repositoryName}
+        Branch: {branch}
+
+        ## Goal
+        Implement the changes step by step.
+
+        ## Constraints
+        - Follow existing code patterns
+        - Keep changes focused
+        - Verify each step compiles
+        - Do not refactor unrelated code
+        """
+    )
+}
