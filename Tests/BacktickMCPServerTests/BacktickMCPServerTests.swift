@@ -318,16 +318,33 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(result["isError"] as? Bool, true)
     }
 
-    func testPromptsListReturnsThreeTemplates() async throws {
+    func testPromptsListReturnsFourTemplates() async throws {
         let session = await makeSession()
         _ = try await sendRequest(session: session, id: 1, method: "initialize")
 
         let promptsResponse = try await sendRequest(session: session, id: 2, method: "prompts/list")
         let result = try XCTUnwrap(promptsResponse["result"] as? [String: Any])
         let prompts = try XCTUnwrap(result["prompts"] as? [[String: Any]])
-        XCTAssertEqual(prompts.count, 3)
+        XCTAssertEqual(prompts.count, 4)
         let names = prompts.compactMap { $0["name"] as? String }
-        XCTAssertEqual(names, ["triage", "diagnose", "execute"])
+        XCTAssertEqual(names, ["workflow", "triage", "diagnose", "execute"])
+    }
+
+    func testPromptsGetWorkflowRendersWithoutArguments() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let getResponse = try await sendRequest(session: session, id: 2, method: "prompts/get", params: [
+            "name": "workflow",
+        ])
+        let result = try XCTUnwrap(getResponse["result"] as? [String: Any])
+        let messages = try XCTUnwrap(result["messages"] as? [[String: Any]])
+        XCTAssertEqual(messages.count, 1)
+
+        let content = try XCTUnwrap(messages.first?["content"] as? [String: Any])
+        let text = try XCTUnwrap(content["text"] as? String)
+        XCTAssertTrue(text.contains("classify_notes"))
+        XCTAssertTrue(text.contains("mark_notes_executed"))
     }
 
     func testPromptsGetDiagnoseRendersTemplate() async throws {
