@@ -504,11 +504,11 @@ Track B/C는 병렬 분석 또는 분리 구현 후 순차 통합한다.
 ## 라이브 실행 상태
 
 - [x] 실행 런북 업데이트
-- [ ] Phase 1A capture session 추출
-- [ ] Phase 1B suggested target 추출
-- [ ] Phase 1C screenshot 추출
-- [ ] Phase 1D cloud sync 추출
-- [ ] Phase 1 검증 및 커밋 완료
+- [x] Phase 1A capture session 추출
+- [x] Phase 1B suggested target 추출
+- [x] Phase 1C screenshot 추출
+- [x] Phase 1D cloud sync 추출
+- [x] Phase 1 검증 및 커밋 완료
 - [ ] Phase 2A Track B 완료
 - [ ] Phase 2B Track C 완료
 - [ ] `main` 리베이스 후 Phase 3 착수
