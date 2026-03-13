@@ -18,11 +18,11 @@ enum StackNotificationCardChromeRecipe {
     static func topHighlight(colorScheme: ColorScheme) -> Color {
         switch colorScheme {
         case .light:
-            return SemanticTokens.Border.glassHighlight.opacity(0.24)
+            return SemanticTokens.Border.glassHighlight.opacity(0.28)
         case .dark:
-            return SemanticTokens.Border.glassHighlight.opacity(0.05)
+            return SemanticTokens.Border.glassHighlight.opacity(0.08)
         @unknown default:
-            return SemanticTokens.Border.glassHighlight.opacity(0.05)
+            return SemanticTokens.Border.glassHighlight.opacity(0.08)
         }
     }
 }

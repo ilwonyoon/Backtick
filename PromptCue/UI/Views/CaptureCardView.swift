@@ -11,6 +11,7 @@ struct CaptureCardView: View {
     let isSelected: Bool
     let isRecentlyCopied: Bool
     let selectionMode: Bool
+    let ttlProgressRemaining: Double?
     let isExpanded: Bool
     let onCopy: () -> Void
     let onEdit: () -> Void
@@ -49,6 +50,7 @@ struct CaptureCardView: View {
         isSelected: Bool,
         isRecentlyCopied: Bool = false,
         selectionMode: Bool,
+        ttlProgressRemaining: Double? = nil,
         isExpanded: Bool,
         onCopy: @escaping () -> Void,
         onEdit: @escaping () -> Void = {},
@@ -67,6 +69,7 @@ struct CaptureCardView: View {
         self.isSelected = isSelected
         self.isRecentlyCopied = isRecentlyCopied
         self.selectionMode = selectionMode
+        self.ttlProgressRemaining = ttlProgressRemaining
         self.isExpanded = isExpanded
         self.onCopy = onCopy
         self.onEdit = onEdit
@@ -81,14 +84,18 @@ struct CaptureCardView: View {
 
     var body: some View {
         let visibleInlineText = card.visibleInlineText
-        let displayConfiguration = InteractiveDetectedTextView.displayConfiguration(
+        let styledText = InteractiveDetectedTextView.styledText(
             text: visibleInlineText,
-            classification: classification
+            classification: classification,
+            baseColor: actionStyle.bodyColor,
+            highlightedRanges: card.visibleInlineTagRanges
         )
+        let displayConfiguration = styledText.displayConfiguration
         let overflowMetrics = StackCardOverflowPolicy.metrics(
-            for: displayConfiguration.text,
+            for: styledText.measurementText,
             cacheIdentity: card.id,
             layoutVariant: displayConfiguration.layoutVariant,
+            styleSignature: styledText.cacheSignature,
             availableWidth: textContentWidth
         )
 
@@ -106,12 +113,7 @@ struct CaptureCardView: View {
                         .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }
 
-                    InteractiveDetectedTextView(
-                        text: visibleInlineText,
-                        classification: classification,
-                        baseColor: actionStyle.bodyColor,
-                        highlightedRanges: card.visibleInlineTagRanges
-                    )
+                    InteractiveDetectedTextView(styledText: styledText)
                     .frame(
                         height: displayConfiguration.prefersSingleLine
                             ? nil
@@ -173,6 +175,15 @@ struct CaptureCardView: View {
                 }
                 .frame(width: actionColumnWidth, alignment: .topTrailing)
                 .zIndex(1)
+
+                if let ttlProgressRemaining {
+                    ttlIndicator(progressRemaining: ttlProgressRemaining)
+                        .padding(.trailing, PrimitiveTokens.Space.xxxs)
+                        .padding(.bottom, PrimitiveTokens.Space.xxxs)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                        .zIndex(1)
+                        .accessibilityHidden(true)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .contain)
@@ -296,6 +307,24 @@ struct CaptureCardView: View {
 
     private func accessibilityLabel(displayText: String) -> String {
         "Cue: \(displayText)"
+    }
+
+    @ViewBuilder
+    private func ttlIndicator(progressRemaining: Double) -> some View {
+        let lineWidth: CGFloat = 1.5
+        let trackColor = SemanticTokens.Border.subtle.opacity(0.9)
+        let progressColor = SemanticTokens.Text.secondary.opacity(0.88)
+
+        ZStack {
+            Circle()
+                .stroke(trackColor, lineWidth: lineWidth)
+
+            Circle()
+                .trim(from: 0, to: max(progressRemaining, 0.02))
+                .stroke(progressColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: 8, height: 8)
     }
 
     @ViewBuilder

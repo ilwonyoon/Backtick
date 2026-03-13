@@ -70,6 +70,10 @@ struct StackNotificationCardSurface<Content: View>: View {
             return SemanticTokens.Surface.accentFill
         }
 
+        if isEmphasized {
+            return SemanticTokens.Surface.notificationCardEmphasizedFill
+        }
+
         return SemanticTokens.Surface.notificationCardFill
     }
 
