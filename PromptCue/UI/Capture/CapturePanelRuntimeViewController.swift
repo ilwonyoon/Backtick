@@ -920,6 +920,10 @@ extension CapturePanelRuntimeViewController {
         editorHost.debugInlineCompletionSuffix
     }
 
+    var debugIsInlineCompletionVisible: Bool {
+        editorHost.debugIsInlineCompletionVisible
+    }
+
     func debugApplyEditorText(_ text: String, selectedLocation: Int? = nil) {
         let location = max(0, min(selectedLocation ?? text.utf16.count, text.utf16.count))
         editorHost.applyExternalText(

@@ -73,6 +73,7 @@ final class CapturePanelRuntimeViewControllerTests: XCTestCase {
         controller.debugApplyEditorText("#", selectedLocation: 1)
 
         XCTAssertEqual(controller.debugInlineCompletionSuffix, "hashtag")
+        XCTAssertTrue(controller.debugIsInlineCompletionVisible)
     }
 
     func testInlineTagGhostShowsRemainingSuffixForPrefixMatch() throws {
@@ -87,6 +88,7 @@ final class CapturePanelRuntimeViewControllerTests: XCTestCase {
         controller.debugApplyEditorText("#h", selectedLocation: 2)
 
         XCTAssertEqual(controller.debugInlineCompletionSuffix, "ashtag_extension")
+        XCTAssertTrue(controller.debugIsInlineCompletionVisible)
     }
 
     private func makeModel(cards: [CaptureCard] = []) -> AppModel {

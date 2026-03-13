@@ -526,7 +526,10 @@ final class CaptureEditorRuntimeHostView: NSView {
             return
         }
 
-        inlineCompletionField.stringValue = inlineCompletionState.suffix
+        inlineCompletionField.attributedStringValue = NSAttributedString(
+            string: inlineCompletionState.suffix,
+            attributes: inlineCompletionAttributes()
+        )
         inlineCompletionField.sizeToFit()
 
         let fittingSize = inlineCompletionField.fittingSize
@@ -547,17 +550,118 @@ final class CaptureEditorRuntimeHostView: NSView {
     }
 
     private func inlineCompletionAnchorRect(for characterRange: NSRange) -> NSRect? {
-        guard let window = textView.window else {
+        guard let textContainer = textView.textContainer,
+              let layoutManager = textView.layoutManager else {
             return nil
         }
 
-        let screenRect = textView.firstRect(forCharacterRange: characterRange, actualRange: nil)
-        guard screenRect.isEmpty == false else {
+        layoutManager.ensureLayout(for: textContainer)
+
+        let textLength = textView.string.utf16.count
+        let caretLocation = max(0, min(characterRange.location, textLength))
+        let containerOrigin = textView.textContainerOrigin
+
+        if textLength == 0 || layoutManager.numberOfGlyphs == 0 {
+            let extraLineRect = layoutManager.extraLineFragmentRect
+            let fallbackHeight = max(extraLineRect.height, editorFont.ascender - editorFont.descender)
+            let baseRect = extraLineRect.isEmpty
+                ? NSRect(x: 0, y: 0, width: 0, height: fallbackHeight)
+                : extraLineRect
+
+            return NSRect(
+                x: containerOrigin.x + baseRect.minX,
+                y: containerOrigin.y + baseRect.minY,
+                width: 0,
+                height: baseRect.height
+            )
+        }
+
+        let nsText = textView.string as NSString
+        if caretLocation >= textLength {
+            return anchorRectAtDocumentEnd(
+                text: nsText,
+                containerOrigin: containerOrigin,
+                layoutManager: layoutManager,
+                textContainer: textContainer
+            )
+        }
+
+        let glyphIndex = layoutManager.glyphIndexForCharacter(at: caretLocation)
+        let glyphRect = layoutManager.boundingRect(
+            forGlyphRange: NSRange(location: glyphIndex, length: 1),
+            in: textContainer
+        )
+        var lineGlyphRange = NSRange(location: 0, length: 0)
+        let lineRect = layoutManager.lineFragmentUsedRect(
+            forGlyphAt: glyphIndex,
+            effectiveRange: &lineGlyphRange
+        )
+        let resolvedHeight = max(glyphRect.height, lineRect.height, editorFont.ascender - editorFont.descender)
+
+        return NSRect(
+            x: containerOrigin.x + glyphRect.minX,
+            y: containerOrigin.y + glyphRect.minY,
+            width: 0,
+            height: resolvedHeight
+        )
+    }
+
+    private func anchorRectAtDocumentEnd(
+        text: NSString,
+        containerOrigin: NSPoint,
+        layoutManager: NSLayoutManager,
+        textContainer: NSTextContainer
+    ) -> NSRect? {
+        let glyphCount = layoutManager.numberOfGlyphs
+        guard glyphCount > 0 else {
             return nil
         }
 
-        let windowRect = window.convertFromScreen(screenRect)
-        return textView.convert(windowRect, from: nil)
+        let lastGlyphIndex = glyphCount - 1
+        let lastGlyphRect = layoutManager.boundingRect(
+            forGlyphRange: NSRange(location: lastGlyphIndex, length: 1),
+            in: textContainer
+        )
+        var lineGlyphRange = NSRange(location: 0, length: 0)
+        let lineRect = layoutManager.lineFragmentUsedRect(
+            forGlyphAt: lastGlyphIndex,
+            effectiveRange: &lineGlyphRange
+        )
+
+        let endsWithNewline: Bool
+        if text.length > 0,
+           let lastScalar = UnicodeScalar(text.character(at: text.length - 1)) {
+            endsWithNewline = CharacterSet.newlines.contains(lastScalar)
+        } else {
+            endsWithNewline = false
+        }
+
+        if endsWithNewline {
+            let extraLineRect = layoutManager.extraLineFragmentRect
+            let resolvedRect = extraLineRect.isEmpty
+                ? NSRect(
+                    x: lineRect.minX,
+                    y: lineRect.maxY,
+                    width: 0,
+                    height: max(lineRect.height, editorFont.ascender - editorFont.descender)
+                )
+                : extraLineRect
+
+            return NSRect(
+                x: containerOrigin.x + resolvedRect.minX,
+                y: containerOrigin.y + resolvedRect.minY,
+                width: 0,
+                height: resolvedRect.height
+            )
+        }
+
+        let resolvedHeight = max(lastGlyphRect.height, lineRect.height, editorFont.ascender - editorFont.descender)
+        return NSRect(
+            x: containerOrigin.x + lastGlyphRect.maxX,
+            y: containerOrigin.y + lastGlyphRect.minY,
+            width: 0,
+            height: resolvedHeight
+        )
     }
 
     private func hideInlineCompletion() {
@@ -684,6 +788,14 @@ final class CaptureEditorRuntimeHostView: NSView {
         ]
     }
 
+    private func inlineCompletionAttributes() -> [NSAttributedString.Key: Any] {
+        [
+            .font: editorFont,
+            .foregroundColor: NSColor.controlAccentColor.withAlphaComponent(0.32),
+            .paragraphStyle: editorParagraphStyle,
+        ]
+    }
+
     private func tagHighlightAttributes() -> [NSAttributedString.Key: Any] {
         [
             .font: NSFont.systemFont(
@@ -705,6 +817,10 @@ private struct InlineCompletionState: Equatable {
 extension CaptureEditorRuntimeHostView {
     var debugInlineCompletionSuffix: String? {
         inlineCompletionState?.suffix
+    }
+
+    var debugIsInlineCompletionVisible: Bool {
+        !inlineCompletionField.isHidden && !inlineCompletionField.stringValue.isEmpty
     }
 }
 #endif
