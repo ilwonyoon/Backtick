@@ -10,7 +10,6 @@ final class AppCoordinator: AppLifecycleCoordinating {
     private let exportTailSettingsModel = PromptExportTailSettingsModel()
     private let retentionSettingsModel = CardRetentionSettingsModel()
     private let cloudSyncSettingsModel = CloudSyncSettingsModel()
-    private let appearanceSettingsModel = AppearanceSettingsModel()
     private let mcpConnectorSettingsModel = MCPConnectorSettingsModel()
     private let environment = AppEnvironment.current
     private lazy var capturePanelController = CapturePanelController(model: model)
@@ -26,22 +25,14 @@ final class AppCoordinator: AppLifecycleCoordinating {
         exportTailSettingsModel: exportTailSettingsModel,
         retentionSettingsModel: retentionSettingsModel,
         cloudSyncSettingsModel: cloudSyncSettingsModel,
-        appearanceSettingsModel: appearanceSettingsModel,
         mcpConnectorSettingsModel: mcpConnectorSettingsModel
     )
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?
 
-    init() {
-        appearanceSettingsModel.onAppearanceApplied = { [weak self] appearance in
-            self?.applyAppearance(appearance)
-        }
-    }
-
     func start() {
         terminateDuplicateDebugInstancesIfNeeded()
         ScreenshotDirectoryResolver.bootstrapPreferredDirectoryIfNeeded()
-        appearanceSettingsModel.applyAppearance()
         model.start()
         applyCaptureQADraftSeedIfNeeded(environment)
         hotKeyCenter.registerDefaultShortcuts(
@@ -213,24 +204,6 @@ final class AppCoordinator: AppLifecycleCoordinating {
 
     private func showSettingsWindow() {
         settingsWindowController.show(selectedTab: startupSettingsTab())
-    }
-
-    private func applyAppearance(_ appearance: NSAppearance?) {
-        NSApp.windows.forEach { window in
-            window.appearance = appearance
-            window.invalidateShadow()
-            window.contentView?.needsDisplay = true
-            window.contentView?.subviews.forEach { $0.needsDisplay = true }
-        }
-
-        statusItem?.button?.appearance = nil
-        statusItem?.button?.image?.isTemplate = true
-        statusItem?.button?.needsDisplay = true
-
-        capturePanelController.applyAppearance(appearance)
-        stackPanelController.applyAppearance(appearance)
-        settingsWindowController.applyAppearance(appearance)
-        designSystemWindowController.applyAppearance(appearance)
     }
 
     private func terminateDuplicateDebugInstancesIfNeeded() {

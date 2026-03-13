@@ -49,7 +49,7 @@ enum SettingsTab: Int, CaseIterable, Hashable {
     var subtitle: String? {
         switch self {
         case .general:
-            return "Appearance, shortcuts, and sync."
+            return "Shortcuts and sync."
         case .capture:
             return "Screenshot access and capture behavior."
         case .stack:
@@ -67,7 +67,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let exportTailSettingsModel: PromptExportTailSettingsModel
     private let retentionSettingsModel: CardRetentionSettingsModel
     private let cloudSyncSettingsModel: CloudSyncSettingsModel
-    private let appearanceSettingsModel: AppearanceSettingsModel
     private let mcpConnectorSettingsModel: MCPConnectorSettingsModel
     private let navigationModel = SettingsNavigationModel()
     init(
@@ -75,14 +74,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         exportTailSettingsModel: PromptExportTailSettingsModel,
         retentionSettingsModel: CardRetentionSettingsModel,
         cloudSyncSettingsModel: CloudSyncSettingsModel,
-        appearanceSettingsModel: AppearanceSettingsModel,
         mcpConnectorSettingsModel: MCPConnectorSettingsModel
     ) {
         self.screenshotSettingsModel = screenshotSettingsModel
         self.exportTailSettingsModel = exportTailSettingsModel
         self.retentionSettingsModel = retentionSettingsModel
         self.cloudSyncSettingsModel = cloudSyncSettingsModel
-        self.appearanceSettingsModel = appearanceSettingsModel
         self.mcpConnectorSettingsModel = mcpConnectorSettingsModel
         super.init()
     }
@@ -101,19 +98,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func applyAppearance(_ appearance: NSAppearance?) {
-        window?.appearance = appearance
-        window?.invalidateShadow()
-        window?.contentView?.needsDisplay = true
-        window?.contentView?.subviews.forEach { $0.needsDisplay = true }
-    }
-
     private func refreshModels() {
         screenshotSettingsModel.refresh()
         exportTailSettingsModel.refresh()
         retentionSettingsModel.refresh()
         cloudSyncSettingsModel.refresh()
-        appearanceSettingsModel.refresh()
         mcpConnectorSettingsModel.refresh()
     }
 
@@ -166,7 +155,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             exportTailSettingsModel: exportTailSettingsModel,
             retentionSettingsModel: retentionSettingsModel,
             cloudSyncSettingsModel: cloudSyncSettingsModel,
-            appearanceSettingsModel: appearanceSettingsModel,
             mcpConnectorSettingsModel: mcpConnectorSettingsModel
         )
     }

@@ -107,7 +107,7 @@ final class StackPanelVisualPerformanceTests: XCTestCase {
 
             let startedAt = CFAbsoluteTimeGetCurrent()
             controller.prepareForFirstPresentation()
-            controller.applyAppearance(appearance)
+            controller.refreshForInheritedAppearanceChange()
             totalMilliseconds += (CFAbsoluteTimeGetCurrent() - startedAt) * 1_000
 
             NSApp.appearance = previousAppearance

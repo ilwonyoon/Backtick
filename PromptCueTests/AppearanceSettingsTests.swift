@@ -4,45 +4,49 @@ import XCTest
 
 @MainActor
 final class AppearanceSettingsTests: XCTestCase {
-    private var defaults: UserDefaults!
-    private var suiteName: String!
-
-    override func setUp() {
-        super.setUp()
-        suiteName = "AppearanceSettingsTests.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suiteName)
-    }
-
     override func tearDown() {
-        if let suiteName {
-            defaults?.removePersistentDomain(forName: suiteName)
-        }
-        defaults = nil
-        suiteName = nil
+        NSApp.appearance = nil
         super.tearDown()
     }
 
-    func testResolvedAppearanceUsesInheritedAppearanceInAutoMode() {
-        AppearancePreferences.save(.auto, defaults: defaults)
+    func testApplyAppearanceClearsAppAppearanceOverride() {
+        let model = AppearanceSettingsModel()
 
-        XCTAssertNil(AppearancePreferences.resolvedAppearance(defaults: defaults))
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+
+        model.applyAppearance()
+
+        XCTAssertNil(NSApp.appearance)
     }
 
-    func testResolvedAppearanceUsesAquaInLightMode() {
-        AppearancePreferences.save(.light, defaults: defaults)
+    func testApplyAppearancePublishesNilAppearance() {
+        let model = AppearanceSettingsModel()
+        var appliedAppearance: NSAppearance??
 
-        XCTAssertEqual(
-            AppearancePreferences.resolvedAppearance(defaults: defaults)?.bestMatch(from: [.aqua, .darkAqua]),
-            .aqua
-        )
+        model.onAppearanceApplied = { appearance in
+            appliedAppearance = appearance
+        }
+
+        model.applyAppearance()
+
+        XCTAssertNotNil(appliedAppearance)
+        XCTAssertNil(appliedAppearance!)
     }
 
-    func testResolvedAppearanceUsesDarkAquaInDarkMode() {
-        AppearancePreferences.save(.dark, defaults: defaults)
+    func testRefreshThenApplyAppearanceStillPublishesInheritedSystemAppearance() {
+        let model = AppearanceSettingsModel()
+        var appliedAppearance: NSAppearance??
 
-        XCTAssertEqual(
-            AppearancePreferences.resolvedAppearance(defaults: defaults)?.bestMatch(from: [.aqua, .darkAqua]),
-            .darkAqua
-        )
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+        model.onAppearanceApplied = { appearance in
+            appliedAppearance = appearance
+        }
+
+        model.refresh()
+        model.applyAppearance()
+
+        XCTAssertNotNil(appliedAppearance)
+        XCTAssertNil(appliedAppearance!)
+        XCTAssertNil(NSApp.appearance)
     }
 }

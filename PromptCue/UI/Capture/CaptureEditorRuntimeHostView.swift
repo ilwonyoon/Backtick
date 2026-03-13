@@ -166,11 +166,6 @@ final class CaptureEditorRuntimeHostView: NSView {
         let resolvedTertiaryTextColor = resolvedColor(.tertiaryLabelColor, for: appliedAppearance)
         let resolvedAccentColor = resolvedColor(.controlAccentColor, for: appliedAppearance)
 
-        appearance = appliedAppearance
-        scrollView.appearance = appliedAppearance
-        textView.appearance = appliedAppearance
-        placeholderField.appearance = appliedAppearance
-
         placeholderField.textColor = resolvedSecondaryTextColor.withAlphaComponent(PrimitiveTokens.Opacity.soft)
         scrollIndicatorThumbView.layer?.backgroundColor = resolvedTertiaryTextColor.withAlphaComponent(
             CaptureRuntimeMetrics.scrollIndicatorShowAlpha

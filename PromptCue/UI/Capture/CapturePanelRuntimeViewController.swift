@@ -93,6 +93,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private var pendingDraftSyncWorkItem: DispatchWorkItem?
     private var pendingDraftSyncText: String?
     private var displayedPreviewImageKey: String?
+    private var lastAppearanceSignature: String?
     private var inlineTagSuggestions: [String] = []
     private var selectedInlineTagSuggestionIndex = 0
     private var lastInlineTagQueryValue: String?
@@ -140,7 +141,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     override func loadView() {
-        view = NSView(
+        let rootView = CapturePanelAppearanceAwareView(
             frame: NSRect(
                 x: 0,
                 y: 0,
@@ -148,6 +149,10 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
                 height: preferredPanelHeight
             )
         )
+        rootView.onEffectiveAppearanceChange = { [weak self] in
+            self?.refreshAppearance()
+        }
+        view = rootView
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.clear.cgColor
         buildViewHierarchy()
@@ -167,22 +172,23 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     func refreshAppearance() {
-        let appliedAppearance = view.effectiveAppearance
-        view.appearance = appliedAppearance
-        shadowHostView.appearance = appliedAppearance
-        shadowCasterView.appearance = appliedAppearance
-        shellView.appearance = appliedAppearance
-        screenshotContainer.appearance = appliedAppearance
-        screenshotSurface.appearance = appliedAppearance
-        editorHost.appearance = appliedAppearance
+        let appearanceSignature = Self.appearanceSignature(for: view.window?.effectiveAppearance ?? view.effectiveAppearance)
+        let didChangeAppearance = lastAppearanceSignature != nil && lastAppearanceSignature != appearanceSignature
+        lastAppearanceSignature = appearanceSignature
+
         editorHost.refreshAppearance()
         view.needsDisplay = true
         shadowCasterView.refreshAppearance()
         shellView.refreshAppearance()
         screenshotSurface.refreshAppearance()
-        suggestedTargetAccessoryView.appearance = appliedAppearance
+        if didChangeAppearance {
+            view.layer?.contents = nil
+            suggestedTargetAccessoryView.rootView = Self.makeSuggestedTargetAccessoryView(model: model)
+            suggestedTargetAccessoryView.layer?.contents = nil
+            inlineTagSuggestionView.rootView = makeInlineTagSuggestionView()
+            inlineTagSuggestionView.layer?.contents = nil
+        }
         suggestedTargetAccessoryView.needsDisplay = true
-        inlineTagSuggestionView.appearance = appliedAppearance
         inlineTagSuggestionView.needsDisplay = true
     }
 
@@ -641,6 +647,20 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         )
     }
 
+    private static func appearanceSignature(for appearance: NSAppearance?) -> String {
+        appearance?.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])?.rawValue ?? "unspecified"
+    }
+
+    private func makeInlineTagSuggestionView() -> CaptureInlineTagSuggestionView {
+        CaptureInlineTagSuggestionView(
+            suggestions: inlineTagSuggestions,
+            selectedIndex: selectedInlineTagSuggestionIndex,
+            onSelectSuggestion: { [weak self] suggestion in
+                _ = self?.commitInlineTag(named: suggestion)
+            }
+        )
+    }
+
     private func refreshInlineTagState(resetSuggestionSelection: Bool = false) {
         guard !editorHost.textView.hasMarkedText() else {
             suspendInlineTagPresentationForMarkedText()
@@ -699,6 +719,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             suffix: ghostSuffix,
             caretUTF16Offset: ghostSuffix == nil ? nil : selectedRange.location
         )
+        inlineTagSuggestionView.rootView = makeInlineTagSuggestionView()
         inlineTagSuggestionView.isHidden = true
         recomputePreferredPanelHeight()
     }
@@ -996,6 +1017,15 @@ final class CapturePreviewImageCache {
         ScreenshotDirectoryResolver.withAccessIfNeeded(to: url) { scopedURL in
             NSImage(contentsOf: scopedURL)
         }
+    }
+}
+
+private final class CapturePanelAppearanceAwareView: NSView {
+    var onEffectiveAppearanceChange: (() -> Void)?
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        onEffectiveAppearanceChange?()
     }
 }
 

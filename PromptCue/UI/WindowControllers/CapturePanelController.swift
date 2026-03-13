@@ -134,19 +134,6 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         anchoredOriginX = nil
     }
 
-    func applyAppearance(_ appearance: NSAppearance?) {
-        panel?.appearance = appearance
-        panel?.contentViewController?.view.appearance = appearance
-        panel?.invalidateShadow()
-        panel?.contentView?.needsDisplay = true
-        runtimeViewController?.refreshAppearance()
-
-        suggestedTargetPanel?.appearance = appearance
-        suggestedTargetPanel?.contentViewController?.view.appearance = appearance
-        suggestedTargetPanel?.invalidateShadow()
-        (suggestedTargetPanel?.contentViewController as? CaptureSuggestedTargetPanelViewController)?.refreshAppearance()
-    }
-
     func windowDidChangeScreen(_ notification: Notification) {
         guard isVisible else {
             return
@@ -368,6 +355,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         }
 
         attachAuxiliaryPanel(suggestedTargetPanel, to: panel)
+        (suggestedTargetPanel.contentViewController as? CaptureSuggestedTargetPanelViewController)?.refreshAppearance()
         if !suggestedTargetPanel.isVisible {
             suggestedTargetPanel.orderFrontRegardless()
             refocusCaptureEditor()
@@ -569,6 +557,7 @@ private final class CaptureSuggestedTargetPanelViewController: NSViewController 
     private let shadowCasterView = CaptureSuggestedTargetShadowCasterView()
     private let shellView = CaptureSuggestedTargetShellView()
     private let hostingView: NSHostingView<CaptureSuggestedTargetChooserPanelView>
+    private var lastAppearanceSignature: String?
 
     init(model: AppModel) {
         self.model = model
@@ -581,23 +570,40 @@ private final class CaptureSuggestedTargetPanelViewController: NSViewController 
     }
 
     override func loadView() {
-        view = NSView()
+        let rootView = CaptureSuggestedTargetAppearanceAwareView()
+        rootView.onEffectiveAppearanceChange = { [weak self] in
+            self?.refreshAppearance()
+        }
+        view = rootView
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.clear.cgColor
         buildViewHierarchy()
+        refreshAppearance()
     }
 
     func refreshAppearance() {
-        let appliedAppearance = view.effectiveAppearance
-        view.appearance = appliedAppearance
-        shadowHostView.appearance = appliedAppearance
-        shadowCasterView.appearance = appliedAppearance
-        shellView.appearance = appliedAppearance
+        let appliedAppearance = view.window?.effectiveAppearance ?? view.effectiveAppearance
+        let appearanceSignature = Self.appearanceSignature(for: appliedAppearance)
+        let didChangeAppearance = lastAppearanceSignature != nil && lastAppearanceSignature != appearanceSignature
+        lastAppearanceSignature = appearanceSignature
+
+        if didChangeAppearance {
+            hostingView.rootView = CaptureSuggestedTargetChooserPanelView(model: model)
+            hostingView.layer?.contents = nil
+        }
+
         view.needsDisplay = true
         shadowCasterView.refreshAppearance()
         shellView.refreshAppearance()
-        hostingView.appearance = appliedAppearance
         hostingView.needsDisplay = true
+        if didChangeAppearance {
+            hostingView.needsLayout = true
+            hostingView.layoutSubtreeIfNeeded()
+        }
+    }
+
+    private static func appearanceSignature(for appearance: NSAppearance?) -> String {
+        appearance?.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])?.rawValue ?? "unspecified"
     }
 
     private func buildViewHierarchy() {
@@ -632,6 +638,15 @@ private final class CaptureSuggestedTargetPanelViewController: NSViewController 
             hostingView.topAnchor.constraint(equalTo: shellView.topAnchor, constant: AppUIConstants.captureChooserPanelSurfaceTopPadding),
             hostingView.bottomAnchor.constraint(equalTo: shellView.bottomAnchor, constant: -AppUIConstants.captureChooserPanelSurfaceBottomPadding),
         ])
+    }
+}
+
+private final class CaptureSuggestedTargetAppearanceAwareView: NSView {
+    var onEffectiveAppearanceChange: (() -> Void)?
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        onEffectiveAppearanceChange?()
     }
 }
 

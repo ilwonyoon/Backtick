@@ -114,6 +114,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
         model.beginStackSuggestedTargetPresentation()
         PerformanceTrace.markStackOpenPhase("suggested_target_presentation_started")
+        refreshForInheritedAppearanceChange()
         primePanelLayout(panel)
         PerformanceTrace.markStackOpenPhase("layout_primed")
         let targetFrame = onscreenPanelFrame(for: panel.frame.size)
@@ -177,6 +178,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
 
         let panel = panel ?? makePanel()
+        refreshForInheritedAppearanceChange()
         primePanelLayout(panel)
         warmOrderFrontIfNeeded(panel)
     }
@@ -218,16 +220,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
     }
 
-    func applyAppearance(_ appearance: NSAppearance?) {
-        panel?.appearance = appearance
-        panel?.contentView?.appearance = appearance
-        panel?.contentViewController?.view.appearance = appearance
+    func refreshForInheritedAppearanceChange() {
         panel?.invalidateShadow()
-        panel?.contentView?.needsDisplay = true
-        panel?.contentView?.subviews.forEach { $0.needsDisplay = true }
-        (panel?.contentViewController as? StackPanelContentViewController<CardStackView>)?.refreshAppearance(
-            appearance
-        )
+        (panel?.contentViewController as? StackPanelContentViewController<CardStackView>)?.refreshAppearance()
     }
 
     func windowDidResignKey(_ notification: Notification) {
@@ -288,9 +283,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.onCancel = { [weak self] in
             self?.close()
         }
-        panel.contentViewController = StackPanelContentViewController(
-            rootView: CardStackView(
-                model: model,
+        panel.contentViewController = StackPanelContentViewController(rootViewBuilder: { [self] in
+            CardStackView(
+                model: self.model,
                 onBackdropTap: { [weak self] in
                     self?.close()
                 },
@@ -301,7 +296,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
                     self?.model.delete(card: card)
                 }
             )
-        )
+        })
         PerformanceTrace.markStackOpenPhase("panel_content_built")
 
         self.panel = panel
@@ -428,11 +423,13 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
 private final class StackPanelContentViewController<Content: View>: NSViewController {
     private let shellView = StackPanelShellView()
+    private let rootViewBuilder: () -> Content
     private let hostingController: NSHostingController<Content>
     private var lastAppearanceSignature: String?
 
-    init(rootView: Content) {
-        self.hostingController = NSHostingController(rootView: rootView)
+    init(rootViewBuilder: @escaping () -> Content) {
+        self.rootViewBuilder = rootViewBuilder
+        self.hostingController = NSHostingController(rootView: rootViewBuilder())
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -442,7 +439,11 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
     }
 
     override func loadView() {
-        view = NSView()
+        let rootView = StackPanelAppearanceAwareView()
+        rootView.onEffectiveAppearanceChange = { [weak self] in
+            self?.refreshAppearance()
+        }
+        view = rootView
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.clear.cgColor
 
@@ -470,29 +471,34 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
         refreshAppearance()
     }
 
-    func refreshAppearance(_ appearance: NSAppearance? = nil) {
-        let appliedAppearance = appearance
-            ?? view.window?.appearance
-            ?? view.appearance
-            ?? view.effectiveAppearance
-        let appearanceSignature = Self.appearanceSignature(for: appliedAppearance ?? view.effectiveAppearance)
+    func refreshAppearance() {
+        let appearanceSignature = Self.appearanceSignature(for: view.window?.effectiveAppearance ?? view.effectiveAppearance)
         let previousAppearanceSignature = lastAppearanceSignature
         let didChangeAppearance = previousAppearanceSignature != nil && previousAppearanceSignature != appearanceSignature
         lastAppearanceSignature = appearanceSignature
-        view.appearance = appliedAppearance
-        shellView.appearance = appliedAppearance
         shellView.refreshAppearance()
-        hostingController.view.appearance = appliedAppearance
         if didChangeAppearance {
+            hostingController.rootView = rootViewBuilder()
             hostingController.view.layer?.contents = nil
-            hostingController.view.needsDisplay = true
             hostingController.view.needsLayout = true
             hostingController.view.layoutSubtreeIfNeeded()
         }
+        view.needsDisplay = true
+        shellView.needsDisplay = true
+        hostingController.view.needsDisplay = true
     }
 
     private static func appearanceSignature(for appearance: NSAppearance?) -> String {
         appearance?.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])?.rawValue ?? "unspecified"
+    }
+}
+
+private final class StackPanelAppearanceAwareView: NSView {
+    var onEffectiveAppearanceChange: (() -> Void)?
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        onEffectiveAppearanceChange?()
     }
 }
 

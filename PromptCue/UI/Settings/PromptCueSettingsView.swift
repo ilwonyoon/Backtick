@@ -9,7 +9,6 @@ struct PromptCueSettingsView: View {
     @ObservedObject private var exportTailSettingsModel: PromptExportTailSettingsModel
     @ObservedObject private var retentionSettingsModel: CardRetentionSettingsModel
     @ObservedObject private var cloudSyncSettingsModel: CloudSyncSettingsModel
-    @ObservedObject private var appearanceSettingsModel: AppearanceSettingsModel
     @ObservedObject private var mcpConnectorSettingsModel: MCPConnectorSettingsModel
     @State private var installGuideClient: MCPConnectorClient?
     @State private var setupGuideClient: MCPConnectorClient?
@@ -28,7 +27,6 @@ struct PromptCueSettingsView: View {
         exportTailSettingsModel: PromptExportTailSettingsModel,
         retentionSettingsModel: CardRetentionSettingsModel,
         cloudSyncSettingsModel: CloudSyncSettingsModel,
-        appearanceSettingsModel: AppearanceSettingsModel,
         mcpConnectorSettingsModel: MCPConnectorSettingsModel
     ) {
         _navigationModel = ObservedObject(
@@ -39,7 +37,6 @@ struct PromptCueSettingsView: View {
         self.exportTailSettingsModel = exportTailSettingsModel
         self.retentionSettingsModel = retentionSettingsModel
         self.cloudSyncSettingsModel = cloudSyncSettingsModel
-        self.appearanceSettingsModel = appearanceSettingsModel
         self.mcpConnectorSettingsModel = mcpConnectorSettingsModel
     }
 
@@ -52,7 +49,6 @@ struct PromptCueSettingsView: View {
         self.exportTailSettingsModel = PromptExportTailSettingsModel()
         self.retentionSettingsModel = CardRetentionSettingsModel()
         self.cloudSyncSettingsModel = CloudSyncSettingsModel()
-        self.appearanceSettingsModel = AppearanceSettingsModel()
         self.mcpConnectorSettingsModel = MCPConnectorSettingsModel()
     }
 
@@ -78,7 +74,6 @@ struct PromptCueSettingsView: View {
             exportTailSettingsModel.refresh()
             retentionSettingsModel.refresh()
             cloudSyncSettingsModel.refresh()
-            appearanceSettingsModel.refresh()
             mcpConnectorSettingsModel.refresh()
         }
         .onChange(of: mcpConnectorSettingsModel.connectionState) { _, newValue in
@@ -245,35 +240,8 @@ struct PromptCueSettingsView: View {
     @ViewBuilder
     private var generalSections: some View {
         SettingsSection(
-            title: "Appearance",
-            titleFont: SettingsTokens.Typography.sectionTitleMedium,
-            footer: "Choose whether Backtick follows the system theme or forces a specific mode."
-        ) {
-            SettingsRows {
-                SettingsTwoColumnGroupRow(
-                    "Theme",
-                    showsDivider: false,
-                    contentAlignment: .trailing
-                ) {
-                    Picker(
-                        "",
-                        selection: binding(
-                            get: { appearanceSettingsModel.mode },
-                            set: { appearanceSettingsModel.updateMode($0) }
-                        )
-                    ) {
-                        ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                            Text(mode.title).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 220, alignment: .trailing)
-                }
-            }
-        }
-
-        SettingsSection(
             title: "Shortcuts",
+            titleFont: SettingsTokens.Typography.sectionTitleMedium,
             footer: "These shortcuts work globally."
         ) {
             SettingsRows {
