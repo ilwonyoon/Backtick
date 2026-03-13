@@ -179,6 +179,43 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         XCTAssertEqual(model.captureChooserTarget, automaticTarget)
     }
 
+    func testMovingChooserFocusDoesNotChangeCommittedSuggestedTargetUntilCompletion() {
+        let automaticTarget = makeTarget(
+            appName: "Cursor",
+            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+            repo: "Backtick",
+            branch: "main"
+        )
+        let explicitTarget = makeTarget(
+            appName: "Xcode",
+            bundleIdentifier: "com.apple.dt.Xcode",
+            repo: "PromptCue",
+            branch: "feature/chooser-port"
+        )
+        let provider = TestSuggestedTargetProvider(
+            latestTarget: automaticTarget,
+            availableTargets: [automaticTarget, explicitTarget]
+        )
+        let model = makeModel(provider: provider)
+
+        model.start()
+        model.beginCaptureSession()
+        model.toggleCaptureSuggestedTargetChooser()
+
+        XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+        XCTAssertEqual(model.focusedCaptureSuggestedTarget, automaticTarget)
+
+        XCTAssertTrue(model.moveCaptureSuggestedTargetSelection(by: 1))
+
+        XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+        XCTAssertEqual(model.focusedCaptureSuggestedTarget, explicitTarget)
+
+        XCTAssertTrue(model.completeCaptureSuggestedTargetSelection())
+
+        XCTAssertEqual(model.captureChooserTarget, explicitTarget)
+        XCTAssertEqual(model.focusedCaptureSuggestedTarget, explicitTarget)
+    }
+
     func testTerminalAutomaticTargetDeduplicatesMatchingAvailableTargetByCanonicalIdentity() {
         let automaticTarget = CaptureSuggestedTarget(
             appName: "Terminal",

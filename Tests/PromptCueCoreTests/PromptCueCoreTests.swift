@@ -235,6 +235,46 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func terminalChooserDetailPrefersCurrentWorkingDirectoryForRepositoryRoot() {
+        let target = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "PromptCue — main",
+            sessionIdentifier: "window-7",
+            terminalTTY: "/dev/ttys001",
+            currentWorkingDirectory: "/tmp/PromptCue",
+            repositoryRoot: "/tmp/PromptCue",
+            repositoryName: "PromptCue",
+            branch: "main",
+            capturedAt: referenceDate
+        )
+
+        #expect(target.workspaceLabel == "PromptCue")
+        #expect(target.chooserDetailLabel == "/tmp/PromptCue")
+        #expect(target.chooserSecondaryLabel == "Terminal · /tmp/PromptCue")
+    }
+
+    @Test
+    func terminalChooserDetailPrefersCurrentWorkingDirectoryForSubdirectoryTargets() {
+        let target = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "PromptCue — feature/refactor",
+            sessionIdentifier: "window-8",
+            terminalTTY: "/dev/ttys002",
+            currentWorkingDirectory: "/tmp/PromptCue/App",
+            repositoryRoot: "/tmp/PromptCue",
+            repositoryName: "PromptCue",
+            branch: "feature/refactor",
+            capturedAt: referenceDate
+        )
+
+        #expect(target.workspaceLabel == "PromptCue/App")
+        #expect(target.chooserDetailLabel == "/tmp/PromptCue/App")
+        #expect(target.chooserSecondaryLabel == "Terminal · /tmp/PromptCue/App")
+    }
+
+    @Test
     func suggestedTargetSourceKindDistinguishesTerminalFromIDEBundleIdentifiers() {
         let terminalTarget = CaptureSuggestedTarget(
             appName: "Terminal",

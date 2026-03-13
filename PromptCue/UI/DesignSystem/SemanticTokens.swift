@@ -93,7 +93,7 @@ enum SemanticTokens {
             dark: NSColor.white.withAlphaComponent(0.08)
         )
         static let captureChooserRowSelectedFill = adaptiveColor(
-            light: NSColor.white.withAlphaComponent(0.80),
+            light: NSColor.white,
             dark: NSColor.white.withAlphaComponent(0.14)
         )
     }

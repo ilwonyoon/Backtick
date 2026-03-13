@@ -576,13 +576,23 @@ private func resolveCurrentWorkingDirectory(forTTY tty: String) -> String? {
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .filter { !$0.isEmpty }
 
-    guard let pid = processLines.last?.split(whereSeparator: \.isWhitespace).first else {
-        return nil
+    let candidateProcessIDs = processLines.compactMap { line -> String? in
+        line.split(whereSeparator: \.isWhitespace).first.map(String.init)
     }
 
+    for pid in candidateProcessIDs.reversed() {
+        if let currentWorkingDirectory = resolveCurrentWorkingDirectory(forProcessID: pid) {
+            return currentWorkingDirectory
+        }
+    }
+
+    return nil
+}
+
+private func resolveCurrentWorkingDirectory(forProcessID processID: String) -> String? {
     guard let lsofOutput = runCommand(
         executableURL: URL(fileURLWithPath: "/usr/sbin/lsof"),
-        arguments: ["-a", "-p", String(pid), "-d", "cwd", "-Fn"]
+        arguments: ["-a", "-p", processID, "-d", "cwd", "-Fn"]
     ) else {
         return nil
     }

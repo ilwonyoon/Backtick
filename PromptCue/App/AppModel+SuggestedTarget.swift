@@ -33,7 +33,7 @@ extension AppModel {
         captureSuggestedTargetChoices.count
     }
 
-    var highlightedCaptureSuggestedTarget: CaptureSuggestedTarget? {
+    var focusedCaptureSuggestedTarget: CaptureSuggestedTarget? {
         let choices = captureSuggestedTargetChoices
         guard !choices.isEmpty else {
             return nil
@@ -43,7 +43,7 @@ extension AppModel {
         return choices[clampedIndex].target
     }
 
-    var isAutomaticCaptureSuggestedTargetHighlighted: Bool {
+    var isAutomaticCaptureSuggestedTargetFocused: Bool {
         let choices = captureSuggestedTargetChoices
         guard !choices.isEmpty else {
             return false
@@ -51,6 +51,14 @@ extension AppModel {
 
         let clampedIndex = max(0, min(selectedCaptureSuggestedTargetIndex, choices.count - 1))
         return choices[clampedIndex].isAutomatic
+    }
+
+    var highlightedCaptureSuggestedTarget: CaptureSuggestedTarget? {
+        focusedCaptureSuggestedTarget
+    }
+
+    var isAutomaticCaptureSuggestedTargetHighlighted: Bool {
+        isAutomaticCaptureSuggestedTargetFocused
     }
 
     func beginStackSuggestedTargetPresentation() {
