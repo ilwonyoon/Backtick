@@ -10,7 +10,9 @@ struct CardStackView: View {
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
     @State private var expandedCardIDs = Set<CaptureCard.ID>()
     @State private var isCopiedStackHovered = false
-    @State private var classificationCache: [CaptureCard.ID: ContentClassification] = [:]
+    @State private var classificationCache: [CaptureCard.ID: ContentClassification]
+    @State private var cardSections: CardSections
+    @State private var stagedCopiedCardIDSet: Set<CaptureCard.ID>
 
     init(
         model: AppModel,
@@ -22,10 +24,13 @@ struct CardStackView: View {
         self.onBackdropTap = onBackdropTap
         self.onEditCard = onEditCard
         self.onDeleteCard = onDeleteCard
+        _classificationCache = State(initialValue: Self.buildClassificationCache(for: model.cards))
+        _cardSections = State(initialValue: Self.partitionedCards(from: model.cards))
+        _stagedCopiedCardIDSet = State(initialValue: Set(model.stagedCopiedCardIDs))
     }
 
     var body: some View {
-        let sections = partitionedCards(from: model.cards)
+        let sections = cardSections
 
         ZStack {
             stackBackdrop
@@ -61,11 +66,12 @@ struct CardStackView: View {
             .padding(.bottom, PrimitiveTokens.Space.md)
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .onAppear {
-            classificationCache = buildClassificationCache(for: model.cards)
-        }
         .onChange(of: model.cards) { _, newCards in
-            classificationCache = buildClassificationCache(for: newCards)
+            cardSections = Self.partitionedCards(from: newCards)
+            classificationCache = Self.buildClassificationCache(for: newCards)
+        }
+        .onChange(of: model.stagedCopiedCardIDs) { _, newIDs in
+            stagedCopiedCardIDSet = Set(newIDs)
         }
     }
 
@@ -108,7 +114,7 @@ struct CardStackView: View {
     }
 
     private func cardRow(for card: CaptureCard) -> some View {
-        let isStagedCopied = model.stagedCopiedCardIDs.contains(card.id)
+        let isStagedCopied = stagedCopiedCardIDSet.contains(card.id)
 
         return stackColumnContent {
             CaptureCardView(
@@ -356,14 +362,10 @@ struct CardStackView: View {
             return cachedClassification
         }
 
-        let classification = ContentClassifier.classify(card.visibleInlineText)
-        DispatchQueue.main.async {
-            classificationCache[card.id] = classification
-        }
-        return classification
+        return ContentClassifier.classify(card.visibleInlineText)
     }
 
-    private func buildClassificationCache(for cards: [CaptureCard]) -> [CaptureCard.ID: ContentClassification] {
+    private static func buildClassificationCache(for cards: [CaptureCard]) -> [CaptureCard.ID: ContentClassification] {
         var cache: [CaptureCard.ID: ContentClassification] = [:]
         cache.reserveCapacity(cards.count)
         for card in cards {
@@ -389,7 +391,7 @@ struct CardStackView: View {
             .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
     }
 
-    private func partitionedCards(from cards: [CaptureCard]) -> CardSections {
+    private static func partitionedCards(from cards: [CaptureCard]) -> CardSections {
         var active: [CaptureCard] = []
         var copied: [CaptureCard] = []
         active.reserveCapacity(cards.count)
@@ -410,6 +412,8 @@ struct CardStackView: View {
 private struct CardSections {
     let active: [CaptureCard]
     let copied: [CaptureCard]
+
+    static let empty = CardSections(active: [], copied: [])
 
     var isEmpty: Bool {
         active.isEmpty && copied.isEmpty
