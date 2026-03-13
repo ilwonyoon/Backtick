@@ -51,4 +51,68 @@ enum PanelBackdropFamily {
     static var captureShellTopHighlightDark: NSColor {
         NSColor.white.withAlphaComponent(0.05)
     }
+
+    static var stackShellFillLight: NSColor {
+        NSColor(calibratedWhite: 0.69, alpha: 0.000)
+    }
+
+    static var stackShellFillDark: NSColor {
+        NSColor(calibratedWhite: 0.90, alpha: 0.25)
+    }
+
+    static var stackShellStrokeLight: NSColor {
+        NSColor.black.withAlphaComponent(0.000)
+    }
+
+    static var stackShellStrokeDark: NSColor {
+        NSColor.white.withAlphaComponent(0.000)
+    }
+
+    static var stackShellTopHighlightLight: NSColor {
+        NSColor.white.withAlphaComponent(0.34)
+    }
+
+    static var stackShellTopHighlightDark: NSColor {
+        NSColor.white.withAlphaComponent(0.31)
+    }
+
+    static var stackShellGradientTopLight: NSColor {
+        NSColor.white.withAlphaComponent(0.000)
+    }
+
+    static var stackShellGradientBottomLight: NSColor {
+        NSColor.black.withAlphaComponent(0.000)
+    }
+
+    static var stackShellGradientTopDark: NSColor {
+        NSColor.white.withAlphaComponent(0.000)
+    }
+
+    static var stackShellGradientBottomDark: NSColor {
+        NSColor.black.withAlphaComponent(0.000)
+    }
+
+    static var stackShellMaterialLight: NSVisualEffectView.Material {
+        .sidebar
+    }
+
+    static var stackShellMaterialDark: NSVisualEffectView.Material {
+        .sidebar
+    }
+
+    static var stackShellBlurOpacityLight: Double {
+        0.94
+    }
+
+    static var stackShellBlurOpacityDark: Double {
+        0.94
+    }
+
+    static var stackShellTintOpacityLight: Double {
+        0.31
+    }
+
+    static var stackShellTintOpacityDark: Double {
+        0.79
+    }
 }

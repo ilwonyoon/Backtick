@@ -1,8 +1,9 @@
 import CoreGraphics
 
 enum PanelMetrics {
-    static let stackPanelWidth: CGFloat = 472
-    static let stackCardColumnWidth: CGFloat = 368
+    static let stackPanelWidth: CGFloat = 448
+    static let stackPanelHorizontalPadding: CGFloat = 14
+    static let stackCardColumnWidth: CGFloat = stackPanelWidth - (stackPanelHorizontalPadding * 2)
     static let stackPanelMinimumHeight: CGFloat = 360
     static let stackPanelFallbackVisibleHeight: CGFloat = 600
 

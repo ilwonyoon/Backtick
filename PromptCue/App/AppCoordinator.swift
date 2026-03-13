@@ -90,6 +90,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
                 self?.showCapturePanel()
             }
         }
+
     }
 
     func stop() {

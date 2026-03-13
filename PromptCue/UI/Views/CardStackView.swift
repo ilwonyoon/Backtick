@@ -52,7 +52,9 @@ struct CardStackView: View {
         let visibleSections = filteredSections(from: allSections, state: railState)
 
         ZStack {
-            stackBackdrop
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onBackdropTap)
 
             VStack(alignment: .trailing, spacing: PrimitiveTokens.Space.xs) {
                 header(railState: railState)
@@ -83,8 +85,8 @@ struct CardStackView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
-            .padding(.horizontal, PrimitiveTokens.Space.sm)
-            .padding(.top, PrimitiveTokens.Space.xxxs)
+            .padding(.horizontal, PanelMetrics.stackPanelHorizontalPadding)
+            .padding(.top, PrimitiveTokens.Space.xs)
             .padding(.bottom, PrimitiveTokens.Space.md)
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
@@ -144,7 +146,6 @@ struct CardStackView: View {
                     .font(PrimitiveTokens.Typography.metaStrong)
                     .foregroundStyle(SemanticTokens.Text.primary)
             }
-
             filterMenu
         }
         .padding(.horizontal, PrimitiveTokens.Space.xxxs)
@@ -404,10 +405,6 @@ struct CardStackView: View {
 
     private var collapsedCopiedCardHeight: CGFloat {
         PrimitiveTokens.Size.notificationStackPlateHeight
-    }
-
-    private var stackBackdrop: some View {
-        StackPanelBackdrop(onTap: onBackdropTap)
     }
 
     private var copiedPreviewTextColor: Color {

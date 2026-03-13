@@ -5,6 +5,64 @@ import SwiftUI
 
 @MainActor
 final class StackPanelController: NSObject, NSWindowDelegate {
+    private enum PresentationMode: String {
+        case current
+        case slideOnly = "slide_only"
+        case fadeOnly = "fade_only"
+        case immediate
+
+        init(environmentValue: String?) {
+            guard let environmentValue,
+                  let mode = PresentationMode(rawValue: environmentValue)
+            else {
+                // Default to immediate presentation. The remaining intermittent
+                // blink comes from the offscreen -> onscreen window-frame
+                // animation itself, so the production path avoids window-level
+                // choreography and shows the panel in its final frame.
+                self = .immediate
+                return
+            }
+
+            self = mode
+        }
+
+        var startsOffscreen: Bool {
+            switch self {
+            case .current, .slideOnly:
+                true
+            case .fadeOnly, .immediate:
+                false
+            }
+        }
+
+        var startsTransparent: Bool {
+            switch self {
+            case .current, .fadeOnly:
+                true
+            case .slideOnly, .immediate:
+                false
+            }
+        }
+
+        var animatesFrame: Bool {
+            switch self {
+            case .current, .slideOnly:
+                true
+            case .fadeOnly, .immediate:
+                false
+            }
+        }
+
+        var animatesAlpha: Bool {
+            switch self {
+            case .current, .fadeOnly:
+                true
+            case .slideOnly, .immediate:
+                false
+            }
+        }
+    }
+
     private let model: AppModel
     private let onEditCard: (CaptureCard) -> Void
     private var panel: StackPanel?
@@ -16,6 +74,12 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
     var isPresentedOrTransitioning: Bool {
         isVisible || isAnimatingClose || panel?.isVisible == true
+    }
+
+    private var presentationMode: PresentationMode {
+        PresentationMode(
+            environmentValue: ProcessInfo.processInfo.environment["PROMPTCUE_TRACE_STACK_PRESENTATION_MODE"]
+        )
     }
 
     init(
@@ -53,17 +117,28 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         primePanelLayout(panel)
         PerformanceTrace.markStackOpenPhase("layout_primed")
         let targetFrame = onscreenPanelFrame(for: panel.frame.size)
-        panel.setFrame(offscreenPanelFrame(for: targetFrame.size), display: false)
-        PerformanceTrace.markStackOpenPhase("offscreen_frame_positioned")
+        let presentationMode = presentationMode
+        PerformanceTrace.markStackOpenPhase("presentation_mode_\(presentationMode.rawValue)")
+        let initialFrame = presentationMode.startsOffscreen
+            ? offscreenPanelFrame(for: targetFrame.size)
+            : targetFrame
+        panel.setFrame(initialFrame, display: false)
+        PerformanceTrace.markStackOpenPhase(
+            presentationMode.startsOffscreen
+                ? "offscreen_frame_positioned"
+                : "onscreen_frame_positioned"
+        )
         panel.armFirstFrameCallback {
             PerformanceTrace.completeStackOpenTraceIfNeeded()
         }
         PerformanceTrace.markStackOpenPhase("first_frame_callback_armed")
 
-        // Start fully transparent so backdrop materials and SwiftUI content
-        // can settle for one frame before becoming visible — prevents flash.
-        panel.alphaValue = 0
-        PerformanceTrace.markStackOpenPhase("alpha_zeroed")
+        panel.alphaValue = presentationMode.startsTransparent ? 0 : 1
+        PerformanceTrace.markStackOpenPhase(
+            presentationMode.startsTransparent
+                ? "alpha_zeroed"
+                : "alpha_primed"
+        )
         NSApp.activate(ignoringOtherApps: true)
         PerformanceTrace.markStackOpenPhase("app_activated")
         panel.makeKeyAndOrderFront(nil)
@@ -72,16 +147,26 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         installDismissMonitors()
         PerformanceTrace.markStackOpenPhase("dismiss_monitors_installed")
 
+        guard presentationMode.animatesAlpha || presentationMode.animatesFrame else {
+            return
+        }
+
         // Allow one run-loop cycle for NSVisualEffectView materials to
-        // composite, then fade in alongside the slide animation.
+        // composite, then apply the selected presentation choreography.
         DispatchQueue.main.async { [weak panel] in
             guard let panel else { return }
             PerformanceTrace.markStackOpenPhase("animation_dispatch")
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = PrimitiveTokens.Motion.standard
                 context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                panel.animator().alphaValue = 1
-                panel.animator().setFrame(targetFrame, display: true)
+
+                if presentationMode.animatesAlpha {
+                    panel.animator().alphaValue = 1
+                }
+
+                if presentationMode.animatesFrame {
+                    panel.animator().setFrame(targetFrame, display: true)
+                }
             }
         }
     }
@@ -135,9 +220,14 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
     func applyAppearance(_ appearance: NSAppearance?) {
         panel?.appearance = appearance
+        panel?.contentView?.appearance = appearance
+        panel?.contentViewController?.view.appearance = appearance
         panel?.invalidateShadow()
         panel?.contentView?.needsDisplay = true
         panel?.contentView?.subviews.forEach { $0.needsDisplay = true }
+        (panel?.contentViewController as? StackPanelContentViewController<CardStackView>)?.refreshAppearance(
+            appearance
+        )
     }
 
     func windowDidResignKey(_ notification: Notification) {
@@ -198,7 +288,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.onCancel = { [weak self] in
             self?.close()
         }
-        panel.contentViewController = NSHostingController(
+        panel.contentViewController = StackPanelContentViewController(
             rootView: CardStackView(
                 model: model,
                 onBackdropTap: { [weak self] in
@@ -333,6 +423,221 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         if !panel.frame.contains(NSEvent.mouseLocation) {
             close()
         }
+    }
+}
+
+private final class StackPanelContentViewController<Content: View>: NSViewController {
+    private let shellView = StackPanelShellView()
+    private let hostingController: NSHostingController<Content>
+
+    init(rootView: Content) {
+        self.hostingController = NSHostingController(rootView: rootView)
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func loadView() {
+        view = NSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.clear.cgColor
+
+        shellView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(shellView)
+
+        addChild(hostingController)
+        let hostedView = hostingController.view
+        hostedView.translatesAutoresizingMaskIntoConstraints = false
+        hostedView.wantsLayer = true
+        hostedView.layer?.backgroundColor = NSColor.clear.cgColor
+        shellView.addSubview(hostedView)
+
+        NSLayoutConstraint.activate([
+            shellView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            shellView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            shellView.topAnchor.constraint(equalTo: view.topAnchor),
+            shellView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            hostedView.leadingAnchor.constraint(equalTo: shellView.leadingAnchor),
+            hostedView.trailingAnchor.constraint(equalTo: shellView.trailingAnchor),
+            hostedView.topAnchor.constraint(equalTo: shellView.topAnchor),
+            hostedView.bottomAnchor.constraint(equalTo: shellView.bottomAnchor),
+        ])
+
+        refreshAppearance()
+    }
+
+    func refreshAppearance(_ appearance: NSAppearance? = nil) {
+        let appliedAppearance = appearance
+            ?? view.window?.appearance
+            ?? view.appearance
+            ?? view.effectiveAppearance
+        view.appearance = appliedAppearance
+        shellView.appearance = appliedAppearance
+        shellView.refreshAppearance()
+        hostingController.view.appearance = appliedAppearance
+        hostingController.view.needsDisplay = true
+    }
+}
+
+private final class StackPanelShellView: NSView {
+    private let effectView = NSVisualEffectView()
+    private let overlayView = NSView()
+    private let fillLayer = CAShapeLayer()
+    private let gradientLayer = CAGradientLayer()
+    private let borderLayer = CAShapeLayer()
+    private let topHighlightLayer = CAShapeLayer()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+        effectView.translatesAutoresizingMaskIntoConstraints = false
+        effectView.state = .active
+        effectView.blendingMode = .behindWindow
+        effectView.material = .underWindowBackground
+        effectView.wantsLayer = true
+        effectView.layer?.masksToBounds = true
+        effectView.layer?.backgroundColor = NSColor.clear.cgColor
+        overlayView.translatesAutoresizingMaskIntoConstraints = false
+        overlayView.wantsLayer = true
+        overlayView.layer?.masksToBounds = true
+        overlayView.layer?.backgroundColor = NSColor.clear.cgColor
+        overlayView.layer?.addSublayer(fillLayer)
+        overlayView.layer?.addSublayer(gradientLayer)
+        overlayView.layer?.addSublayer(borderLayer)
+        overlayView.layer?.addSublayer(topHighlightLayer)
+        addSubview(effectView)
+        addSubview(overlayView)
+        NSLayoutConstraint.activate([
+            effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            effectView.topAnchor.constraint(equalTo: topAnchor),
+            effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            overlayView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            overlayView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            overlayView.topAnchor.constraint(equalTo: topAnchor),
+            overlayView.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+        updateAppearance()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateAppearance()
+    }
+
+    override func layout() {
+        super.layout()
+        updateShape()
+    }
+
+    func refreshAppearance() {
+        updateAppearance()
+        needsDisplay = true
+    }
+
+    private func updateAppearance() {
+        let usesDarkAppearance = effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
+            .map { $0 == .darkAqua || $0 == .vibrantDark } ?? false
+        effectView.blendingMode = .behindWindow
+        effectView.material = usesDarkAppearance
+            ? PanelBackdropFamily.stackShellMaterialDark
+            : PanelBackdropFamily.stackShellMaterialLight
+        effectView.alphaValue = usesDarkAppearance
+            ? PanelBackdropFamily.stackShellBlurOpacityDark
+            : PanelBackdropFamily.stackShellBlurOpacityLight
+        fillLayer.fillColor = (
+            usesDarkAppearance
+                ? PanelBackdropFamily.stackShellFillDark
+                : PanelBackdropFamily.stackShellFillLight
+        ).cgColor
+        gradientLayer.colors = [
+            (
+                usesDarkAppearance
+                    ? PanelBackdropFamily.stackShellGradientTopDark
+                    : PanelBackdropFamily.stackShellGradientTopLight
+            ).cgColor,
+            (
+                usesDarkAppearance
+                    ? PanelBackdropFamily.stackShellGradientBottomDark
+                    : PanelBackdropFamily.stackShellGradientBottomLight
+            ).cgColor,
+        ]
+        borderLayer.strokeColor = (
+            usesDarkAppearance
+                ? PanelBackdropFamily.stackShellStrokeDark
+                : PanelBackdropFamily.stackShellStrokeLight
+        ).cgColor
+        topHighlightLayer.strokeColor = (
+            usesDarkAppearance
+                ? PanelBackdropFamily.stackShellTopHighlightDark
+                : PanelBackdropFamily.stackShellTopHighlightLight
+        ).cgColor
+        let tintOpacity = usesDarkAppearance
+            ? PanelBackdropFamily.stackShellTintOpacityDark
+            : PanelBackdropFamily.stackShellTintOpacityLight
+        fillLayer.opacity = Float(tintOpacity)
+        gradientLayer.opacity = Float(tintOpacity)
+        borderLayer.opacity = Float(tintOpacity)
+        topHighlightLayer.opacity = Float(tintOpacity)
+        gradientLayer.startPoint = CGPoint(x: 0.5, y: 0)
+        gradientLayer.endPoint = CGPoint(x: 0.5, y: 1)
+        borderLayer.lineWidth = PrimitiveTokens.Stroke.subtle
+        borderLayer.fillColor = NSColor.clear.cgColor
+        topHighlightLayer.lineWidth = PrimitiveTokens.Stroke.subtle
+        topHighlightLayer.fillColor = NSColor.clear.cgColor
+        updateShape()
+    }
+
+    private func updateShape() {
+        guard let layer,
+              let effectLayer = effectView.layer,
+              let overlayLayer = overlayView.layer
+        else { return }
+        let boundsRect = bounds
+        let radius = PrimitiveTokens.Radius.lg
+        let fullPath = CGPath(
+            roundedRect: boundsRect,
+            cornerWidth: radius,
+            cornerHeight: radius,
+            transform: nil
+        )
+        effectLayer.cornerRadius = radius
+        effectLayer.masksToBounds = true
+        overlayLayer.cornerRadius = radius
+        overlayLayer.masksToBounds = true
+        fillLayer.frame = boundsRect
+        fillLayer.path = fullPath
+        gradientLayer.frame = boundsRect
+        gradientLayer.cornerRadius = radius
+        borderLayer.frame = boundsRect
+        borderLayer.path = fullPath
+
+        let topRect = CGRect(
+            x: 0,
+            y: max(0, boundsRect.height - PrimitiveTokens.Space.lg),
+            width: boundsRect.width,
+            height: PrimitiveTokens.Space.lg
+        )
+        topHighlightLayer.frame = boundsRect
+        topHighlightLayer.path = fullPath
+
+        let maskLayer = CALayer()
+        maskLayer.frame = topRect
+        maskLayer.backgroundColor = NSColor.white.cgColor
+        topHighlightLayer.mask = maskLayer
+
+        layer.cornerRadius = radius
+        layer.backgroundColor = NSColor.clear.cgColor
     }
 }
 
