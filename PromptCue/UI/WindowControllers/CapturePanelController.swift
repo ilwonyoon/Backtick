@@ -831,7 +831,14 @@ private final class CaptureSuggestedTargetShellView: NSVisualEffectView {
     }
 
     private var captureShellFillColor: NSColor {
-        usesDarkAppearance ? PanelBackdropFamily.captureShellFillDark : PanelBackdropFamily.captureShellFillLight
+        if usesDarkAppearance {
+            return PanelBackdropFamily.captureShellFillDark
+        }
+
+        // Keep the chooser panel slightly dimmer than the main capture shell so
+        // the selected white row reads as a true highlight without introducing
+        // outlines or touching selector state.
+        return NSColor(calibratedWhite: 0.952, alpha: 0.96)
     }
 
     private var captureShellStrokeColor: NSColor {

@@ -69,6 +69,7 @@ final class RecentSuggestedAppTargetTracker: SuggestedTargetProviding {
         label: "com.promptcue.recent-suggested-app-target-resolution",
         qos: .utility
     )
+    private var latestResolutionID: UUID?
     private var availableResolutionID: UUID?
 
     func start() {
@@ -89,6 +90,8 @@ final class RecentSuggestedAppTargetTracker: SuggestedTargetProviding {
         if let frontmostApplication = NSWorkspace.shared.frontmostApplication {
             updateLatestTarget(from: frontmostApplication)
         }
+
+        refreshAvailableSuggestedTargets()
     }
 
     func stop() {
@@ -140,7 +143,6 @@ final class RecentSuggestedAppTargetTracker: SuggestedTargetProviding {
         }
 
         updateLatestTarget(from: application)
-        refreshAvailableSuggestedTargets()
     }
 
     private func updateLatestTarget(from application: NSRunningApplication) {
@@ -150,25 +152,57 @@ final class RecentSuggestedAppTargetTracker: SuggestedTargetProviding {
         }
 
         let capturedAt = Date()
-        let window = frontWindowSnapshot(forProcessIdentifier: application.processIdentifier)
-        latestTarget = CaptureSuggestedTarget(
+        let windowTitle = frontWindowTitle(forProcessIdentifier: application.processIdentifier)
+        let provisionalTarget = CaptureSuggestedTarget(
             appName: supportedApp.appName,
             bundleIdentifier: bundleIdentifier,
-            windowTitle: window?.title,
-            sessionIdentifier: window?.identifier,
+            windowTitle: windowTitle,
             capturedAt: capturedAt,
             confidence: .low
         )
+
+        latestTarget = supportedApp.sourceKind == .terminal ? nil : provisionalTarget
         onChange?()
+        refreshAvailableSuggestedTargets()
+
+        let resolutionID = UUID()
+        latestResolutionID = resolutionID
+
+        resolutionQueue.async { [weak self] in
+            let resolvedTarget = buildDetailedSuggestedTarget(
+                appName: supportedApp.appName,
+                bundleIdentifier: bundleIdentifier,
+                fallbackWindowTitle: windowTitle,
+                capturedAt: capturedAt
+            )
+
+            guard let resolvedTarget else {
+                return
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.latestResolutionID == resolutionID else {
+                    return
+                }
+
+                self.latestTarget = resolvedTarget
+                self.onChange?()
+            }
+        }
     }
 
     private func supportedApp(for bundleIdentifier: String) -> SupportedSuggestedApp? {
         SupportedSuggestedApps.app(for: bundleIdentifier)
     }
 
-    private func frontWindowSnapshot(forProcessIdentifier processIdentifier: pid_t) -> SafeWindowSnapshot? {
-        windowSnapshots(forProcessIdentifier: processIdentifier).first
+    private func frontWindowTitle(forProcessIdentifier processIdentifier: pid_t) -> String? {
+        windowTitles(forProcessIdentifier: processIdentifier).first
     }
+}
+
+private struct TerminalSessionContext {
+    let tty: String
+    let sessionIdentifier: String?
 }
 
 private struct SuggestedTargetWindowSnapshot {
@@ -176,27 +210,38 @@ private struct SuggestedTargetWindowSnapshot {
     let bundleIdentifier: String
     let windowTitle: String?
     let sessionIdentifier: String?
+    let tty: String?
 }
 
-private struct SafeWindowSnapshot {
-    let identifier: String
-    let title: String?
+private struct GitContextSnapshot {
+    let repositoryRoot: String
+    let repositoryName: String
+    let branch: String?
 }
 
-private func buildSafeSuggestedTarget(
+private func buildDetailedSuggestedTarget(
     appName: String,
     bundleIdentifier: String,
     fallbackWindowTitle: String?,
-    sessionIdentifier: String?,
-    capturedAt: Date
+    capturedAt: Date,
+    sessionContext: TerminalSessionContext? = nil
 ) -> CaptureSuggestedTarget? {
+    let resolvedSessionContext = sessionContext ?? resolveTerminalSessionContext(bundleIdentifier: bundleIdentifier)
+    let currentWorkingDirectory = resolvedSessionContext.flatMap { resolveCurrentWorkingDirectory(forTTY: $0.tty) }
+    let gitContext = currentWorkingDirectory.flatMap(resolveGitContext(for:))
+
     return CaptureSuggestedTarget(
         appName: appName,
         bundleIdentifier: bundleIdentifier,
         windowTitle: fallbackWindowTitle,
-        sessionIdentifier: sessionIdentifier,
+        sessionIdentifier: resolvedSessionContext?.sessionIdentifier,
+        terminalTTY: resolvedSessionContext?.tty,
+        currentWorkingDirectory: currentWorkingDirectory,
+        repositoryRoot: gitContext?.repositoryRoot,
+        repositoryName: gitContext?.repositoryName,
+        branch: gitContext?.branch,
         capturedAt: capturedAt,
-        confidence: .low
+        confidence: currentWorkingDirectory == nil ? .low : .high
     )
 }
 
@@ -204,7 +249,9 @@ private func enumerateAvailableSuggestedTargets(
     latestTarget: CaptureSuggestedTarget?
 ) -> [CaptureSuggestedTarget] {
     let capturedAt = Date()
-    let snapshots = enumerateSafeWindowSnapshots()
+    let snapshots = enumerateTerminalWindowSnapshots()
+        + enumerateITermWindowSnapshots()
+        + enumerateIDEWindowSnapshots()
     var deduplicatedSnapshots: [String: SuggestedTargetWindowSnapshot] = [:]
 
     for snapshot in snapshots {
@@ -212,12 +259,17 @@ private func enumerateAvailableSuggestedTargets(
     }
 
     let targets = deduplicatedSnapshots.values.compactMap { snapshot in
-        buildSafeSuggestedTarget(
+        buildDetailedSuggestedTarget(
             appName: snapshot.appName,
             bundleIdentifier: snapshot.bundleIdentifier,
             fallbackWindowTitle: snapshot.windowTitle,
-            sessionIdentifier: snapshot.sessionIdentifier,
-            capturedAt: capturedAt
+            capturedAt: capturedAt,
+            sessionContext: snapshot.tty.map {
+                TerminalSessionContext(
+                    tty: $0,
+                    sessionIdentifier: snapshot.sessionIdentifier ?? $0
+                )
+            }
         )
     }
 
@@ -255,44 +307,150 @@ private func enumerateAvailableSuggestedTargets(
     }
 }
 
-private func enumerateSafeWindowSnapshots() -> [SuggestedTargetWindowSnapshot] {
+private func enumerateTerminalWindowSnapshots() -> [SuggestedTargetWindowSnapshot] {
+    guard let output = runCommand(
+        executableURL: URL(fileURLWithPath: "/usr/bin/osascript"),
+        arguments: [
+            "-e", "tell application \"Terminal\"",
+            "-e", "if not running then return \"\"",
+            "-e", "set outputText to \"\"",
+            "-e", "repeat with w in every window",
+            "-e", "set titleText to \"\"",
+            "-e", "try",
+            "-e", "set titleText to custom title of w",
+            "-e", "end try",
+            "-e", "if titleText is \"\" then",
+            "-e", "try",
+            "-e", "set titleText to name of w",
+            "-e", "end try",
+            "-e", "end if",
+            "-e", "set ttyText to \"\"",
+            "-e", "try",
+            "-e", "set ttyText to tty of selected tab of w",
+            "-e", "end try",
+            "-e", "if ttyText is not \"\" then",
+            "-e", "set outputText to outputText & (id of w as text) & \"|\" & titleText & \"|\" & ttyText & linefeed",
+            "-e", "end if",
+            "-e", "end repeat",
+            "-e", "return outputText",
+            "-e", "end tell",
+        ]
+    ) else {
+        return []
+    }
+
+    return parseTerminalWindowSnapshotOutput(
+        output,
+        appName: "Terminal",
+        bundleIdentifier: "com.apple.Terminal"
+    )
+}
+
+private func enumerateITermWindowSnapshots() -> [SuggestedTargetWindowSnapshot] {
+    guard let output = runCommand(
+        executableURL: URL(fileURLWithPath: "/usr/bin/osascript"),
+        arguments: [
+            "-e", "tell application id \"com.googlecode.iterm2\"",
+            "-e", "if not running then return \"\"",
+            "-e", "set outputText to \"\"",
+            "-e", "repeat with w in windows",
+            "-e", "set sessionRef to current session of current tab of w",
+            "-e", "set ttyText to \"\"",
+            "-e", "set nameText to \"\"",
+            "-e", "try",
+            "-e", "set ttyText to tty of sessionRef",
+            "-e", "end try",
+            "-e", "try",
+            "-e", "set nameText to name of sessionRef",
+            "-e", "end try",
+            "-e", "if ttyText is not \"\" then",
+            "-e", "set outputText to outputText & (id of w as text) & \"|\" & nameText & \"|\" & ttyText & linefeed",
+            "-e", "end if",
+            "-e", "end repeat",
+            "-e", "return outputText",
+            "-e", "end tell",
+        ]
+    ) else {
+        return []
+    }
+
+    return parseTerminalWindowSnapshotOutput(
+        output,
+        appName: "iTerm2",
+        bundleIdentifier: "com.googlecode.iterm2"
+    )
+}
+
+private func parseTerminalWindowSnapshotOutput(
+    _ output: String,
+    appName: String,
+    bundleIdentifier: String
+) -> [SuggestedTargetWindowSnapshot] {
+    output
+        .components(separatedBy: .newlines)
+        .compactMap { line in
+            let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedLine.isEmpty else {
+                return nil
+            }
+
+            let parts = trimmedLine.split(separator: "|", maxSplits: 2, omittingEmptySubsequences: false)
+            guard parts.count == 3 else {
+                return nil
+            }
+
+            let windowID = String(parts[0])
+            let windowTitle = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let tty = String(parts[2]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !tty.isEmpty else {
+                return nil
+            }
+
+            return SuggestedTargetWindowSnapshot(
+                appName: appName,
+                bundleIdentifier: bundleIdentifier,
+                windowTitle: windowTitle.isEmpty ? nil : windowTitle,
+                sessionIdentifier: windowID,
+                tty: tty
+            )
+        }
+}
+
+private func enumerateIDEWindowSnapshots() -> [SuggestedTargetWindowSnapshot] {
     let runningApplications = NSWorkspace.shared.runningApplications
-    let supportedApplications = runningApplications.compactMap { application -> (NSRunningApplication, SupportedSuggestedApp)? in
+    let supportedIDEs = runningApplications.compactMap { application -> (NSRunningApplication, SupportedSuggestedApp)? in
         guard let bundleIdentifier = application.bundleIdentifier,
-              let supportedApp = SupportedSuggestedApps.app(for: bundleIdentifier) else {
+              let supportedApp = SupportedSuggestedApps.app(for: bundleIdentifier),
+              supportedApp.sourceKind == .ide else {
             return nil
         }
 
         return (application, supportedApp)
     }
 
-    return supportedApplications.flatMap { application, supportedApp in
-        let windows = windowSnapshots(forProcessIdentifier: application.processIdentifier)
-        let uniqueWindowIdentifiers = Array(NSOrderedSet(array: windows.map(\.identifier))) as? [String]
-            ?? windows.map(\.identifier)
+    return supportedIDEs.flatMap { application, supportedApp in
+        let titles = windowTitles(forProcessIdentifier: application.processIdentifier)
+        let uniqueTitles = Array(NSOrderedSet(array: titles)) as? [String] ?? titles
 
-        if uniqueWindowIdentifiers.isEmpty {
+        if uniqueTitles.isEmpty {
             return [
                 SuggestedTargetWindowSnapshot(
                     appName: supportedApp.appName,
                     bundleIdentifier: supportedApp.bundleIdentifier,
                     windowTitle: nil,
-                    sessionIdentifier: "\(application.processIdentifier)"
+                    sessionIdentifier: "\(application.processIdentifier)",
+                    tty: nil
                 )
             ]
         }
 
-        let windowsByIdentifier = Dictionary(uniqueKeysWithValues: windows.map { ($0.identifier, $0) })
-        return uniqueWindowIdentifiers.compactMap { identifier in
-            guard let window = windowsByIdentifier[identifier] else {
-                return nil
-            }
-
-            return SuggestedTargetWindowSnapshot(
+        return uniqueTitles.enumerated().map { index, title in
+            SuggestedTargetWindowSnapshot(
                 appName: supportedApp.appName,
                 bundleIdentifier: supportedApp.bundleIdentifier,
-                windowTitle: window.title,
-                sessionIdentifier: window.identifier
+                windowTitle: title,
+                sessionIdentifier: "\(application.processIdentifier):\(index)",
+                tty: nil
             )
         }
     }
@@ -303,6 +461,17 @@ private func suggestedTargetMatchKey(_ target: CaptureSuggestedTarget) -> String
 }
 
 private func suggestedTargetSnapshotMatchKey(_ snapshot: SuggestedTargetWindowSnapshot) -> String {
+    if SupportedSuggestedApps.app(for: snapshot.bundleIdentifier)?.sourceKind == .terminal {
+        return [
+            snapshot.bundleIdentifier,
+            snapshot.tty
+                ?? snapshot.sessionIdentifier
+                ?? snapshot.windowTitle
+                ?? snapshot.appName,
+        ]
+        .joined(separator: "|")
+    }
+
     return [
         snapshot.bundleIdentifier,
         snapshot.sessionIdentifier ?? "",
@@ -311,7 +480,56 @@ private func suggestedTargetSnapshotMatchKey(_ snapshot: SuggestedTargetWindowSn
     .joined(separator: "|")
 }
 
-private func windowSnapshots(forProcessIdentifier processIdentifier: pid_t) -> [SafeWindowSnapshot] {
+private func resolveTerminalSessionContext(bundleIdentifier: String) -> TerminalSessionContext? {
+    switch bundleIdentifier {
+    case "com.apple.Terminal":
+        guard let tty = runCommand(
+            executableURL: URL(fileURLWithPath: "/usr/bin/osascript"),
+            arguments: [
+                "-e", "tell application \"Terminal\"",
+                "-e", "if not running then return \"\"",
+                "-e", "return tty of selected tab of front window",
+                "-e", "end tell",
+            ]
+        ) else {
+            return nil
+        }
+
+        return TerminalSessionContext(tty: tty, sessionIdentifier: tty)
+
+    case "com.googlecode.iterm2":
+        guard let output = runCommand(
+            executableURL: URL(fileURLWithPath: "/usr/bin/osascript"),
+            arguments: [
+                "-e", "tell application id \"com.googlecode.iterm2\"",
+                "-e", "if not running then return \"\"",
+                "-e", "tell current session of current window",
+                "-e", "set ttyValue to tty",
+                "-e", "set sessionName to name",
+                "-e", "return ttyValue & linefeed & sessionName",
+                "-e", "end tell",
+                "-e", "end tell",
+            ]
+        ) else {
+            return nil
+        }
+
+        let parts = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        guard let tty = parts.first else {
+            return nil
+        }
+
+        return TerminalSessionContext(
+            tty: tty,
+            sessionIdentifier: parts.dropFirst().first
+        )
+
+    default:
+        return nil
+    }
+}
+
+private func windowTitles(forProcessIdentifier processIdentifier: pid_t) -> [String] {
     guard let windowList = CGWindowListCopyWindowInfo(
         [.optionOnScreenOnly, .excludeDesktopElements],
         kCGNullWindowID
@@ -330,16 +548,111 @@ private func windowSnapshots(forProcessIdentifier processIdentifier: pid_t) -> [
             return nil
         }
 
-        guard let windowNumber = window[kCGWindowNumber as String] as? NSNumber else {
+        guard let title = window[kCGWindowName as String] as? String else {
             return nil
         }
 
-        let trimmedTitle = (window[kCGWindowName as String] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
 
-        return SafeWindowSnapshot(
-            identifier: windowNumber.stringValue,
-            title: trimmedTitle?.isEmpty == true ? nil : trimmedTitle
-        )
+        return trimmed
     }
+}
+
+private func resolveCurrentWorkingDirectory(forTTY tty: String) -> String? {
+    let ttyName = URL(fileURLWithPath: tty).lastPathComponent
+    guard !ttyName.isEmpty,
+          let processesOutput = runCommand(
+            executableURL: URL(fileURLWithPath: "/bin/ps"),
+            arguments: ["-t", ttyName, "-o", "pid=,comm="]
+          ) else {
+        return nil
+    }
+
+    let processLines = processesOutput
+        .components(separatedBy: .newlines)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+
+    let candidateProcessIDs = processLines.compactMap { line -> String? in
+        line.split(whereSeparator: \.isWhitespace).first.map(String.init)
+    }
+
+    for pid in candidateProcessIDs.reversed() {
+        if let currentWorkingDirectory = resolveCurrentWorkingDirectory(forProcessID: pid) {
+            return currentWorkingDirectory
+        }
+    }
+
+    return nil
+}
+
+private func resolveCurrentWorkingDirectory(forProcessID processID: String) -> String? {
+    guard let lsofOutput = runCommand(
+        executableURL: URL(fileURLWithPath: "/usr/sbin/lsof"),
+        arguments: ["-a", "-p", processID, "-d", "cwd", "-Fn"]
+    ) else {
+        return nil
+    }
+
+    return lsofOutput
+        .components(separatedBy: .newlines)
+        .first(where: { $0.hasPrefix("n") })
+        .map { String($0.dropFirst()) }
+}
+
+private func resolveGitContext(for currentWorkingDirectory: String) -> GitContextSnapshot? {
+    guard let repositoryRoot = runCommand(
+        executableURL: URL(fileURLWithPath: "/usr/bin/git"),
+        arguments: ["-C", currentWorkingDirectory, "rev-parse", "--show-toplevel"]
+    ) else {
+        return nil
+    }
+
+    let repositoryName = URL(fileURLWithPath: repositoryRoot).lastPathComponent
+    let branch = runCommand(
+        executableURL: URL(fileURLWithPath: "/usr/bin/git"),
+        arguments: ["-C", currentWorkingDirectory, "branch", "--show-current"]
+    )
+
+    return GitContextSnapshot(
+        repositoryRoot: repositoryRoot,
+        repositoryName: repositoryName,
+        branch: branch?.isEmpty == true ? nil : branch
+    )
+}
+
+private func runCommand(
+    executableURL: URL,
+    arguments: [String]
+) -> String? {
+    let process = Process()
+    process.executableURL = executableURL
+    process.arguments = arguments
+
+    let outputPipe = Pipe()
+    process.standardOutput = outputPipe
+    process.standardError = Pipe()
+
+    do {
+        try process.run()
+    } catch {
+        return nil
+    }
+
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+        return nil
+    }
+
+    let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+    guard let output = String(data: data, encoding: .utf8)?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
+          !output.isEmpty else {
+        return nil
+    }
+
+    return output
 }

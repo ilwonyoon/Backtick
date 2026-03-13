@@ -243,6 +243,66 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func terminalChooserDetailPrefersCurrentWorkingDirectoryForRepositoryRoot() {
+        let target = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "PromptCue — main",
+            sessionIdentifier: "window-7",
+            terminalTTY: "/dev/ttys001",
+            currentWorkingDirectory: "/tmp/PromptCue",
+            repositoryRoot: "/tmp/PromptCue",
+            repositoryName: "PromptCue",
+            branch: "main",
+            capturedAt: referenceDate
+        )
+
+        #expect(target.workspaceLabel == "PromptCue")
+        #expect(target.chooserDetailLabel == "main")
+        #expect(target.chooserSecondaryLabel == "Terminal · main")
+    }
+
+    @Test
+    func terminalChooserDetailPrefersCurrentWorkingDirectoryForSubdirectoryTargets() {
+        let target = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "PromptCue — feature/refactor",
+            sessionIdentifier: "window-8",
+            terminalTTY: "/dev/ttys002",
+            currentWorkingDirectory: "/tmp/PromptCue/App",
+            repositoryRoot: "/tmp/PromptCue",
+            repositoryName: "PromptCue",
+            branch: "feature/refactor",
+            capturedAt: referenceDate
+        )
+
+        #expect(target.workspaceLabel == "PromptCue/App")
+        #expect(target.chooserDetailLabel == "refactor")
+        #expect(target.chooserSecondaryLabel == "Terminal · refactor")
+    }
+
+    @Test
+    func terminalChooserDetailFallsBackToPathWhenBranchIsUnavailable() {
+        let target = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "PromptCue",
+            sessionIdentifier: "window-9",
+            terminalTTY: "/dev/ttys003",
+            currentWorkingDirectory: "/tmp/PromptCue/App",
+            repositoryRoot: "/tmp/PromptCue",
+            repositoryName: "PromptCue",
+            branch: nil,
+            capturedAt: referenceDate
+        )
+
+        #expect(target.workspaceLabel == "PromptCue/App")
+        #expect(target.chooserDetailLabel == "/tmp/PromptCue/App")
+        #expect(target.chooserSecondaryLabel == "Terminal · /tmp/PromptCue/App")
+    }
+
+    @Test
     func suggestedTargetSourceKindDistinguishesTerminalFromIDEBundleIdentifiers() {
         let terminalTarget = CaptureSuggestedTarget(
             appName: "Terminal",

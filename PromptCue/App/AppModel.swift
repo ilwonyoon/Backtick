@@ -73,6 +73,7 @@ final class AppModel: ObservableObject {
     @Published var availableSuggestedTargets: [CaptureSuggestedTarget] = []
     @Published var isShowingCaptureSuggestedTargetChooser = false
     @Published var selectedCaptureSuggestedTargetIndex = 0
+    @Published var focusedCaptureSuggestedTargetChoiceID: String?
     @Published var selectedCardIDs: Set<UUID> = []
     @Published private(set) var isMultiSelectMode = false
     @Published private(set) var stagedCopiedCardIDs: [UUID] = []
@@ -170,6 +171,7 @@ final class AppModel: ObservableObject {
                 self?.syncRecentScreenshotState()
             }
         }
+        ensureSuggestedTargetProviderStarted()
         syncRecentScreenshotState()
         reloadCards(runNonCriticalMaintenance: startupMode == .immediateMaintenance)
         refreshCleanupTimer()
@@ -211,6 +213,7 @@ final class AppModel: ObservableObject {
         isSeedingCaptureFromCopiedCard = false
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
+        focusedCaptureSuggestedTargetChoiceID = nil
         isMultiSelectMode = false
         selectedCardIDs.removeAll()
         stagedCopiedCardIDs.removeAll()
@@ -593,8 +596,11 @@ final class AppModel: ObservableObject {
     }
 
     func refreshSuggestedTargetProviderLifecycle() {
+        guard !hasStartedSuggestedTargetProvider else {
+            return
+        }
+
         guard isCaptureSuggestedTargetPresentationActive || isStackSuggestedTargetPresentationActive else {
-            stopSuggestedTargetProvider()
             return
         }
 

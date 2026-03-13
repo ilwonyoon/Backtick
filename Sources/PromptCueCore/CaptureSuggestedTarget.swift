@@ -162,6 +162,17 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
     }
 
     public var chooserDetailLabel: String? {
+        if sourceKind == .terminal,
+           let terminalDetailLabel = Self.terminalChooserDetailLabel(
+            currentWorkingDirectory: currentWorkingDirectory,
+            repositoryRoot: repositoryRoot,
+            workspaceLabel: workspaceLabel,
+            branch: shortBranchLabel
+           ),
+           terminalDetailLabel.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
+            return terminalDetailLabel
+        }
+
         if let shortBranchLabel,
            shortBranchLabel.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
             return shortBranchLabel
@@ -267,6 +278,84 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
         }
 
         return leaf
+    }
+
+    private static func terminalChooserDetailLabel(
+        currentWorkingDirectory: String?,
+        repositoryRoot: String?,
+        workspaceLabel: String,
+        branch: String?
+    ) -> String? {
+        if let branch,
+           branch.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
+            return branch
+        }
+
+        guard let currentWorkingDirectory = sanitizedOptional(currentWorkingDirectory) else {
+            return nil
+        }
+
+        let abbreviatedWorkingDirectory = abbreviatedPathLabel(currentWorkingDirectory)
+        let pathDetail = terminalRelativeDetail(
+            currentWorkingDirectory: currentWorkingDirectory,
+            repositoryRoot: repositoryRoot,
+            workspaceLabel: workspaceLabel
+        ) ?? abbreviatedWorkingDirectory
+
+        guard let pathDetail,
+              pathDetail.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame else {
+            return nil
+        }
+
+        return truncate(pathDetail, maxLength: 36)
+    }
+
+    private static func terminalRelativeDetail(
+        currentWorkingDirectory: String,
+        repositoryRoot: String?,
+        workspaceLabel: String
+    ) -> String? {
+        guard let repositoryRoot = sanitizedOptional(repositoryRoot) else {
+            return abbreviatedPathLabel(currentWorkingDirectory)
+        }
+
+        let normalizedRoot = URL(fileURLWithPath: repositoryRoot).standardizedFileURL.path
+        let normalizedWorkingDirectory = URL(fileURLWithPath: currentWorkingDirectory).standardizedFileURL.path
+
+        guard normalizedWorkingDirectory.hasPrefix(normalizedRoot) else {
+            return abbreviatedPathLabel(normalizedWorkingDirectory)
+        }
+
+        let relativePath = String(normalizedWorkingDirectory.dropFirst(normalizedRoot.count))
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        guard !relativePath.isEmpty else {
+            return abbreviatedPathLabel(normalizedWorkingDirectory)
+        }
+
+        if workspaceLabel.localizedCaseInsensitiveContains(relativePath) {
+            return abbreviatedPathLabel(normalizedWorkingDirectory)
+        }
+
+        return relativePath
+    }
+
+    private static func abbreviatedPathLabel(_ path: String) -> String? {
+        let standardizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        guard !standardizedPath.isEmpty else {
+            return nil
+        }
+
+        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        if standardizedPath == homeDirectory {
+            return "~"
+        }
+
+        if standardizedPath.hasPrefix(homeDirectory + "/") {
+            return "~" + String(standardizedPath.dropFirst(homeDirectory.count))
+        }
+
+        return standardizedPath
     }
 
     private struct DerivedTitleMetadata {

@@ -62,19 +62,13 @@ struct CaptureSuggestedTargetChooserPanelView: View {
 
     var body: some View {
         SuggestedTargetChooserListView(
-            selectedTarget: model.captureChooserTarget ?? model.availableSuggestedTargets.first,
-            highlightedTarget: model.highlightedCaptureSuggestedTarget,
+            selectedTarget: model.captureChooserTarget,
+            focusedTarget: model.focusedCaptureSuggestedTarget,
             availableTargets: model.availableSuggestedTargets,
             emptyLabel: "No open supported apps",
             automaticTarget: model.automaticSuggestedTarget,
-            isAutomaticSelectionActive: model.isCaptureSuggestedTargetAutomatic,
-            isAutomaticHighlighted: model.isAutomaticCaptureSuggestedTargetHighlighted,
-            onHighlightTarget: { target in
-                _ = model.highlightCaptureSuggestedTarget(target)
-            },
-            onHighlightAutomaticTarget: {
-                _ = model.highlightAutomaticCaptureSuggestedTarget()
-            },
+            isAutomaticSelected: model.isCaptureSuggestedTargetAutomatic,
+            isAutomaticFocused: model.isAutomaticCaptureSuggestedTargetFocused,
             controlWidth: AppUIConstants.captureSelectorControlWidth,
             fixedWidth: nil,
             surfaceTopPadding: 0,
@@ -113,7 +107,7 @@ private struct SuggestedTargetOriginControl: View {
                 isPopoverPresented = true
             }
         } label: {
-            SuggestedTargetControlChrome(controlWidth: controlWidth) {
+            SuggestedTargetAccessoryChrome(controlWidth: controlWidth) {
                 SuggestedTargetIdentityLine(
                     target: displayedTarget,
                     fallbackLabel: emptyLabel,
@@ -126,14 +120,12 @@ private struct SuggestedTargetOriginControl: View {
         .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
             SuggestedTargetChooserListView(
                 selectedTarget: currentTarget ?? automaticTarget,
-                highlightedTarget: currentTarget ?? automaticTarget,
+                focusedTarget: currentTarget ?? automaticTarget,
                 availableTargets: availableTargets,
                 emptyLabel: emptyLabel,
                 automaticTarget: automaticTarget,
-                isAutomaticSelectionActive: isAutomaticSelectionActive,
-                isAutomaticHighlighted: isAutomaticSelectionActive,
-                onHighlightTarget: nil,
-                onHighlightAutomaticTarget: nil,
+                isAutomaticSelected: isAutomaticSelectionActive,
+                isAutomaticFocused: isAutomaticSelectionActive,
                 controlWidth: nil,
                 fixedWidth: 280,
                 surfaceTopPadding: AppUIConstants.captureChooserSurfaceVerticalPadding,
@@ -173,16 +165,20 @@ private struct SuggestedTargetOriginControl: View {
     }
 }
 
+private enum SuggestedTargetChooserRowState {
+    case selected
+    case hovered
+    case idle
+}
+
 private struct SuggestedTargetChooserListView: View {
     let selectedTarget: CaptureSuggestedTarget?
-    let highlightedTarget: CaptureSuggestedTarget?
+    let focusedTarget: CaptureSuggestedTarget?
     let availableTargets: [CaptureSuggestedTarget]
     let emptyLabel: String
     let automaticTarget: CaptureSuggestedTarget?
-    let isAutomaticSelectionActive: Bool
-    let isAutomaticHighlighted: Bool
-    let onHighlightTarget: ((CaptureSuggestedTarget) -> Void)?
-    let onHighlightAutomaticTarget: (() -> Void)?
+    let isAutomaticSelected: Bool
+    let isAutomaticFocused: Bool
     let controlWidth: CGFloat?
     let fixedWidth: CGFloat?
     let surfaceTopPadding: CGFloat
@@ -195,8 +191,6 @@ private struct SuggestedTargetChooserListView: View {
     let onUseAutomaticTarget: (() -> Void)?
 
     @State private var visibleWindowStartIndex = 0
-    @State private var suppressNextAutoScroll = false
-
     var body: some View {
         VStack(alignment: .leading, spacing: AppUIConstants.captureChooserPromptBottomSpacing) {
             chooserHeader
@@ -250,23 +244,8 @@ private struct SuggestedTargetChooserListView: View {
                         ForEach(displayedTargets, id: \.canonicalIdentityKey) { target in
                             chooserRow(
                                 target: target,
-                                isSelected: target == selectedTarget || (isAutomaticSelectionActive && target == automaticTarget),
-                                isHighlighted: target == automaticTarget
-                                    ? isAutomaticHighlighted
-                                    : (!isAutomaticHighlighted && target == highlightedTarget),
-                                isRecent: target == automaticTarget,
-                                onHoverHighlight: {
-                                    suppressNextAutoScroll = true
-                                    if target == automaticTarget {
-                                        if let onHighlightAutomaticTarget {
-                                            onHighlightAutomaticTarget()
-                                        } else {
-                                            onHighlightTarget?(target)
-                                        }
-                                    } else {
-                                        onHighlightTarget?(target)
-                                    }
-                                }
+                                rowState: rowState(for: target),
+                                isRecent: target == automaticTarget
                             ) {
                                 if target == automaticTarget {
                                     if let onUseAutomaticTarget {
@@ -288,12 +267,7 @@ private struct SuggestedTargetChooserListView: View {
                     visibleWindowStartIndex = 0
                     scrollHighlightedRowIfNeeded(using: proxy)
                 }
-                .onChange(of: highlightedChoiceID) { _, _ in
-                    if suppressNextAutoScroll {
-                        suppressNextAutoScroll = false
-                        return
-                    }
-
+                .onChange(of: focusedChoiceID) { _, _ in
                     scrollHighlightedRowIfNeeded(using: proxy)
                 }
             }
@@ -323,20 +297,28 @@ private struct SuggestedTargetChooserListView: View {
         "__automatic__"
     }
 
-    private var highlightedChoiceID: String? {
-        if isAutomaticHighlighted, automaticTarget != nil {
+    private var selectedChoiceID: String? {
+        if isAutomaticSelected, automaticTarget != nil {
             return automaticChoiceID
         }
 
-        return highlightedTarget?.canonicalIdentityKey
+        return selectedTarget?.canonicalIdentityKey
+    }
+
+    private var focusedChoiceID: String? {
+        if isAutomaticFocused, automaticTarget != nil {
+            return automaticChoiceID
+        }
+
+        return focusedTarget?.canonicalIdentityKey
     }
 
     private var highlightedChoiceIndex: Int? {
-        guard let highlightedChoiceID else {
+        guard let focusedChoiceID else {
             return nil
         }
 
-        return displayedTargets.firstIndex { choiceID(for: $0) == highlightedChoiceID }
+        return displayedTargets.firstIndex { choiceID(for: $0) == focusedChoiceID }
     }
 
     private var keyboardVisibleRowCapacity: Int {
@@ -377,21 +359,28 @@ private struct SuggestedTargetChooserListView: View {
     @ViewBuilder
     private func chooserRow(
         target: CaptureSuggestedTarget,
-        isSelected: Bool,
-        isHighlighted: Bool,
+        rowState: SuggestedTargetChooserRowState,
         isRecent: Bool,
-        onHoverHighlight: (() -> Void)?,
         action: @escaping () -> Void
     ) -> some View {
         SuggestedTargetChooserRow(
             target: target,
             controlWidth: controlWidth,
-            isSelected: isSelected,
-            isHighlighted: isHighlighted,
+            rowState: rowState,
             isRecent: isRecent,
-            onHoverHighlight: onHoverHighlight,
             action: action
         )
+    }
+
+    private func rowState(for target: CaptureSuggestedTarget) -> SuggestedTargetChooserRowState {
+        let targetChoiceID = choiceID(for: target)
+        let activeChoiceID = focusedChoiceID ?? selectedChoiceID
+
+        if targetChoiceID == activeChoiceID {
+            return .selected
+        }
+
+        return .idle
     }
 
     private func choiceID(for target: CaptureSuggestedTarget) -> String {
@@ -431,84 +420,60 @@ private struct SuggestedTargetChooserListView: View {
 private struct SuggestedTargetChooserRow: View {
     let target: CaptureSuggestedTarget
     let controlWidth: CGFloat?
-    let isSelected: Bool
-    let isHighlighted: Bool
+    let rowState: SuggestedTargetChooserRowState
     let isRecent: Bool
-    let onHoverHighlight: (() -> Void)?
     let action: () -> Void
 
     @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
-            SuggestedTargetControlChrome(
+            SuggestedTargetChooserRowChrome(
                 controlWidth: controlWidth,
                 minimumHeight: AppUIConstants.captureChooserRowHeight,
-                backgroundFill: backgroundFill,
-                borderColor: borderColor
+                rowState: renderState
             ) {
                 SuggestedTargetIdentityLine(
                     target: target,
                     fallbackLabel: target.fallbackDisplayLabel,
                     style: .chooser,
                     showsRecent: isRecent,
-                    isSelected: isSelected
+                    isSelected: renderState == .selected
                 )
             }
         }
         .buttonStyle(.plain)
         .onHover { hovered in
             isHovered = hovered
-            if hovered {
-                onHoverHighlight?()
-            }
         }
         .help(target.helpText)
     }
 
-    private var backgroundFill: Color {
-        if isHighlighted {
-            return SemanticTokens.Surface.captureChooserRowSelectedFill
+    private var renderState: SuggestedTargetChooserRowState {
+        switch rowState {
+        case .selected:
+            return rowState
+        case .hovered, .idle:
+            return isHovered ? .hovered : .idle
         }
-
-        if isHovered {
-            return SemanticTokens.Surface.captureChooserRowHoverFill
-        }
-
-        return SemanticTokens.Surface.captureChooserRowFill
-    }
-
-    private var borderColor: Color {
-        if isHighlighted {
-            return SemanticTokens.Border.captureChooserRowSelected
-        }
-
-        if isHovered {
-            return SemanticTokens.Border.captureChooserRowHover
-        }
-
-        return SemanticTokens.Border.captureChooserRow
     }
 }
 
-private struct SuggestedTargetControlChrome<Content: View>: View {
+private struct SuggestedTargetAccessoryChrome<Content: View>: View {
     let controlWidth: CGFloat?
     let minimumHeight: CGFloat?
     let backgroundFill: Color
-    let borderColor: Color
     @ViewBuilder let content: Content
 
     init(
         controlWidth: CGFloat?,
         minimumHeight: CGFloat? = nil,
         backgroundFill: Color = Color.black.opacity(0.045),
-        borderColor: Color = Color(nsColor: .separatorColor).opacity(0.42),
         @ViewBuilder content: () -> Content
     ) {
         self.controlWidth = controlWidth
         self.minimumHeight = minimumHeight
         self.backgroundFill = backgroundFill
-        self.borderColor = borderColor
         self.content = content()
     }
 
@@ -520,10 +485,6 @@ private struct SuggestedTargetControlChrome<Content: View>: View {
             .background {
                 chromeShape
                     .fill(backgroundFill)
-                    .overlay {
-                        chromeShape
-                            .strokeBorder(borderColor, lineWidth: PrimitiveTokens.Stroke.subtle)
-                    }
             }
             .clipShape(chromeShape)
             .contentShape(chromeShape)
@@ -533,6 +494,49 @@ private struct SuggestedTargetControlChrome<Content: View>: View {
 
     private var chromeShape: Capsule {
         Capsule(style: .continuous)
+    }
+}
+
+private struct SuggestedTargetChooserRowChrome<Content: View>: View {
+    let controlWidth: CGFloat?
+    let minimumHeight: CGFloat?
+    let rowState: SuggestedTargetChooserRowState
+    @ViewBuilder let content: Content
+
+    init(
+        controlWidth: CGFloat?,
+        minimumHeight: CGFloat? = nil,
+        rowState: SuggestedTargetChooserRowState,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.controlWidth = controlWidth
+        self.minimumHeight = minimumHeight
+        self.rowState = rowState
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(.horizontal, PrimitiveTokens.Space.xs + 1)
+            .padding(.vertical, PrimitiveTokens.Space.xxxs + 3)
+            .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .leading)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(backgroundFill)
+            }
+            .clipShape(Capsule(style: .continuous))
+            .contentShape(Capsule(style: .continuous))
+            .frame(width: controlWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: controlWidth == nil ? .leading : .center)
+    }
+
+    private var backgroundFill: Color {
+        switch rowState {
+        case .selected:
+            return SemanticTokens.Surface.captureChooserRowSelectedFill
+        case .hovered, .idle:
+            return SemanticTokens.Surface.captureChooserRowFill
+        }
     }
 }
 

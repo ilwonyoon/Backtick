@@ -77,7 +77,7 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         XCTAssertEqual(provider.refreshAvailableSuggestedTargetsCallCount, 1)
     }
 
-    func testStartDoesNotStartSuggestedTargetProviderUntilPresentation() {
+    func testStartKeepsSuggestedTargetProviderWarmForImmediatePresentation() {
         let provider = TestSuggestedTargetProvider(
             latestTarget: makeTarget(
                 appName: "Cursor",
@@ -90,15 +90,12 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         let model = makeModel(provider: provider)
 
         model.start()
-
-        XCTAssertEqual(provider.startCallCount, 0)
-
-        model.beginCaptureSession()
 
         XCTAssertEqual(provider.startCallCount, 1)
+        XCTAssertEqual(model.automaticSuggestedTarget?.workspaceLabel, "Backtick")
     }
 
-    func testStackPresentationStartsAndStopsSuggestedTargetProvider() {
+    func testStackPresentationUsesWarmSuggestedTargetProviderWithoutStoppingIt() {
         let provider = TestSuggestedTargetProvider(
             latestTarget: makeTarget(
                 appName: "Cursor",
@@ -111,6 +108,7 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         let model = makeModel(provider: provider)
 
         model.start()
+        XCTAssertEqual(provider.startCallCount, 1)
         model.beginStackSuggestedTargetPresentation()
 
         XCTAssertEqual(provider.startCallCount, 1)
@@ -118,8 +116,8 @@ final class AppModelSuggestedTargetTests: XCTestCase {
 
         model.endStackSuggestedTargetPresentation()
 
-        XCTAssertEqual(provider.stopCallCount, 1)
-        XCTAssertNil(model.automaticSuggestedTarget)
+        XCTAssertEqual(provider.stopCallCount, 0)
+        XCTAssertEqual(model.automaticSuggestedTarget?.workspaceLabel, "Backtick")
     }
 
     func testOpeningSuggestedTargetChooserRefreshesTargetsBeforeShowingChooser() {
@@ -179,6 +177,49 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         XCTAssertEqual(model.cards.first?.suggestedTarget, explicitTarget)
         XCTAssertFalse(model.isShowingCaptureSuggestedTargetChooser)
         XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+    }
+
+    func testMovingChooserFocusDoesNotChangeCommittedSuggestedTargetUntilCompletion() {
+        let automaticTarget = makeTarget(
+            appName: "Cursor",
+            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+            repo: "Backtick",
+            branch: "main"
+        )
+        let explicitTarget = makeTarget(
+            appName: "Xcode",
+            bundleIdentifier: "com.apple.dt.Xcode",
+            repo: "PromptCue",
+            branch: "feature/chooser-port"
+        )
+        let provider = TestSuggestedTargetProvider(
+            latestTarget: automaticTarget,
+            availableTargets: [automaticTarget, explicitTarget]
+        )
+        let model = makeModel(provider: provider)
+
+        model.start()
+        model.beginCaptureSession()
+        model.toggleCaptureSuggestedTargetChooser()
+
+        XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+        XCTAssertEqual(model.committedCaptureSuggestedTargetChoiceID, "__automatic__")
+        XCTAssertEqual(model.focusedCaptureSuggestedTargetChoiceID, "__automatic__")
+        XCTAssertEqual(model.focusedCaptureSuggestedTarget, automaticTarget)
+
+        XCTAssertTrue(model.moveCaptureSuggestedTargetSelection(by: 1))
+
+        XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+        XCTAssertEqual(model.committedCaptureSuggestedTargetChoiceID, "__automatic__")
+        XCTAssertEqual(model.focusedCaptureSuggestedTargetChoiceID, explicitTarget.canonicalIdentityKey)
+        XCTAssertEqual(model.focusedCaptureSuggestedTarget, explicitTarget)
+
+        XCTAssertTrue(model.completeCaptureSuggestedTargetSelection())
+
+        XCTAssertEqual(model.captureChooserTarget, explicitTarget)
+        XCTAssertEqual(model.committedCaptureSuggestedTargetChoiceID, explicitTarget.canonicalIdentityKey)
+        XCTAssertEqual(model.focusedCaptureSuggestedTargetChoiceID, explicitTarget.canonicalIdentityKey)
+        XCTAssertEqual(model.focusedCaptureSuggestedTarget, explicitTarget)
     }
 
     func testTerminalAutomaticTargetDeduplicatesMatchingAvailableTargetByCanonicalIdentity() {
@@ -269,6 +310,41 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         XCTAssertTrue(model.cancelCaptureSuggestedTargetSelection())
         XCTAssertFalse(model.isShowingCaptureSuggestedTargetChooser)
         XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+    }
+
+    func testCancelCaptureSuggestedTargetSelectionRestoresFocusedChoiceToCommittedTarget() {
+        let automaticTarget = makeTarget(
+            appName: "Cursor",
+            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+            repo: "Backtick",
+            branch: "main"
+        )
+        let explicitTarget = makeTarget(
+            appName: "Xcode",
+            bundleIdentifier: "com.apple.dt.Xcode",
+            repo: "PromptCue",
+            branch: "feature/cancel"
+        )
+        let provider = TestSuggestedTargetProvider(
+            latestTarget: automaticTarget,
+            availableTargets: [automaticTarget, explicitTarget]
+        )
+        let model = makeModel(provider: provider)
+
+        model.start()
+        model.beginCaptureSession()
+        model.toggleCaptureSuggestedTargetChooser()
+        XCTAssertTrue(model.moveCaptureSuggestedTargetSelection(by: 1))
+        XCTAssertEqual(model.focusedCaptureSuggestedTarget, explicitTarget)
+        XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+
+        XCTAssertTrue(model.cancelCaptureSuggestedTargetSelection())
+
+        XCTAssertFalse(model.isShowingCaptureSuggestedTargetChooser)
+        XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+        XCTAssertEqual(model.focusedCaptureSuggestedTarget, automaticTarget)
+        XCTAssertEqual(model.committedCaptureSuggestedTargetChoiceID, "__automatic__")
+        XCTAssertEqual(model.focusedCaptureSuggestedTargetChoiceID, "__automatic__")
     }
 
     func testAssignSuggestedTargetUpdatesExistingCard() async {
