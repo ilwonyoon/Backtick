@@ -327,11 +327,9 @@ struct CardStackView: View {
                         }
 
                         if let card = copiedCards.first {
-                            let classification = resolveClassification(for: card)
-                            let visibleInlineText = card.visibleInlineText
                             InteractiveDetectedTextView(
-                                text: visibleInlineText,
-                                classification: classification,
+                                text: card.visibleInlineText,
+                                classification: resolveClassification(for: card),
                                 baseColor: copiedPreviewTextColor,
                                 highlightedRanges: card.visibleInlineTagRanges,
                                 multilineLineLimit: StackCardOverflowPolicy.collapsedCopiedLineLimit
@@ -419,9 +417,18 @@ struct CardStackView: View {
             return nil
         }
 
+        let styledText = InteractiveDetectedTextView.styledText(
+            text: firstCopiedCard.visibleInlineText,
+            classification: resolveClassification(for: firstCopiedCard),
+            baseColor: copiedPreviewTextColor,
+            highlightedRanges: firstCopiedCard.visibleInlineTagRanges
+        )
+
         return StackCardOverflowPolicy.metrics(
-            for: firstCopiedCard.text,
+            for: styledText.measurementText,
             cacheIdentity: firstCopiedCard.id,
+            layoutVariant: styledText.displayConfiguration.layoutVariant,
+            styleSignature: styledText.cacheSignature,
             availableWidth: collapsedCopiedSummaryTextWidth
         )
     }
@@ -567,6 +574,8 @@ struct CardStackView: View {
 private struct CardSections {
     let active: [CaptureCard]
     let copied: [CaptureCard]
+
+    static let empty = CardSections(active: [], copied: [])
 
     var isEmpty: Bool {
         active.isEmpty && copied.isEmpty
