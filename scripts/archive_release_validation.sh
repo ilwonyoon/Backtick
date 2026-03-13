@@ -9,6 +9,8 @@ PROJECT_PATH="${PROJECT_ROOT}/PromptCue.xcodeproj"
 SCHEME="PromptCue"
 CONFIGURATION="Release"
 OUTPUT_ROOT="${PROJECT_ROOT}/build/release-validation"
+SPARKLE_APPCAST_URL="https://updates.example.invalid/backtick/appcast.xml"
+SPARKLE_PUBLIC_ED_KEY="SPARKLE_TEST_PUBLIC_KEY_PLACEHOLDER"
 DERIVED_DATA_PATH=""
 SOURCE_PACKAGES_DIR=""
 ARCHIVE_PATH=""
@@ -34,6 +36,12 @@ Options:
                            (default: PromptCue.xcodeproj in repo root)
   --scheme NAME            Xcode scheme to archive (default: PromptCue)
   --configuration NAME     Xcode configuration to archive (default: Release)
+  --sparkle-appcast-url URL
+                           Sparkle appcast URL injected into the Release lane
+                           (default: https://updates.example.invalid/backtick/appcast.xml)
+  --sparkle-public-ed-key KEY
+                           Sparkle public EdDSA key injected into the Release lane
+                           (default: SPARKLE_TEST_PUBLIC_KEY_PLACEHOLDER)
   --skip-xcodegen          Reuse the existing project instead of regenerating it
   --help                   Show this help
 EOF
@@ -81,6 +89,16 @@ while [[ $# -gt 0 ]]; do
     --configuration)
       [[ $# -ge 2 ]] || fail "--configuration requires a value"
       CONFIGURATION="$2"
+      shift 2
+      ;;
+    --sparkle-appcast-url)
+      [[ $# -ge 2 ]] || fail "--sparkle-appcast-url requires a value"
+      SPARKLE_APPCAST_URL="$2"
+      shift 2
+      ;;
+    --sparkle-public-ed-key)
+      [[ $# -ge 2 ]] || fail "--sparkle-public-ed-key requires a value"
+      SPARKLE_PUBLIC_ED_KEY="$2"
       shift 2
       ;;
     --skip-xcodegen)
@@ -141,6 +159,9 @@ XCODEBUILD_CMD=(
   -archivePath "${ARCHIVE_PATH}"
   COMPILER_INDEX_STORE_ENABLE=NO
   CODE_SIGNING_ALLOWED=NO
+  PROMPTCUE_ENABLE_SPARKLE_UPDATES=YES
+  PROMPTCUE_SPARKLE_APPCAST_URL="${SPARKLE_APPCAST_URL}"
+  PROMPTCUE_SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY}"
   archive
 )
 
@@ -160,6 +181,7 @@ run "${PROJECT_ROOT}/scripts/validate_release_artifact.sh" \
   --archive "${ARCHIVE_PATH}" \
   --app "${EXPORTED_APP_PATH}" \
   --artifact "${ARTIFACT_PATH}" \
+  --expect-sparkle enabled \
   --report-out "${VALIDATION_REPORT_PATH}"
 run "${PROJECT_ROOT}/scripts/write_release_metadata.sh" \
   --archive "${ARCHIVE_PATH}" \

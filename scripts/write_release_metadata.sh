@@ -153,6 +153,9 @@ BUILD_VERSION="$(plist_value "${APP_INFO_PLIST}" ':CFBundleVersion')"
 EXECUTABLE_NAME="$(plist_value "${APP_INFO_PLIST}" ':CFBundleExecutable')"
 APP_BINARY_PATH="${APP_PATH}/Contents/MacOS/${EXECUTABLE_NAME}"
 HELPER_PATH="${APP_PATH}/Contents/Helpers/BacktickMCP"
+SPARKLE_ENABLED_RAW="$(plist_value "${APP_INFO_PLIST}" ':BacktickEnableSparkleUpdates')"
+SPARKLE_FEED_URL="$(plist_value "${APP_INFO_PLIST}" ':SUFeedURL')"
+SPARKLE_PUBLIC_ED_KEY="$(plist_value "${APP_INFO_PLIST}" ':SUPublicEDKey')"
 
 APP_BINARY_SHA256="$(sha256_of "${APP_BINARY_PATH}")"
 HELPER_SHA256="$(sha256_of "${HELPER_PATH}")"
@@ -188,6 +191,7 @@ export APP_PATH ARCHIVE_PATH ARTIFACT_PATH VALIDATION_REPORT DISPLAY_NAME BUNDLE
 export MARKETING_VERSION BUILD_VERSION EXECUTABLE_NAME APP_BINARY_PATH APP_BINARY_SHA256
 export HELPER_PATH HELPER_FILE_OUTPUT HELPER_ARCHES HELPER_SHA256 ARTIFACT_SHA256
 export APP_SIGNED HELPER_SIGNED NOTARY_LOG GATEKEEPER_LOG
+export SPARKLE_ENABLED_RAW SPARKLE_FEED_URL SPARKLE_PUBLIC_ED_KEY
 
 python3 - "${OUT_PATH}" <<'PY'
 import json
@@ -201,6 +205,11 @@ def maybe(value):
 
 def as_bool(value):
     return value == "true"
+
+def as_fuzzy_bool(value):
+    if value is None:
+        return False
+    return str(value).strip().lower() in ("1", "yes", "true")
 
 def load_json(path):
     if not path:
@@ -255,6 +264,13 @@ payload = {
     },
     "gatekeeper": {
         "log_path": maybe(os.environ.get("GATEKEEPER_LOG")),
+    },
+    "updater": {
+        "sparkle": {
+            "enabled": as_fuzzy_bool(os.environ.get("SPARKLE_ENABLED_RAW")),
+            "feed_url": maybe(os.environ.get("SPARKLE_FEED_URL")),
+            "public_ed_key_present": maybe(os.environ.get("SPARKLE_PUBLIC_ED_KEY")) is not None,
+        },
     },
 }
 

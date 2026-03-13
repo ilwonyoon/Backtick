@@ -9,6 +9,7 @@ REPORT_OUT=""
 EXPECTED_BUNDLE_ID="com.promptcue.promptcue"
 EXPECTED_DISPLAY_NAME="Prompt Cue"
 EXPECTED_HELPER_RELATIVE_PATH="Contents/Helpers/BacktickMCP"
+EXPECTED_SPARKLE_STATE="ignore"
 REQUIRE_SIGNATURE=0
 
 REPORT_LINES=()
@@ -30,6 +31,8 @@ Options:
   --expected-bundle-id ID     Expected app bundle identifier
                               (default: com.promptcue.promptcue)
   --expected-display-name ID  Expected app display name (default: Prompt Cue)
+  --expect-sparkle STATE      Sparkle expectation: enabled, disabled, or ignore
+                              (default: ignore)
   --require-signature         Fail unless the app and helper have valid signatures
   --help                      Show this help
 EOF
@@ -66,6 +69,19 @@ check_codesign() {
   fi
 }
 
+normalize_bool() {
+  local value="${1:-}"
+  value="$(printf '%s' "${value}" | tr '[:upper:]' '[:lower:]')"
+  case "${value}" in
+    1|yes|true)
+      printf 'true\n'
+      ;;
+    *)
+      printf 'false\n'
+      ;;
+  esac
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --app)
@@ -98,6 +114,11 @@ while [[ $# -gt 0 ]]; do
       EXPECTED_DISPLAY_NAME="$2"
       shift 2
       ;;
+    --expect-sparkle)
+      [[ $# -ge 2 ]] || fail "--expect-sparkle requires a value"
+      EXPECTED_SPARKLE_STATE="$2"
+      shift 2
+      ;;
     --require-signature)
       REQUIRE_SIGNATURE=1
       shift
@@ -114,6 +135,14 @@ done
 
 [[ -n "${APP_PATH}" ]] || fail "--app is required"
 [[ -n "${ARCHIVE_PATH}" ]] || fail "--archive is required"
+
+case "${EXPECTED_SPARKLE_STATE}" in
+  enabled|disabled|ignore)
+    ;;
+  *)
+    fail "unsupported --expect-sparkle '${EXPECTED_SPARKLE_STATE}'; expected enabled, disabled, or ignore"
+    ;;
+esac
 
 APP_PATH="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${APP_PATH}")"
 ARCHIVE_PATH="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${ARCHIVE_PATH}")"
@@ -141,6 +170,10 @@ HELPER_FILE_OUTPUT=""
 HELPER_LIPO_OUTPUT=""
 APP_SIGNATURE_STATUS="missing"
 HELPER_SIGNATURE_STATUS="missing"
+SPARKLE_ENABLED_RAW=""
+SPARKLE_ENABLED="false"
+SPARKLE_FEED_URL=""
+SPARKLE_PUBLIC_ED_KEY=""
 
 if [[ ${#ERRORS[@]} -eq 0 ]]; then
   DISPLAY_NAME="$(plist_value "${APP_INFO_PLIST}" ':CFBundleDisplayName')"
@@ -182,6 +215,11 @@ if [[ ${#ERRORS[@]} -eq 0 ]]; then
     HELPER_LIPO_OUTPUT="$(lipo -info "${HELPER_PATH}" 2>&1 || true)"
   fi
 
+  SPARKLE_ENABLED_RAW="$(plist_value "${APP_INFO_PLIST}" ':BacktickEnableSparkleUpdates')"
+  SPARKLE_ENABLED="$(normalize_bool "${SPARKLE_ENABLED_RAW}")"
+  SPARKLE_FEED_URL="$(plist_value "${APP_INFO_PLIST}" ':SUFeedURL')"
+  SPARKLE_PUBLIC_ED_KEY="$(plist_value "${APP_INFO_PLIST}" ':SUPublicEDKey')"
+
   APP_SIGNATURE_STATUS="$(check_codesign "${APP_PATH}")"
   if [[ -x "${HELPER_PATH}" ]]; then
     HELPER_SIGNATURE_STATUS="$(check_codesign "${HELPER_PATH}")"
@@ -191,6 +229,19 @@ if [[ ${#ERRORS[@]} -eq 0 ]]; then
     [[ "${APP_SIGNATURE_STATUS}" == "valid" ]] || append_error "app signature is not valid"
     [[ "${HELPER_SIGNATURE_STATUS}" == "valid" ]] || append_error "helper signature is not valid"
   fi
+
+  case "${EXPECTED_SPARKLE_STATE}" in
+    enabled)
+      [[ "${SPARKLE_ENABLED}" == "true" ]] || append_error "Sparkle lane flag is not enabled"
+      [[ -n "${SPARKLE_FEED_URL}" ]] || append_error "Sparkle appcast URL is missing (SUFeedURL)"
+      [[ -n "${SPARKLE_PUBLIC_ED_KEY}" ]] || append_error "Sparkle public EdDSA key is missing (SUPublicEDKey)"
+      ;;
+    disabled)
+      [[ "${SPARKLE_ENABLED}" == "false" ]] || append_error "Sparkle lane flag should be disabled"
+      ;;
+    ignore)
+      ;;
+  esac
 fi
 
 append_report "Release artifact validation"
@@ -207,6 +258,14 @@ append_report "Executable: ${EXECUTABLE_NAME:-<missing>}"
 append_report "Helper path: ${HELPER_PATH:-<missing>}"
 append_report "App signature status: ${APP_SIGNATURE_STATUS}"
 append_report "Helper signature status: ${HELPER_SIGNATURE_STATUS}"
+append_report "Sparkle expected state: ${EXPECTED_SPARKLE_STATE}"
+append_report "Sparkle lane flag (BacktickEnableSparkleUpdates): ${SPARKLE_ENABLED_RAW:-<missing>}"
+append_report "Sparkle appcast URL (SUFeedURL): ${SPARKLE_FEED_URL:-<missing>}"
+if [[ -n "${SPARKLE_PUBLIC_ED_KEY}" ]]; then
+  append_report "Sparkle public key (SUPublicEDKey): <present>"
+else
+  append_report "Sparkle public key (SUPublicEDKey): <missing>"
+fi
 if [[ -n "${HELPER_FILE_OUTPUT}" ]]; then
   append_report "Helper file: ${HELPER_FILE_OUTPUT}"
 fi

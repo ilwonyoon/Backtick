@@ -7,3 +7,8 @@
 // Config/AppStore.xcconfig overrides this with the MAS compatibility file.
 
 CODE_SIGN_ENTITLEMENTS = PromptCue/PromptCue.entitlements
+
+// Sparkle updater defaults stay off unless a lane explicitly enables them.
+PROMPTCUE_ENABLE_SPARKLE_UPDATES = NO
+PROMPTCUE_SPARKLE_APPCAST_URL =
+PROMPTCUE_SPARKLE_PUBLIC_ED_KEY =

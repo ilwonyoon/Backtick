@@ -6,6 +6,7 @@ import PromptCueCore
 final class AppCoordinator: AppLifecycleCoordinating {
     let model = AppModel()
     private let hotKeyCenter = HotKeyCenter()
+    private let appUpdateController: any AppUpdateControlling
     private let screenshotSettingsModel = ScreenshotSettingsModel()
     private let exportTailSettingsModel = PromptExportTailSettingsModel()
     private let retentionSettingsModel = CardRetentionSettingsModel()
@@ -31,7 +32,8 @@ final class AppCoordinator: AppLifecycleCoordinating {
     private var pendingStackToggleTask: Task<Void, Never>?
     private var systemThemeObserver: NSObjectProtocol?
 
-    init() {
+    init(appUpdateController: (any AppUpdateControlling)? = nil) {
+        self.appUpdateController = appUpdateController ?? SparkleUpdateController()
         systemThemeObserver = DistributedNotificationCenter.default().addObserver(
             forName: Notification.Name("AppleInterfaceThemeChangedNotification"),
             object: nil,
@@ -130,6 +132,15 @@ final class AppCoordinator: AppLifecycleCoordinating {
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(handleOpenSettings), keyEquivalent: ","))
+        if appUpdateController.isEnabled {
+            menu.addItem(
+                NSMenuItem(
+                    title: "Check for Updates…",
+                    action: #selector(handleCheckForUpdates),
+                    keyEquivalent: ""
+                )
+            )
+        }
         menu.addItem(NSMenuItem(title: "Quit Prompt Cue", action: #selector(handleQuit), keyEquivalent: "q"))
 
         menu.items.forEach { $0.target = self }
@@ -160,6 +171,10 @@ final class AppCoordinator: AppLifecycleCoordinating {
 
     @objc private func handleOpenSettings() {
         showSettingsWindow()
+    }
+
+    @objc private func handleCheckForUpdates() {
+        appUpdateController.checkForUpdates()
     }
 
     @objc private func handleQuit() {

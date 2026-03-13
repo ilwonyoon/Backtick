@@ -23,6 +23,8 @@ SIGNING_SHA1=""
 SIGNING_IDENTITY=""
 TEAM_ID=""
 NOTARY_PROFILE=""
+SPARKLE_APPCAST_URL=""
+SPARKLE_PUBLIC_ED_KEY=""
 
 DERIVED_DATA_PATH=""
 SOURCE_PACKAGES_DIR=""
@@ -62,6 +64,9 @@ Options:
   --signing-identity NAME    Developer ID Application certificate name
   --team-id TEAMID           Apple Team ID for manual signing
   --notary-profile NAME      notarytool keychain profile name
+  --sparkle-appcast-url URL  Sparkle appcast URL for direct-update release builds
+  --sparkle-public-ed-key KEY
+                             Sparkle public EdDSA key for direct-update release builds
   --allow-dirty              Allow packaging from a dirty git worktree
   --skip-xcodegen            Reuse the existing project instead of regenerating it
   --help                     Show this help
@@ -76,6 +81,8 @@ Supported Config/Local.xcconfig keys:
   PROMPTCUE_RELEASE_SIGNING_IDENTITY
   PROMPTCUE_RELEASE_TEAM_ID
   PROMPTCUE_RELEASE_NOTARY_PROFILE
+  PROMPTCUE_RELEASE_SPARKLE_APPCAST_URL
+  PROMPTCUE_RELEASE_SPARKLE_PUBLIC_ED_KEY
 EOF
 }
 
@@ -201,6 +208,18 @@ resolve_release_credentials() {
   [[ -n "${NOTARY_PROFILE}" ]] || fail "missing notarytool profile; set PROMPTCUE_RELEASE_NOTARY_PROFILE in Config/Local.xcconfig or pass --notary-profile"
 }
 
+resolve_sparkle_release_configuration() {
+  if [[ -z "${SPARKLE_APPCAST_URL}" ]]; then
+    SPARKLE_APPCAST_URL="$(read_local_config_value PROMPTCUE_RELEASE_SPARKLE_APPCAST_URL)"
+  fi
+  if [[ -z "${SPARKLE_PUBLIC_ED_KEY}" ]]; then
+    SPARKLE_PUBLIC_ED_KEY="$(read_local_config_value PROMPTCUE_RELEASE_SPARKLE_PUBLIC_ED_KEY)"
+  fi
+
+  [[ -n "${SPARKLE_APPCAST_URL}" ]] || fail "missing Sparkle appcast URL; set PROMPTCUE_RELEASE_SPARKLE_APPCAST_URL in Config/Local.xcconfig or pass --sparkle-appcast-url"
+  [[ -n "${SPARKLE_PUBLIC_ED_KEY}" ]] || fail "missing Sparkle public key; set PROMPTCUE_RELEASE_SPARKLE_PUBLIC_ED_KEY in Config/Local.xcconfig or pass --sparkle-public-ed-key"
+}
+
 ensure_clean_worktree() {
   if [[ "${ALLOW_DIRTY}" -eq 1 ]]; then
     return
@@ -288,6 +307,16 @@ while [[ $# -gt 0 ]]; do
       NOTARY_PROFILE="$2"
       shift 2
       ;;
+    --sparkle-appcast-url)
+      [[ $# -ge 2 ]] || fail "--sparkle-appcast-url requires a value"
+      SPARKLE_APPCAST_URL="$2"
+      shift 2
+      ;;
+    --sparkle-public-ed-key)
+      [[ $# -ge 2 ]] || fail "--sparkle-public-ed-key requires a value"
+      SPARKLE_PUBLIC_ED_KEY="$2"
+      shift 2
+      ;;
     --allow-dirty)
       ALLOW_DIRTY=1
       shift
@@ -332,6 +361,7 @@ OUTPUT_ROOT="$(absolute_path "${OUTPUT_ROOT}")"
 
 ensure_clean_worktree
 resolve_release_credentials
+resolve_sparkle_release_configuration
 
 TEMP_WORK_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/promptcue-signed-release.XXXXXX")"
 DERIVED_DATA_PATH="${TEMP_WORK_ROOT}/DerivedData"
@@ -372,6 +402,9 @@ XCODEBUILD_CMD=(
   CODE_SIGN_STYLE=Manual
   CODE_SIGN_IDENTITY="${SIGNING_REFERENCE}"
   DEVELOPMENT_TEAM="${TEAM_ID}"
+  PROMPTCUE_ENABLE_SPARKLE_UPDATES=YES
+  PROMPTCUE_SPARKLE_APPCAST_URL="${SPARKLE_APPCAST_URL}"
+  PROMPTCUE_SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY}"
   archive
 )
 
@@ -418,6 +451,7 @@ run "${PROJECT_ROOT}/scripts/validate_release_artifact.sh" \
   --archive "${ARCHIVE_PATH}" \
   --app "${EXPORTED_APP_PATH}" \
   --artifact "${SUBMISSION_ZIP_PATH}" \
+  --expect-sparkle enabled \
   --require-signature \
   --report-out "${VALIDATION_REPORT_PATH}"
 
