@@ -137,6 +137,76 @@ Reason:
 - text clipping is easier to verify before the header rail adds new moving pieces
 - the rail/filter work should consume a stable stack view model rather than invent one mid-flight
 
+## QA And Verification Discipline
+
+This refactor does not get to rely on "looks okay locally" judgments.
+
+Every phase must leave behind:
+
+- one reproducible command set
+- one artifact or metric packet when relevant
+- one explicit manual QA checklist
+- one rollback point
+
+### Required Evidence Per Phase
+
+#### SR0
+
+- stack-open trace artifact directory
+- recorded first-frame metric
+- notes for the short, long-text, and mixed-stack fixtures used
+
+#### SR1
+
+- automated tests still green
+- app build still green
+- diff review proving the slice only narrows render work and does not change queue semantics
+
+#### SR2
+
+- at least one regression test or rendering fixture that would have caught bottom clipping
+- evidence that active cards and copied summaries still obey the same overflow rules
+- manual QA on long text, highlighted inline tags, single-line path/link cards, and screenshot-plus-text cards
+
+#### SR3
+
+- manual QA for:
+  - no header jump
+  - `On Stage / Offstage` language
+  - `Copied` feedback
+  - filter behavior
+  - TTL ring visibility
+  - app-theme header logo
+  - macOS-theme status-item icon
+
+#### SR4
+
+- final integrated build
+- final stack-open trace rerun
+- one smoke packet that covers:
+  - stack open
+  - stage / unstage
+  - close-to-commit
+  - long-card readability
+  - copied-only filtering
+  - light and dark appearance checks
+
+### Minimum Commands
+
+At minimum, relevant slices must run:
+
+- `swift test`
+- `xcodegen generate`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
+
+Stack-specific slices must additionally run, when relevant:
+
+- `scripts/record_stack_open_trace.sh --app <Prompt Cue.app>`
+- targeted overflow/render tests
+- targeted stack interaction tests
+
+If one of these is intentionally skipped, the reason must be recorded in the handoff summary before the slice is considered ready.
+
 ## Phase Breakdown
 
 ### Phase SR0: Baseline Lock And Instrumentation Refresh
