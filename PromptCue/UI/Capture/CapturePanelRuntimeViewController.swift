@@ -709,7 +709,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     ) -> String? {
         guard let completionContext,
               let normalizedPrefix = completionContext.normalizedPrefix,
-              normalizedPrefix.isEmpty == false,
               selectedCaretLocation == NSMaxRange(completionContext.replacementRange) else {
             return nil
         }
@@ -764,14 +763,13 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         completionContext: CaptureTagCompletionContext?
     ) -> [String] {
         guard let completionContext,
-              let normalizedPrefix = completionContext.normalizedPrefix,
-              !normalizedPrefix.isEmpty else {
+              let normalizedPrefix = completionContext.normalizedPrefix else {
             return []
         }
 
         let committedNames = Set(parseResult.tags.map(\.name))
         return model.knownCaptureTagNames.filter { candidate in
-            candidate.hasPrefix(normalizedPrefix)
+            (normalizedPrefix.isEmpty || candidate.hasPrefix(normalizedPrefix))
                 && !committedNames.contains(candidate)
         }
     }
@@ -916,6 +914,21 @@ extension CapturePanelRuntimeViewController {
     var debugEditorText: String {
         get { editorHost.textView.string }
         set { editorHost.textView.string = newValue }
+    }
+
+    var debugInlineCompletionSuffix: String? {
+        editorHost.debugInlineCompletionSuffix
+    }
+
+    func debugApplyEditorText(_ text: String, selectedLocation: Int? = nil) {
+        let location = max(0, min(selectedLocation ?? text.utf16.count, text.utf16.count))
+        editorHost.applyExternalText(
+            text,
+            selectedRange: NSRange(location: location, length: 0),
+            forceScrollToSelection: true,
+            forceMeasure: true
+        )
+        refreshInlineTagState(resetSuggestionSelection: true)
     }
 
     func debugScheduleDraftSync(_ text: String) {

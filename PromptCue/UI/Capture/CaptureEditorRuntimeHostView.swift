@@ -701,6 +701,14 @@ private struct InlineCompletionState: Equatable {
     let caretUTF16Offset: Int
 }
 
+#if DEBUG
+extension CaptureEditorRuntimeHostView {
+    var debugInlineCompletionSuffix: String? {
+        inlineCompletionState?.suffix
+    }
+}
+#endif
+
 final class IndicatorAwareScrollView: NSScrollView {
     var onUserScroll: (() -> Void)?
 
