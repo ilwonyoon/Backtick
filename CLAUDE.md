@@ -14,6 +14,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Regenerate Xcode project (required after any project.yml change)
 xcodegen generate
 
+# Build and launch the latest app from a fixed path (prevents DerivedData app pileup)
+scripts/run_debug_app.sh
+
+# Run fast regression checks, then build and launch from the fixed path
+scripts/test_and_run.sh
+
 # Run pure-logic package tests (fast, no Xcode required)
 swift test
 
