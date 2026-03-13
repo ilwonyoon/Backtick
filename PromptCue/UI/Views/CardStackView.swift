@@ -54,7 +54,7 @@ struct CardStackView: View {
         ZStack {
             stackBackdrop
 
-            VStack(alignment: .trailing, spacing: PrimitiveTokens.Size.panelSectionSpacing) {
+            VStack(alignment: .trailing, spacing: PrimitiveTokens.Space.xs) {
                 header(railState: railState)
 
                 if visibleSections.isEmpty {
@@ -84,7 +84,7 @@ struct CardStackView: View {
                 }
             }
             .padding(.horizontal, PrimitiveTokens.Space.sm)
-            .padding(.top, PrimitiveTokens.Space.sm)
+            .padding(.top, PrimitiveTokens.Space.xxxs)
             .padding(.bottom, PrimitiveTokens.Space.md)
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
@@ -129,26 +129,27 @@ struct CardStackView: View {
     }
 
     private func header(railState: StackRailState) -> some View {
-        stackColumnSurface {
-            HStack(alignment: .center, spacing: PrimitiveTokens.Space.sm) {
-                stackHeaderLogo
+        HStack(alignment: .center, spacing: PrimitiveTokens.Space.sm) {
+            stackHeaderLogo
 
-                Text(railState.summaryLabel)
-                    .font(PrimitiveTokens.Typography.meta)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-                    .lineLimit(1)
+            Text(railState.summaryLabel)
+                .font(PrimitiveTokens.Typography.meta)
+                .foregroundStyle(SemanticTokens.Text.secondary)
+                .lineLimit(1)
 
-                Spacer(minLength: PrimitiveTokens.Space.xs)
+            Spacer(minLength: PrimitiveTokens.Space.xs)
 
-                if let actionFeedbackLabel = railState.actionFeedbackLabel {
-                    Text(actionFeedbackLabel)
-                        .font(PrimitiveTokens.Typography.metaStrong)
-                        .foregroundStyle(SemanticTokens.Text.primary)
-                }
-
-                filterMenu
+            if let actionFeedbackLabel = railState.actionFeedbackLabel {
+                Text(actionFeedbackLabel)
+                    .font(PrimitiveTokens.Typography.metaStrong)
+                    .foregroundStyle(SemanticTokens.Text.primary)
             }
+
+            filterMenu
         }
+        .padding(.horizontal, PrimitiveTokens.Space.xxxs)
+        .padding(.vertical, PrimitiveTokens.Space.xxxs)
+        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
 

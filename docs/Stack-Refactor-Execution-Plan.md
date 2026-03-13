@@ -148,6 +148,42 @@ Every phase must leave behind:
 - one explicit manual QA checklist
 - one rollback point
 
+## Performance Tracking Rules
+
+Performance work in this refactor must be tracked as before/after evidence, not as a vibe check.
+
+Required rule set:
+
+- lock one baseline packet before implementation work starts
+- after each phase that can affect Stack performance, rerun the same measurement flow
+- record raw runs, the comparison median, and the delta versus baseline
+- classify the result as:
+  - `Strong improvement`
+  - `Improved`
+  - `Flat`
+  - `Regressed`
+
+Use these thresholds:
+
+- `Strong improvement`: median is at least `25%` faster than baseline
+- `Improved`: median is at least `20%` faster than baseline
+- `Flat`: median is less than `20%` faster than baseline and less than `10%` slower than baseline
+- `Regressed`: median is at least `10%` slower than baseline
+
+Measurement rules:
+
+- `Cmd + 2 -> first frame` must be measured with at least `3` sequential traces
+- keep the raw trace artifact directories for every run used in the comparison
+- if a run is visibly contaminated by attach retries or another instrumentation issue, keep it in the notes but do not use it for the acceptance median
+- do not advance to the next phase on a `Regressed` result without an explicit note that explains why the regression is acceptable
+
+### Metric Ledger
+
+| Phase | Commit / State | Runs (ms) | Comparison Median (ms) | Baseline Delta | Verdict | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| SR0 baseline | `546d31c` era baseline packet | `25.43` | `25.43` | baseline | Baseline | `/tmp/promptcue-traces/stack-open/stack-refactor-baseline-2` |
+| SR1 + SR2 integration | `8aab095` integration branch | `26.24`, `21.26`, `22.78` | `22.78` | `-10.4%` | Flat | below the current 20% improvement threshold; artifacts under `/tmp/promptcue-traces/stack-open/stack-refactor-sr12-integration*` |
+
 ### Required Evidence Per Phase
 
 #### SR0
@@ -161,12 +197,14 @@ Every phase must leave behind:
 - automated tests still green
 - app build still green
 - diff review proving the slice only narrows render work and does not change queue semantics
+- before/after metric entry added to the ledger if Stack open or in-panel interaction cost moved
 
 #### SR2
 
 - at least one regression test or rendering fixture that would have caught bottom clipping
 - evidence that active cards and copied summaries still obey the same overflow rules
 - manual QA on long text, highlighted inline tags, single-line path/link cards, and screenshot-plus-text cards
+- before/after metric entry added to the ledger if the rendering contract change affects measured Stack open behavior
 
 #### SR3
 
@@ -190,6 +228,7 @@ Every phase must leave behind:
   - long-card readability
   - copied-only filtering
   - light and dark appearance checks
+- final performance verdict versus the locked SR0 baseline
 
 ### Minimum Commands
 
