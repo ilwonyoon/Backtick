@@ -198,8 +198,13 @@ struct CaptureCardView: View {
                 performPrimaryAction()
             }
         }
-        .onHover { hovered in
-            isCardHovered = hovered
+        .onContinuousHover { phase in
+            switch phase {
+            case .active:
+                isCardHovered = true
+            case .ended:
+                isCardHovered = false
+            }
         }
     }
 

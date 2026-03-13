@@ -10,6 +10,7 @@ struct LocalImageThumbnail: View {
     let height: CGFloat
     @State private var image: NSImage?
     @State private var loadedURL: URL?
+    @State private var hasScheduledRetry = false
 
     init(
         url: URL,
@@ -78,10 +79,6 @@ struct LocalImageThumbnail: View {
 
     @MainActor
     private func loadImage(from resolvedURL: URL) async {
-        guard let readableURL = ManagedScreenshotAccess.readableURL(for: resolvedURL.path) else {
-            return
-        }
-
         if loadedURL != resolvedURL {
             loadedURL = resolvedURL
             if let cachedImage = Self.imageCache.object(forKey: resolvedURL as NSURL) {
@@ -93,21 +90,54 @@ struct LocalImageThumbnail: View {
             return
         }
 
-        let targetPixelSize = max((width ?? 320) * 2, height * 2)
-        let decodedImage = await Task.detached(priority: .userInitiated) { () -> NSImage? in
-            if let thumbnail = Self.decodeThumbnail(from: readableURL, maxPixelSize: targetPixelSize) {
-                return thumbnail
-            }
-            return Self.decodeImageAsFallback(from: readableURL)
-        }.value
-
-        guard !Task.isCancelled else {
+        if hasScheduledRetry {
             return
         }
 
-        if let decodedImage {
-            Self.imageCache.setObject(decodedImage, forKey: resolvedURL as NSURL)
-            self.image = decodedImage
+        hasScheduledRetry = true
+        defer {
+            hasScheduledRetry = false
+        }
+        let targetPixelSize = max((width ?? 320) * 2, height * 2)
+
+        for attempt in 0..<3 {
+            guard !Task.isCancelled else {
+                return
+            }
+
+            guard let readableURL = ManagedScreenshotAccess.readableURL(for: resolvedURL.path) else {
+                if attempt == 2 {
+                    return
+                }
+
+                let delayNanos: UInt64 = [80_000_000, 180_000_000, 320_000_000][min(attempt, 2)]
+                try? await Task.sleep(nanoseconds: delayNanos)
+                continue
+            }
+
+            let decodedImage = await Task.detached(priority: .userInitiated) { () -> NSImage? in
+                if let thumbnail = Self.decodeThumbnail(from: readableURL, maxPixelSize: targetPixelSize) {
+                    return thumbnail
+                }
+                return Self.decodeImageAsFallback(from: readableURL)
+            }.value
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            if let decodedImage {
+                Self.imageCache.setObject(decodedImage, forKey: resolvedURL as NSURL)
+                self.image = decodedImage
+                return
+            }
+
+            if attempt == 2 {
+                return
+            }
+
+            let delayNanos: UInt64 = [80_000_000, 180_000_000, 320_000_000][min(attempt, 2)]
+            try? await Task.sleep(nanoseconds: delayNanos)
         }
     }
 
