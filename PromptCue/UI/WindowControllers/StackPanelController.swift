@@ -429,6 +429,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 private final class StackPanelContentViewController<Content: View>: NSViewController {
     private let shellView = StackPanelShellView()
     private let hostingController: NSHostingController<Content>
+    private var lastAppearanceSignature: String?
 
     init(rootView: Content) {
         self.hostingController = NSHostingController(rootView: rootView)
@@ -474,11 +475,24 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
             ?? view.window?.appearance
             ?? view.appearance
             ?? view.effectiveAppearance
+        let appearanceSignature = Self.appearanceSignature(for: appliedAppearance ?? view.effectiveAppearance)
+        let previousAppearanceSignature = lastAppearanceSignature
+        let didChangeAppearance = previousAppearanceSignature != nil && previousAppearanceSignature != appearanceSignature
+        lastAppearanceSignature = appearanceSignature
         view.appearance = appliedAppearance
         shellView.appearance = appliedAppearance
         shellView.refreshAppearance()
         hostingController.view.appearance = appliedAppearance
-        hostingController.view.needsDisplay = true
+        if didChangeAppearance {
+            hostingController.view.layer?.contents = nil
+            hostingController.view.needsDisplay = true
+            hostingController.view.needsLayout = true
+            hostingController.view.layoutSubtreeIfNeeded()
+        }
+    }
+
+    private static func appearanceSignature(for appearance: NSAppearance?) -> String {
+        appearance?.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])?.rawValue ?? "unspecified"
     }
 }
 

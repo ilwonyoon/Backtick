@@ -31,8 +31,6 @@ enum AppearanceMode: Int, CaseIterable {
 
 enum AppearancePreferences {
     private static let modeKey = "appearance.mode"
-    private static let globalDomain = UserDefaults.globalDomain
-    private static let systemThemeKey = "AppleInterfaceStyle"
 
     static func load(defaults: UserDefaults = .standard) -> AppearanceMode {
         let raw = defaults.integer(forKey: modeKey)
@@ -46,18 +44,12 @@ enum AppearancePreferences {
     static func resolvedAppearance(defaults: UserDefaults = .standard) -> NSAppearance? {
         switch load(defaults: defaults) {
         case .auto:
-            return NSAppearance(named: currentSystemAppearanceName(defaults: defaults))
+            return nil
         case .light:
             return NSAppearance(named: .aqua)
         case .dark:
             return NSAppearance(named: .darkAqua)
         }
-    }
-
-    private static func currentSystemAppearanceName(defaults: UserDefaults) -> NSAppearance.Name {
-        let globalDefaults = defaults.persistentDomain(forName: globalDomain)
-        let isDark = (globalDefaults?[systemThemeKey] as? String) == "Dark"
-        return isDark ? .darkAqua : .aqua
     }
 }
 
