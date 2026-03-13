@@ -250,8 +250,8 @@ struct PromptCueCoreTests {
         )
 
         #expect(target.workspaceLabel == "PromptCue")
-        #expect(target.chooserDetailLabel == "/tmp/PromptCue")
-        #expect(target.chooserSecondaryLabel == "Terminal · /tmp/PromptCue")
+        #expect(target.chooserDetailLabel == "main")
+        #expect(target.chooserSecondaryLabel == "Terminal · main")
     }
 
     @Test
@@ -266,6 +266,26 @@ struct PromptCueCoreTests {
             repositoryRoot: "/tmp/PromptCue",
             repositoryName: "PromptCue",
             branch: "feature/refactor",
+            capturedAt: referenceDate
+        )
+
+        #expect(target.workspaceLabel == "PromptCue/App")
+        #expect(target.chooserDetailLabel == "refactor")
+        #expect(target.chooserSecondaryLabel == "Terminal · refactor")
+    }
+
+    @Test
+    func terminalChooserDetailFallsBackToPathWhenBranchIsUnavailable() {
+        let target = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "PromptCue",
+            sessionIdentifier: "window-9",
+            terminalTTY: "/dev/ttys003",
+            currentWorkingDirectory: "/tmp/PromptCue/App",
+            repositoryRoot: "/tmp/PromptCue",
+            repositoryName: "PromptCue",
+            branch: nil,
             capturedAt: referenceDate
         )
 

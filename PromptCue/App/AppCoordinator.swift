@@ -109,6 +109,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
         item.button?.image = makeStatusItemImage()
         item.button?.imagePosition = .imageOnly
         item.button?.imageScaling = .scaleProportionallyUpOrDown
+        item.button?.appearance = nil
 
         let menu = NSMenu()
         let quickCaptureItem = NSMenuItem(title: "Quick Capture", action: #selector(handleQuickCapture), keyEquivalent: "")
@@ -221,6 +222,10 @@ final class AppCoordinator: AppLifecycleCoordinating {
             window.contentView?.needsDisplay = true
             window.contentView?.subviews.forEach { $0.needsDisplay = true }
         }
+
+        statusItem?.button?.appearance = nil
+        statusItem?.button?.image?.isTemplate = true
+        statusItem?.button?.needsDisplay = true
 
         capturePanelController.applyAppearance(appearance)
         stackPanelController.applyAppearance(appearance)

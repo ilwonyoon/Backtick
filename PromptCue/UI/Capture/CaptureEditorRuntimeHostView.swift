@@ -147,19 +147,24 @@ final class CaptureEditorRuntimeHostView: NSView {
 
     func refreshAppearance() {
         let appliedAppearance = effectiveAppearance
+        let resolvedPrimaryTextColor = resolvedColor(.labelColor, for: appliedAppearance)
+        let resolvedSecondaryTextColor = resolvedColor(.secondaryLabelColor, for: appliedAppearance)
+        let resolvedTertiaryTextColor = resolvedColor(.tertiaryLabelColor, for: appliedAppearance)
+        let resolvedAccentColor = resolvedColor(.controlAccentColor, for: appliedAppearance)
+
         appearance = appliedAppearance
         scrollView.appearance = appliedAppearance
         textView.appearance = appliedAppearance
         placeholderField.appearance = appliedAppearance
 
-        placeholderField.textColor = NSColor.secondaryLabelColor.withAlphaComponent(PrimitiveTokens.Opacity.soft)
-        scrollIndicatorThumbView.layer?.backgroundColor = NSColor.tertiaryLabelColor.withAlphaComponent(
+        placeholderField.textColor = resolvedSecondaryTextColor.withAlphaComponent(PrimitiveTokens.Opacity.soft)
+        scrollIndicatorThumbView.layer?.backgroundColor = resolvedTertiaryTextColor.withAlphaComponent(
             CaptureRuntimeMetrics.scrollIndicatorShowAlpha
         ).cgColor
-        textView.textColor = .labelColor
-        textView.insertionPointColor = .controlAccentColor
-        textView.typingAttributes = typingAttributes()
-        applyTextStorageAttributes()
+        textView.textColor = resolvedPrimaryTextColor
+        textView.insertionPointColor = resolvedAccentColor
+        textView.typingAttributes = typingAttributes(for: appliedAppearance)
+        applyTextStorageAttributes(for: appliedAppearance)
         textView.needsDisplay = true
         placeholderField.needsDisplay = true
         needsDisplay = true
@@ -437,14 +442,14 @@ final class CaptureEditorRuntimeHostView: NSView {
         return max(minimumBodyVisibleHeight, usedHeight + insetHeight)
     }
 
-    private func applyTextStorageAttributes() {
+    private func applyTextStorageAttributes(for appearance: NSAppearance? = nil) {
         guard let textStorage = textView.textStorage, textStorage.length > 0 else {
             return
         }
 
         textStorage.beginEditing()
         textStorage.addAttributes(
-            typingAttributes(),
+            typingAttributes(for: appearance ?? effectiveAppearance),
             range: NSRange(location: 0, length: textStorage.length)
         )
         textStorage.endEditing()
@@ -550,7 +555,7 @@ final class CaptureEditorRuntimeHostView: NSView {
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.lineBreakMode = .byWordWrapping
         textView.insertionPointColor = .controlAccentColor
-        textView.typingAttributes = typingAttributes()
+        textView.typingAttributes = typingAttributes(for: effectiveAppearance)
         refreshAppearance()
     }
 
@@ -565,12 +570,25 @@ final class CaptureEditorRuntimeHostView: NSView {
         return paragraphStyle
     }
 
-    private func typingAttributes() -> [NSAttributedString.Key: Any] {
-        [
+    private func typingAttributes(for appearance: NSAppearance? = nil) -> [NSAttributedString.Key: Any] {
+        let resolvedAppearance = appearance ?? effectiveAppearance
+        return [
             .font: editorFont,
-            .foregroundColor: NSColor.labelColor,
+            .foregroundColor: resolvedColor(.labelColor, for: resolvedAppearance),
             .paragraphStyle: editorParagraphStyle,
         ]
+    }
+
+    private func resolvedColor(_ color: NSColor, for appearance: NSAppearance?) -> NSColor {
+        guard let appearance else {
+            return color
+        }
+
+        var resolvedColor = color
+        appearance.performAsCurrentDrawingAppearance {
+            resolvedColor = color.usingColorSpace(.deviceRGB) ?? color
+        }
+        return resolvedColor
     }
 }
 

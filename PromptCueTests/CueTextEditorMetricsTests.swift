@@ -103,6 +103,26 @@ final class CueTextEditorMetricsTests: XCTestCase {
         XCTAssertGreaterThan(narrowMetrics.visibleHeight, wideMetrics.visibleHeight)
     }
 
+    func testRefreshAppearanceReappliesResolvedEditorColorsForThemeChanges() {
+        setText("Theme sync")
+
+        let lightAppearance = NSAppearance(named: .aqua)!
+        container.appearance = lightAppearance
+        container.refreshAppearance()
+        let lightTextColor = currentForegroundColor()
+        let expectedLightTextColor = resolvedLabelColor(for: lightAppearance)
+
+        let darkAppearance = NSAppearance(named: .darkAqua)!
+        container.appearance = darkAppearance
+        container.refreshAppearance()
+        let darkTextColor = currentForegroundColor()
+        let expectedDarkTextColor = resolvedLabelColor(for: darkAppearance)
+
+        XCTAssertEqual(lightTextColor, expectedLightTextColor)
+        XCTAssertEqual(darkTextColor, expectedDarkTextColor)
+        XCTAssertNotEqual(lightTextColor, darkTextColor)
+    }
+
     private func estimatedMetrics(for text: String) -> CaptureEditorMetrics {
         CaptureEditorLayoutCalculator.estimatedMetrics(
             text: text,
@@ -144,6 +164,22 @@ final class CueTextEditorMetricsTests: XCTestCase {
         applyProductionTypingStyle(to: container.textView)
         container.updateMeasuredMetrics(forceScrollToSelection: forceScrollToSelection, forceMeasure: true)
         drainMainQueue()
+    }
+
+    private func currentForegroundColor() -> NSColor? {
+        container.textView.textStorage?.attribute(
+            .foregroundColor,
+            at: 0,
+            effectiveRange: nil
+        ) as? NSColor
+    }
+
+    private func resolvedLabelColor(for appearance: NSAppearance) -> NSColor {
+        var resolved = NSColor.labelColor
+        appearance.performAsCurrentDrawingAppearance {
+            resolved = NSColor.labelColor.usingColorSpace(.deviceRGB) ?? NSColor.labelColor
+        }
+        return resolved
     }
 
     private func applyProductionTypingStyle(to textView: WrappingCueTextView) {

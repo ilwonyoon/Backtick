@@ -286,8 +286,13 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
         workspaceLabel: String,
         branch: String?
     ) -> String? {
-        guard let currentWorkingDirectory = sanitizedOptional(currentWorkingDirectory) else {
+        if let branch,
+           branch.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
             return branch
+        }
+
+        guard let currentWorkingDirectory = sanitizedOptional(currentWorkingDirectory) else {
+            return nil
         }
 
         let abbreviatedWorkingDirectory = abbreviatedPathLabel(currentWorkingDirectory)
@@ -297,12 +302,9 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
             workspaceLabel: workspaceLabel
         ) ?? abbreviatedWorkingDirectory
 
-        guard let pathDetail else {
-            return branch
-        }
-
-        guard pathDetail.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame else {
-            return branch
+        guard let pathDetail,
+              pathDetail.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame else {
+            return nil
         }
 
         return truncate(pathDetail, maxLength: 36)
