@@ -5,8 +5,13 @@ import SwiftUI
 enum CueEditorCommand {
     case moveSelectionUp
     case moveSelectionDown
-    case completeSelection
+    case completeSelection(CueEditorCompletionTrigger)
     case cancelSelection
+}
+
+enum CueEditorCompletionTrigger {
+    case tab
+    case returnKey
 }
 
 struct CueTextEditor: NSViewRepresentable {
@@ -190,12 +195,12 @@ final class WrappingCueTextView: NSTextView {
             }
             super.keyDown(with: event)
         case Int(kVK_Tab):
-            if onCommand?(.completeSelection) == true {
+            if onCommand?(.completeSelection(.tab)) == true {
                 return
             }
             super.keyDown(with: event)
         case Int(kVK_Return), Int(kVK_ANSI_KeypadEnter):
-            if onCommand?(.completeSelection) == true {
+            if onCommand?(.completeSelection(.returnKey)) == true {
                 return
             }
             if modifiers.contains(.shift) {

@@ -6,8 +6,18 @@ final class CaptureEditorRuntimeHostView: NSView {
     let scrollView = IndicatorAwareScrollView()
     let textView = WrappingCueTextView()
     private let placeholderField = ClickThroughTextField(labelWithString: "")
+    private let inlineCompletionField = ClickThroughTextField(labelWithString: "")
     private let bottomBreathingRoomView = NSView()
     private let scrollIndicatorThumbView = NSView()
+    var highlightedInlineTagRanges: [NSRange] = [] {
+        didSet {
+            guard highlightedInlineTagRanges != oldValue else {
+                return
+            }
+
+            applyTextStorageAttributes()
+        }
+    }
 
     var maxMeasuredHeight: CGFloat = CaptureRuntimeMetrics.editorMaxHeight {
         didSet {
@@ -34,6 +44,7 @@ final class CaptureEditorRuntimeHostView: NSView {
     private var scrollBoundsObserver: NSObjectProtocol?
     private var scrollIndicatorHideWorkItem: DispatchWorkItem?
     private let shouldLogMetrics = ProcessInfo.processInfo.environment["PROMPTCUE_LOG_EDITOR_METRICS"] == "1"
+    private var inlineCompletionState: InlineCompletionState?
 
     private lazy var scrollViewHeightConstraint = scrollView.heightAnchor.constraint(
         equalToConstant: minimumBodyVisibleHeight
@@ -88,18 +99,22 @@ final class CaptureEditorRuntimeHostView: NSView {
         }
 
         updateScrollIndicatorFrame()
+        updateInlineCompletionPresentation()
     }
 
     func applyExternalText(
         _ text: String,
+        selectedRange: NSRange? = nil,
         forceScrollToSelection: Bool = false,
         forceMeasure: Bool = false
     ) {
         if textView.string != text {
             textView.string = text
             applyTextStorageAttributes()
-            textView.setSelectedRange(NSRange(location: text.utf16.count, length: 0))
+            textView.setSelectedRange(selectedRange ?? NSRange(location: text.utf16.count, length: 0))
             updatePlaceholderVisibility()
+        } else if let selectedRange, textView.selectedRange() != selectedRange {
+            textView.setSelectedRange(selectedRange)
         }
 
         updateMeasuredMetrics(
@@ -151,8 +166,10 @@ final class CaptureEditorRuntimeHostView: NSView {
         scrollView.appearance = appliedAppearance
         textView.appearance = appliedAppearance
         placeholderField.appearance = appliedAppearance
+        inlineCompletionField.appearance = appliedAppearance
 
         placeholderField.textColor = NSColor.secondaryLabelColor.withAlphaComponent(PrimitiveTokens.Opacity.soft)
+        inlineCompletionField.textColor = NSColor.controlAccentColor.withAlphaComponent(0.32)
         scrollIndicatorThumbView.layer?.backgroundColor = NSColor.tertiaryLabelColor.withAlphaComponent(
             CaptureRuntimeMetrics.scrollIndicatorShowAlpha
         ).cgColor
@@ -162,7 +179,27 @@ final class CaptureEditorRuntimeHostView: NSView {
         applyTextStorageAttributes()
         textView.needsDisplay = true
         placeholderField.needsDisplay = true
+        inlineCompletionField.needsDisplay = true
+        updateInlineCompletionPresentation()
         needsDisplay = true
+    }
+
+    func setInlineCompletion(
+        suffix: String?,
+        caretUTF16Offset: Int?
+    ) {
+        if let suffix,
+           suffix.isEmpty == false,
+           let caretUTF16Offset {
+            inlineCompletionState = InlineCompletionState(
+                suffix: suffix,
+                caretUTF16Offset: caretUTF16Offset
+            )
+        } else {
+            inlineCompletionState = nil
+        }
+
+        updateInlineCompletionPresentation()
     }
 
     func requestScrollToSelectionOnNextMeasurement() {
@@ -305,6 +342,16 @@ final class CaptureEditorRuntimeHostView: NSView {
         textView.autoresizingMask = [.width]
         configureTextView()
 
+        inlineCompletionField.translatesAutoresizingMaskIntoConstraints = true
+        inlineCompletionField.font = NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture)
+        inlineCompletionField.textColor = NSColor.controlAccentColor.withAlphaComponent(0.32)
+        inlineCompletionField.lineBreakMode = .byClipping
+        inlineCompletionField.maximumNumberOfLines = 1
+        inlineCompletionField.isBordered = false
+        inlineCompletionField.backgroundColor = .clear
+        inlineCompletionField.isHidden = true
+        textView.addSubview(inlineCompletionField)
+
         placeholderField.translatesAutoresizingMaskIntoConstraints = false
         placeholderField.font = NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture)
         placeholderField.textColor = NSColor.secondaryLabelColor.withAlphaComponent(PrimitiveTokens.Opacity.soft)
@@ -381,6 +428,7 @@ final class CaptureEditorRuntimeHostView: NSView {
         invalidateIntrinsicContentSize()
         needsLayout = true
         updateScrollIndicatorFrame()
+        updateInlineCompletionPresentation()
     }
 
     private func emitMetricsIfNeeded(_ metrics: CaptureEditorMetrics) {
@@ -442,16 +490,79 @@ final class CaptureEditorRuntimeHostView: NSView {
             return
         }
 
+        let fullRange = NSRange(location: 0, length: textStorage.length)
         textStorage.beginEditing()
+        textStorage.removeAttribute(.backgroundColor, range: fullRange)
         textStorage.addAttributes(
             typingAttributes(),
-            range: NSRange(location: 0, length: textStorage.length)
+            range: fullRange
         )
+        for range in highlightedInlineTagRanges where NSMaxRange(range) <= textStorage.length {
+            textStorage.addAttributes(
+                tagHighlightAttributes(),
+                range: range
+            )
+        }
         textStorage.endEditing()
     }
 
     private func updatePlaceholderVisibility() {
         placeholderField.isHidden = !textView.string.isEmpty
+    }
+
+    private func updateInlineCompletionPresentation() {
+        guard let inlineCompletionState else {
+            hideInlineCompletion()
+            return
+        }
+
+        let characterRange = NSRange(
+            location: max(0, min(inlineCompletionState.caretUTF16Offset, textView.string.utf16.count)),
+            length: 0
+        )
+
+        guard let anchorRect = inlineCompletionAnchorRect(for: characterRange) else {
+            hideInlineCompletion()
+            return
+        }
+
+        inlineCompletionField.stringValue = inlineCompletionState.suffix
+        inlineCompletionField.sizeToFit()
+
+        let fittingSize = inlineCompletionField.fittingSize
+        let availableWidth = max(textView.bounds.width - anchorRect.minX, 0)
+        guard availableWidth > 0.5 else {
+            hideInlineCompletion()
+            return
+        }
+
+        let verticalOrigin = round(anchorRect.minY + ((anchorRect.height - fittingSize.height) / 2))
+        inlineCompletionField.frame = NSRect(
+            x: ceil(anchorRect.minX),
+            y: verticalOrigin,
+            width: min(fittingSize.width, availableWidth),
+            height: fittingSize.height
+        )
+        inlineCompletionField.isHidden = false
+    }
+
+    private func inlineCompletionAnchorRect(for characterRange: NSRange) -> NSRect? {
+        guard let window = textView.window else {
+            return nil
+        }
+
+        let screenRect = textView.firstRect(forCharacterRange: characterRange, actualRange: nil)
+        guard screenRect.isEmpty == false else {
+            return nil
+        }
+
+        let windowRect = window.convertFromScreen(screenRect)
+        return textView.convert(windowRect, from: nil)
+    }
+
+    private func hideInlineCompletion() {
+        inlineCompletionField.isHidden = true
+        inlineCompletionField.stringValue = ""
     }
 
     private var stableViewportWidth: CGFloat {
@@ -572,6 +683,22 @@ final class CaptureEditorRuntimeHostView: NSView {
             .paragraphStyle: editorParagraphStyle,
         ]
     }
+
+    private func tagHighlightAttributes() -> [NSAttributedString.Key: Any] {
+        [
+            .font: NSFont.systemFont(
+                ofSize: PrimitiveTokens.FontSize.capture,
+                weight: .medium
+            ),
+            .foregroundColor: NSColor.controlAccentColor,
+            .paragraphStyle: editorParagraphStyle,
+        ]
+    }
+}
+
+private struct InlineCompletionState: Equatable {
+    let suffix: String
+    let caretUTF16Offset: Int
 }
 
 final class IndicatorAwareScrollView: NSScrollView {

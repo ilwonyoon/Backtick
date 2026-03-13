@@ -169,6 +169,7 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
 
     let id: String
     let text: String
+    let tagsJSON: String?
     let suggestedTargetJSON: String?
     let createdAt: Date
     let screenshotPath: String?
@@ -178,6 +179,7 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
     init(captureCard: CaptureCard) {
         id = captureCard.id.uuidString
         text = captureCard.text
+        tagsJSON = Self.encodeTags(captureCard.tags)
         suggestedTargetJSON = Self.encodeSuggestedTarget(captureCard.suggestedTarget)
         createdAt = captureCard.createdAt
         screenshotPath = captureCard.screenshotPath
@@ -189,12 +191,32 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
         CaptureCard(
             id: UUID(uuidString: id) ?? UUID(),
             text: text,
+            tags: Self.decodeTags(tagsJSON),
             suggestedTarget: Self.decodeSuggestedTarget(suggestedTargetJSON),
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: lastCopiedAt,
             sortOrder: sortOrder
         )
+    }
+
+    private static func encodeTags(_ tags: [CaptureTag]) -> String? {
+        guard !tags.isEmpty,
+              let data = try? JSONEncoder().encode(tags) else {
+            return nil
+        }
+
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func decodeTags(_ json: String?) -> [CaptureTag] {
+        guard let json,
+              let data = json.data(using: .utf8),
+              let tags = try? JSONDecoder().decode([CaptureTag].self, from: data) else {
+            return []
+        }
+
+        return CaptureTag.deduplicatePreservingOrder(tags)
     }
 
     private static func encodeSuggestedTarget(_ target: CaptureSuggestedTarget?) -> String? {

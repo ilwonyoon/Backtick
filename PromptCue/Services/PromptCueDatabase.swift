@@ -101,6 +101,17 @@ final class PromptCueDatabase {
             }
         }
 
+        migrator.registerMigration("addTagsJSON") { db in
+            let existingColumnNames = try db.columns(in: PromptCueDatabaseSchema.cardsTableName).map(\.name)
+            guard !existingColumnNames.contains("tagsJSON") else {
+                return
+            }
+
+            try db.alter(table: PromptCueDatabaseSchema.cardsTableName) { table in
+                table.add(column: "tagsJSON", .text)
+            }
+        }
+
         migrator.registerMigration("createCopyEvents") { db in
             try db.create(table: PromptCueDatabaseSchema.copyEventsTableName) { table in
                 table.column("id", .text).notNull().primaryKey()
