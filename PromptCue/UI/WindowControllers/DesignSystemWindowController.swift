@@ -14,6 +14,22 @@ final class DesignSystemWindowController: NSObject, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    func refreshForInheritedAppearanceChange() {
+        guard let window else {
+            return
+        }
+
+        window.appearance = nil
+        window.contentView?.appearance = nil
+        window.contentViewController?.view.appearance = nil
+        window.invalidateShadow()
+        window.contentView?.needsDisplay = true
+        window.contentViewController?.view.layer?.contents = nil
+        window.contentViewController?.view.needsLayout = true
+        window.contentViewController?.view.layoutSubtreeIfNeeded()
+        window.contentViewController?.view.needsDisplay = true
+    }
+
     private func makeWindow() -> NSWindow {
         let frame = NSRect(
             x: 0,

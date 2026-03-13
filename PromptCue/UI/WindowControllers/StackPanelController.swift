@@ -70,6 +70,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     private(set) var isVisible = false
     private var isAnimatingClose = false
     private var hasWarmedFirstPresentation = false
+    private var lastInheritedAppearanceSignature: String?
 
     var isPresentedOrTransitioning: Bool {
         isVisible || isAnimatingClose || panel?.isVisible == true
@@ -113,7 +114,6 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
         model.beginStackSuggestedTargetPresentation()
         PerformanceTrace.markStackOpenPhase("suggested_target_presentation_started")
-        refreshForInheritedAppearanceChange()
         primePanelLayout(panel)
         PerformanceTrace.markStackOpenPhase("layout_primed")
         let targetFrame = onscreenPanelFrame(for: panel.frame.size)
@@ -177,7 +177,6 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
 
         let panel = panel ?? makePanel()
-        refreshForInheritedAppearanceChange()
         primePanelLayout(panel)
         warmOrderFrontIfNeeded(panel)
     }
@@ -220,7 +219,25 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     func refreshForInheritedAppearanceChange() {
+        let appearanceSignature = Self.appearanceSignature(
+            for: panel?.effectiveAppearance ?? NSApp.effectiveAppearance
+        )
+        let hasLocalOverride = panel?.appearance != nil
+            || panel?.contentView?.appearance != nil
+            || panel?.contentViewController?.view.appearance != nil
+        let shouldRefresh = hasLocalOverride || lastInheritedAppearanceSignature != appearanceSignature
+        lastInheritedAppearanceSignature = appearanceSignature
+
+        guard shouldRefresh else {
+            return
+        }
+
+        panel?.appearance = nil
+        panel?.contentView?.appearance = nil
+        panel?.contentViewController?.view.appearance = nil
         panel?.invalidateShadow()
+        panel?.contentView?.needsDisplay = true
+        panel?.contentViewController?.view.needsDisplay = true
         (panel?.contentViewController as? StackPanelContentViewController<CardStackView>)?.refreshAppearance()
     }
 
@@ -351,6 +368,10 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             width: size.width,
             height: visibleFrame.height
         )
+    }
+
+    private static func appearanceSignature(for appearance: NSAppearance?) -> String {
+        appearance?.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])?.rawValue ?? "unspecified"
     }
 
     private func screenVisibleFrame() -> NSRect {

@@ -7,6 +7,11 @@ import XCTest
 final class StackPanelAppearanceTests: XCTestCase {
     private var tempDirectoryURL: URL!
 
+    override func tearDown() {
+        NSApp.appearance = nil
+        super.tearDown()
+    }
+
     override func setUpWithError() throws {
         try super.setUpWithError()
         tempDirectoryURL = FileManager.default.temporaryDirectory
@@ -27,9 +32,11 @@ final class StackPanelAppearanceTests: XCTestCase {
         controller.prepareForFirstPresentation()
 
         let panel = try XCTUnwrap(stackPanel(from: controller))
+        NSApp.appearance = NSAppearance(named: .darkAqua)
         panel.appearance = NSAppearance(named: .darkAqua)
         controller.refreshForInheritedAppearanceChange()
 
+        XCTAssertNil(panel.appearance)
         XCTAssertEqual(panel.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]), .darkAqua)
         XCTAssertNil(panel.contentView?.appearance)
         XCTAssertNil(panel.contentViewController?.view.appearance)
@@ -40,15 +47,18 @@ final class StackPanelAppearanceTests: XCTestCase {
         controller.prepareForFirstPresentation()
 
         let panel = try XCTUnwrap(stackPanel(from: controller))
+        NSApp.appearance = NSAppearance(named: .aqua)
         panel.appearance = NSAppearance(named: .aqua)
         controller.refreshForInheritedAppearanceChange()
         let hostedView = try XCTUnwrap(hostedSwiftUIView(in: panel.contentViewController?.view))
         hostedView.wantsLayer = true
         hostedView.layer?.contents = NSImage(size: NSSize(width: 4, height: 4))
 
+        NSApp.appearance = NSAppearance(named: .darkAqua)
         panel.appearance = NSAppearance(named: .darkAqua)
         controller.refreshForInheritedAppearanceChange()
 
+        XCTAssertNil(panel.appearance)
         XCTAssertNil(hostedView.layer?.contents)
         XCTAssertEqual(hostedView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]), .darkAqua)
         XCTAssertNil(hostedView.appearance)

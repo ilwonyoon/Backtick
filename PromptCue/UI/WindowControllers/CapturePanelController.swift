@@ -134,6 +134,30 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         anchoredOriginX = nil
     }
 
+    func refreshForInheritedAppearanceChange() {
+        panel?.appearance = nil
+        panel?.contentView?.appearance = nil
+        panel?.contentViewController?.view.appearance = nil
+        panel?.invalidateShadow()
+        panel?.contentView?.needsDisplay = true
+        panel?.contentViewController?.view.layer?.contents = nil
+        panel?.contentViewController?.view.needsLayout = true
+        panel?.contentViewController?.view.layoutSubtreeIfNeeded()
+        panel?.contentViewController?.view.needsDisplay = true
+        runtimeViewController?.refreshAppearance()
+
+        suggestedTargetPanel?.appearance = nil
+        suggestedTargetPanel?.contentView?.appearance = nil
+        suggestedTargetPanel?.contentViewController?.view.appearance = nil
+        suggestedTargetPanel?.invalidateShadow()
+        suggestedTargetPanel?.contentView?.needsDisplay = true
+        suggestedTargetPanel?.contentViewController?.view.layer?.contents = nil
+        suggestedTargetPanel?.contentViewController?.view.needsLayout = true
+        suggestedTargetPanel?.contentViewController?.view.layoutSubtreeIfNeeded()
+        suggestedTargetPanel?.contentViewController?.view.needsDisplay = true
+        (suggestedTargetPanel?.contentViewController as? CaptureSuggestedTargetPanelViewController)?.refreshAppearance()
+    }
+
     func windowDidChangeScreen(_ notification: Notification) {
         guard isVisible else {
             return

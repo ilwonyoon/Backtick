@@ -29,6 +29,23 @@ final class AppCoordinator: AppLifecycleCoordinating {
     )
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?
+    private var systemThemeObserver: NSObjectProtocol?
+
+    init() {
+        systemThemeObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.refreshForInheritedAppearanceChange()
+        }
+    }
+
+    deinit {
+        if let systemThemeObserver {
+            DistributedNotificationCenter.default().removeObserver(systemThemeObserver)
+        }
+    }
 
     func start() {
         terminateDuplicateDebugInstancesIfNeeded()
@@ -204,6 +221,31 @@ final class AppCoordinator: AppLifecycleCoordinating {
 
     private func showSettingsWindow() {
         settingsWindowController.show(selectedTab: startupSettingsTab())
+    }
+
+    private func refreshForInheritedAppearanceChange() {
+        NSApp.appearance = nil
+        NSApp.windows.forEach { window in
+            window.appearance = nil
+            window.contentView?.appearance = nil
+            window.contentViewController?.view.appearance = nil
+            window.invalidateShadow()
+            window.contentView?.needsDisplay = true
+            window.contentViewController?.view.layer?.contents = nil
+            window.contentViewController?.view.needsLayout = true
+            window.contentViewController?.view.layoutSubtreeIfNeeded()
+            window.contentViewController?.view.needsDisplay = true
+            window.contentView?.subviews.forEach { $0.needsDisplay = true }
+        }
+
+        statusItem?.button?.appearance = nil
+        statusItem?.button?.image?.isTemplate = true
+        statusItem?.button?.needsDisplay = true
+
+        capturePanelController.refreshForInheritedAppearanceChange()
+        stackPanelController.refreshForInheritedAppearanceChange()
+        settingsWindowController.refreshForInheritedAppearanceChange()
+        designSystemWindowController.refreshForInheritedAppearanceChange()
     }
 
     private func terminateDuplicateDebugInstancesIfNeeded() {
