@@ -202,6 +202,23 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func ideChooserDetailCombinesWindowContextAndBranchWhenBothAreUseful() {
+        let target = makeSuggestedTarget(
+            appName: "Cursor",
+            windowTitle: "Backtick — Agent Loop",
+            sessionIdentifier: "tab-9",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil,
+            branch: "feature/agent-loop"
+        )
+
+        #expect(target.workspaceLabel == "Backtick")
+        #expect(target.chooserDetailLabel == "Agent Loop · agent-loop")
+        #expect(target.chooserSecondaryLabel == "Cursor · Agent Loop · agent-loop")
+    }
+
+    @Test
     func suggestedTargetShortBranchLabelCanDeriveFromWindowTitleWhenExplicitBranchIsMissing() {
         let target = makeSuggestedTarget(
             windowTitle: "Backtick — main",
@@ -250,8 +267,8 @@ struct PromptCueCoreTests {
         )
 
         #expect(target.workspaceLabel == "PromptCue")
-        #expect(target.chooserDetailLabel == "/tmp/PromptCue")
-        #expect(target.chooserSecondaryLabel == "Terminal · /tmp/PromptCue")
+        #expect(target.chooserDetailLabel == "main")
+        #expect(target.chooserSecondaryLabel == "Terminal · main")
     }
 
     @Test
@@ -270,8 +287,8 @@ struct PromptCueCoreTests {
         )
 
         #expect(target.workspaceLabel == "PromptCue/App")
-        #expect(target.chooserDetailLabel == "/tmp/PromptCue/App")
-        #expect(target.chooserSecondaryLabel == "Terminal · /tmp/PromptCue/App")
+        #expect(target.chooserDetailLabel == "App · refactor")
+        #expect(target.chooserSecondaryLabel == "Terminal · App · refactor")
     }
 
     @Test
