@@ -170,6 +170,7 @@ final class AppModel: ObservableObject {
                 self?.syncRecentScreenshotState()
             }
         }
+        ensureSuggestedTargetProviderStarted()
         syncRecentScreenshotState()
         reloadCards(runNonCriticalMaintenance: startupMode == .immediateMaintenance)
         refreshCleanupTimer()
@@ -592,8 +593,11 @@ final class AppModel: ObservableObject {
     }
 
     func refreshSuggestedTargetProviderLifecycle() {
+        guard !hasStartedSuggestedTargetProvider else {
+            return
+        }
+
         guard isCaptureSuggestedTargetPresentationActive || isStackSuggestedTargetPresentationActive else {
-            stopSuggestedTargetProvider()
             return
         }
 

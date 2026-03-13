@@ -77,7 +77,7 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         XCTAssertEqual(provider.refreshAvailableSuggestedTargetsCallCount, 1)
     }
 
-    func testStartDoesNotStartSuggestedTargetProviderUntilPresentation() {
+    func testStartKeepsSuggestedTargetProviderWarmForImmediatePresentation() {
         let provider = TestSuggestedTargetProvider(
             latestTarget: makeTarget(
                 appName: "Cursor",
@@ -90,15 +90,12 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         let model = makeModel(provider: provider)
 
         model.start()
-
-        XCTAssertEqual(provider.startCallCount, 0)
-
-        model.beginCaptureSession()
 
         XCTAssertEqual(provider.startCallCount, 1)
+        XCTAssertEqual(model.automaticSuggestedTarget?.workspaceLabel, "Backtick")
     }
 
-    func testStackPresentationStartsAndStopsSuggestedTargetProvider() {
+    func testStackPresentationUsesWarmSuggestedTargetProviderWithoutStoppingIt() {
         let provider = TestSuggestedTargetProvider(
             latestTarget: makeTarget(
                 appName: "Cursor",
@@ -111,6 +108,7 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         let model = makeModel(provider: provider)
 
         model.start()
+        XCTAssertEqual(provider.startCallCount, 1)
         model.beginStackSuggestedTargetPresentation()
 
         XCTAssertEqual(provider.startCallCount, 1)
@@ -118,8 +116,8 @@ final class AppModelSuggestedTargetTests: XCTestCase {
 
         model.endStackSuggestedTargetPresentation()
 
-        XCTAssertEqual(provider.stopCallCount, 1)
-        XCTAssertNil(model.automaticSuggestedTarget)
+        XCTAssertEqual(provider.stopCallCount, 0)
+        XCTAssertEqual(model.automaticSuggestedTarget?.workspaceLabel, "Backtick")
     }
 
     func testOpeningSuggestedTargetChooserRefreshesTargetsBeforeShowingChooser() {
