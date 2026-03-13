@@ -162,29 +162,35 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
     }
 
     public var chooserDetailLabel: String? {
-        let detailLabel: String?
-        switch sourceKind {
-        case .terminal:
-            detailLabel = Self.terminalChooserDetailLabel(
-                currentWorkingDirectory: currentWorkingDirectory,
-                repositoryRoot: repositoryRoot,
-                workspaceLabel: workspaceLabel,
-                branch: shortBranchLabel,
-                windowTitle: windowTitle,
-                sessionIdentifier: sessionIdentifier
-            )
-        case .ide:
-            detailLabel = Self.ideChooserDetailLabel(
-                workspaceLabel: workspaceLabel,
-                branch: shortBranchLabel,
-                windowTitle: windowTitle,
-                sessionIdentifier: sessionIdentifier
-            )
+        if sourceKind == .terminal,
+           let terminalDetailLabel = Self.terminalChooserDetailLabel(
+            currentWorkingDirectory: currentWorkingDirectory,
+            repositoryRoot: repositoryRoot,
+            workspaceLabel: workspaceLabel,
+            branch: shortBranchLabel
+           ),
+           terminalDetailLabel.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
+            return terminalDetailLabel
         }
 
-        if let detailLabel,
-           detailLabel.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
-            return detailLabel
+        if let shortBranchLabel,
+           shortBranchLabel.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
+            return shortBranchLabel
+        }
+
+        if let detail = Self.derivedTitleMetadata(from: windowTitle)?.secondaryDetail,
+           detail.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
+            return detail
+        }
+
+        if let windowTitle,
+           windowTitle.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
+            return windowTitle
+        }
+
+        if let sessionIdentifier,
+           sessionIdentifier.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
+            return sessionIdentifier
         }
 
         return nil
@@ -278,64 +284,34 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
         currentWorkingDirectory: String?,
         repositoryRoot: String?,
         workspaceLabel: String,
-        branch: String?,
-        windowTitle: String?,
-        sessionIdentifier: String?
+        branch: String?
     ) -> String? {
-        let repositoryContextDetail: String?
-        if let currentWorkingDirectory = sanitizedOptional(currentWorkingDirectory) {
-            repositoryContextDetail = terminalRepositoryContextDetail(
-                currentWorkingDirectory: currentWorkingDirectory,
-                repositoryRoot: repositoryRoot
-            )
-        } else {
-            repositoryContextDetail = nil
+        guard let currentWorkingDirectory = sanitizedOptional(currentWorkingDirectory) else {
+            return branch
         }
 
-        if let repositoryDetail = joinedChooserDetail(
-            components: [repositoryContextDetail, branch],
+        let abbreviatedWorkingDirectory = abbreviatedPathLabel(currentWorkingDirectory)
+        let pathDetail = terminalRelativeDetail(
+            currentWorkingDirectory: currentWorkingDirectory,
+            repositoryRoot: repositoryRoot,
             workspaceLabel: workspaceLabel
-        ) {
-            return repositoryDetail
+        ) ?? abbreviatedWorkingDirectory
+
+        guard let pathDetail else {
+            return branch
         }
 
-        return joinedChooserDetail(
-            components: [
-                derivedTitleMetadata(from: windowTitle)?.secondaryDetail,
-                branch,
-            ],
-            workspaceLabel: workspaceLabel
-        ) ?? firstChooserDetail(
-            components: [windowTitle, sessionIdentifier],
-            workspaceLabel: workspaceLabel
-        )
+        guard pathDetail.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame else {
+            return branch
+        }
+
+        return truncate(pathDetail, maxLength: 36)
     }
 
-    private static func ideChooserDetailLabel(
-        workspaceLabel: String,
-        branch: String?,
-        windowTitle: String?,
-        sessionIdentifier: String?
-    ) -> String? {
-        if let detail = joinedChooserDetail(
-            components: [
-                derivedTitleMetadata(from: windowTitle)?.secondaryDetail,
-                branch,
-            ],
-            workspaceLabel: workspaceLabel
-        ) {
-            return detail
-        }
-
-        return firstChooserDetail(
-            components: [windowTitle, sessionIdentifier],
-            workspaceLabel: workspaceLabel
-        )
-    }
-
-    private static func terminalRepositoryContextDetail(
+    private static func terminalRelativeDetail(
         currentWorkingDirectory: String,
-        repositoryRoot: String?
+        repositoryRoot: String?,
+        workspaceLabel: String
     ) -> String? {
         guard let repositoryRoot = sanitizedOptional(repositoryRoot) else {
             return abbreviatedPathLabel(currentWorkingDirectory)
@@ -352,59 +328,14 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
 
         guard !relativePath.isEmpty else {
-            return nil
+            return abbreviatedPathLabel(normalizedWorkingDirectory)
+        }
+
+        if workspaceLabel.localizedCaseInsensitiveContains(relativePath) {
+            return abbreviatedPathLabel(normalizedWorkingDirectory)
         }
 
         return relativePath
-    }
-
-    private static func joinedChooserDetail(
-        components: [String?],
-        workspaceLabel: String
-    ) -> String? {
-        let normalizedComponents = normalizedChooserComponents(
-            from: components,
-            workspaceLabel: workspaceLabel
-        )
-
-        guard !normalizedComponents.isEmpty else {
-            return nil
-        }
-
-        return truncate(normalizedComponents.joined(separator: " · "), maxLength: 36)
-    }
-
-    private static func firstChooserDetail(
-        components: [String?],
-        workspaceLabel: String
-    ) -> String? {
-        normalizedChooserComponents(
-            from: components,
-            workspaceLabel: workspaceLabel
-        )
-        .first
-        .map { truncate($0, maxLength: 36) }
-    }
-
-    private static func normalizedChooserComponents(
-        from components: [String?],
-        workspaceLabel: String
-    ) -> [String] {
-        var normalizedComponents: [String] = []
-
-        for component in components {
-            guard let trimmedComponent = sanitizedOptional(component),
-                  trimmedComponent.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame,
-                  normalizedComponents.contains(where: {
-                      $0.localizedCaseInsensitiveCompare(trimmedComponent) == .orderedSame
-                  }) == false else {
-                continue
-            }
-
-            normalizedComponents.append(trimmedComponent)
-        }
-
-        return normalizedComponents
     }
 
     private static func abbreviatedPathLabel(_ path: String) -> String? {
