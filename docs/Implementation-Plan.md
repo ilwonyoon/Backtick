@@ -86,6 +86,7 @@ Progress on this slice:
 - current diagnosis confirms the next R7 step must move height ownership back into the AppKit editor host; further padding-only tweaks are not sufficient
 - `Phase R7B` is now the active implementation lane: replace the live SwiftUI capture composition with an AppKit-owned host and keep geometry out of `AppModel`
 - suggested-target selector follow-up landed through the v2 subsystem-replacement plan in `docs/Capture-Suggested-Target-Selector-Repair-Plan.md`; selector is fully fixed and current `main` is the accepted baseline
+- PR `#50` inline-tag integration is now gated by `docs/PR50-Inline-Tag-Integration-Runbook.md`; merge work must preserve the current selector, keyboard, and theme-sync baseline
 - `Phase P1` is accepted with quantified overflow-cache wins recorded in `docs/Performance-Remediation-Plan.md`
 - `Phase P2` is accepted with quantified incremental-write wins recorded in `docs/Performance-Remediation-Plan.md`
 - `Phase P3A-P3B` is accepted with quantified capture-open decoupling wins recorded in `docs/Performance-Remediation-Plan.md`
