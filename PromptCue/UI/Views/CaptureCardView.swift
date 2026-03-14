@@ -3,6 +3,36 @@ import Foundation
 import PromptCueCore
 import SwiftUI
 
+#if DEBUG
+private func logCardHoverTrace(_ line: String) {
+    guard ProcessInfo.processInfo.environment["PROMPTCUE_TRACE_STACK_CARD_HOVER"] == "1" else {
+        return
+    }
+
+    print(line)
+    fflush(stdout)
+
+    let logURL = URL(fileURLWithPath: "/tmp/promptcue-hover.log")
+    let data = (line + "\n").data(using: .utf8) ?? Data()
+    guard let handle = try? FileHandle(forWritingTo: logURL) else {
+        do {
+            try data.write(to: logURL)
+        } catch {
+            return
+        }
+        return
+    }
+
+    defer { try? handle.close() }
+    try? handle.seekToEnd()
+    handle.write(data)
+}
+
+private func cardHoverTracingEnabled() -> Bool {
+    ProcessInfo.processInfo.environment["PROMPTCUE_TRACE_STACK_CARD_HOVER"] == "1"
+}
+#endif
+
 struct CaptureCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let card: CaptureCard
@@ -31,9 +61,6 @@ struct CaptureCardView: View {
     #if DEBUG
     @State private var lastRawHoverNanos: UInt64?
     @State private var lastEmphasizedNanos: UInt64?
-    private var isCardHoverTraceEnabled: Bool {
-        ProcessInfo.processInfo.environment["PROMPTCUE_TRACE_STACK_CARD_HOVER"] == "1"
-    }
     #endif
 
     private var actionStyle: CaptureCardActionStyle {
@@ -215,14 +242,14 @@ struct CaptureCardView: View {
         }
         #if DEBUG
         .onChange(of: isCardHoveredState) { isEmphasized in
-            guard isCardHoverTraceEnabled else {
+            guard cardHoverTracingEnabled() else {
                 return
             }
 
             let now = DispatchTime.now().uptimeNanoseconds
             if isEmphasized, let rawNanos = lastRawHoverNanos {
                 let latencyMs = Double(now - rawNanos) / 1_000_000
-                print(
+                logCardHoverTrace(
                     String(
                         format: "PROMPTCUE_CARD_HOVER_LATENCY_MS card=%@ hasImage=%d latency_ms=%.3f",
                         card.id.uuidString,
@@ -234,7 +261,7 @@ struct CaptureCardView: View {
 
             if let lastEmphasizedNanos {
                 let sinceMs = Double(now - lastEmphasizedNanos) / 1_000_000
-                print(
+                logCardHoverTrace(
                     String(
                         format: "PROMPTCUE_CARD_HOVER_STATE card=%@ hasImage=%d emphasized=%d changed_since_ms=%.3f",
                         card.id.uuidString,
@@ -244,7 +271,7 @@ struct CaptureCardView: View {
                     )
                 )
             } else {
-                print(
+                logCardHoverTrace(
                     String(
                         format: "PROMPTCUE_CARD_HOVER_STATE card=%@ hasImage=%d emphasized=%d changed_since_ms=NA",
                         card.id.uuidString,
@@ -263,10 +290,10 @@ struct CaptureCardView: View {
         if hovered {
             isCardHovered = true
             #if DEBUG
-            if isCardHoverTraceEnabled {
+            if cardHoverTracingEnabled() {
                 let now = DispatchTime.now().uptimeNanoseconds
                 lastRawHoverNanos = now
-                print(
+                logCardHoverTrace(
                     String(
                         format: "PROMPTCUE_CARD_HOVER_EVENT card=%@ hasImage=%d state=entered raw_nanos=%llu",
                         card.id.uuidString,
@@ -287,9 +314,9 @@ struct CaptureCardView: View {
         }
         isCardHovered = false
         #if DEBUG
-        if isCardHoverTraceEnabled {
+        if cardHoverTracingEnabled() {
             let now = DispatchTime.now().uptimeNanoseconds
-            print(
+            logCardHoverTrace(
                 String(
                     format: "PROMPTCUE_CARD_HOVER_EVENT card=%@ hasImage=%d state=exited raw_nanos=%llu",
                     card.id.uuidString,
@@ -371,11 +398,16 @@ struct CaptureCardView: View {
             }
 
             func reinstallTrackingAreaIfNeeded() {
-                guard window != nil else {
-                    isMouseInside = false
-                    removeTrackingAreaIfNeeded()
-                    return
+            guard window != nil else {
+                isMouseInside = false
+                removeTrackingAreaIfNeeded()
+                if cardHoverTracingEnabled() {
+                    logCardHoverTrace(
+                        "PROMPTCUE_HOVER_TRACKER_EVENT state=window_missing_card_area_released"
+                    )
                 }
+                return
+            }
 
                 if let trackingArea {
                     removeTrackingArea(trackingArea)
@@ -394,6 +426,31 @@ struct CaptureCardView: View {
                     userInfo: nil
                 )
                 addTrackingArea(trackingArea!)
+                syncMouseStateToCursor()
+            }
+
+            private func syncMouseStateToCursor() {
+                guard let window else {
+                    return
+                }
+
+                let cursorLocation = window.mouseLocationOutsideOfEventStream
+                let localLocation = convert(cursorLocation, from: nil)
+                let cursorInside = bounds.contains(localLocation)
+                if cursorInside == isMouseInside {
+                    return
+                }
+
+                isMouseInside = cursorInside
+                onHover(cursorInside)
+                if cardHoverTracingEnabled() {
+                    logCardHoverTrace(
+                        String(
+                            format: "PROMPTCUE_HOVER_TRACKER_EVENT rect_sync entered=%d",
+                            cursorInside ? 1 : 0
+                        )
+                    )
+                }
             }
 
             override func hitTest(_ point: NSPoint) -> NSView? {
