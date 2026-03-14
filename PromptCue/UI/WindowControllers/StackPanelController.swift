@@ -278,7 +278,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         let initialFrame = offscreenPanelFrame(for: NSSize(width: PanelMetrics.stackPanelWidth, height: 0))
         let panel = StackPanel(
             contentRect: initialFrame,
-            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView, .resizable],
+            styleMask: [.nonactivatingPanel, .fullSizeContentView, .resizable],
             backing: .buffered,
             defer: false
         )

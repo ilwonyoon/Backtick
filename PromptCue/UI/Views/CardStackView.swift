@@ -94,7 +94,7 @@ struct CardStackView: View {
                 }
             }
             .padding(.horizontal, PanelMetrics.stackPanelHorizontalPadding)
-            .padding(.top, PrimitiveTokens.Space.xs)
+            .padding(.top, PrimitiveTokens.Space.md)
             .padding(.bottom, PrimitiveTokens.Space.md)
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
@@ -158,7 +158,8 @@ struct CardStackView: View {
 
             filterTrigger
         }
-        .padding(.horizontal, PrimitiveTokens.Space.xxxs)
+        .padding(.leading, PrimitiveTokens.Space.xxxs)
+        .padding(.trailing, PrimitiveTokens.Size.notificationCardPadding - PrimitiveTokens.Space.xxs)
         .padding(.vertical, PrimitiveTokens.Space.xxxs)
         .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .leading)
     }
