@@ -99,6 +99,14 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         }
     }
 
+    func toggle() {
+        if isVisible {
+            close()
+            return
+        }
+        show()
+    }
+
     func show() {
         model.beginCaptureSession()
         let runtimeViewController = runtimeViewController ?? makeRuntimeViewController()

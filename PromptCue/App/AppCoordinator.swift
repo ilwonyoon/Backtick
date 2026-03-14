@@ -170,7 +170,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
         pendingStackToggleTask?.cancel()
         pendingStackToggleTask = nil
         stackPanelController.close()
-        capturePanelController.show()
+        capturePanelController.toggle()
     }
 
     private func editCardFromStack(_ card: CaptureCard) {
