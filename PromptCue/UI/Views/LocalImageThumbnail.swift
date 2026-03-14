@@ -4,13 +4,21 @@ import SwiftUI
 
 struct LocalImageThumbnail: View {
     @Environment(\.colorScheme) private var colorScheme
+    private static let fileManager = FileManager.default
     private static let imageCache = NSCache<NSURL, NSImage>()
+    private static let loadDelaysNanos: [UInt64] = [80_000_000, 180_000_000, 320_000_000, 500_000_000, 800_000_000]
+    private enum LoadState {
+        case idle
+        case loading
+        case failed
+    }
+
     let url: URL
     let width: CGFloat?
     let height: CGFloat
     @State private var image: NSImage?
     @State private var loadedURL: URL?
-    @State private var hasScheduledRetry = false
+    @State private var loadState: LoadState = .idle
 
     init(
         url: URL,
@@ -81,36 +89,38 @@ struct LocalImageThumbnail: View {
     private func loadImage(from resolvedURL: URL) async {
         if loadedURL != resolvedURL {
             loadedURL = resolvedURL
+            if loadState == .loading {
+                return
+            }
+
+            image = nil
+            loadState = .loading
+
             if let cachedImage = Self.imageCache.object(forKey: resolvedURL as NSURL) {
                 image = cachedImage
+                loadState = .idle
+                return
             }
         }
 
-        if image != nil {
+        if image != nil || loadState == .failed {
             return
         }
 
-        if hasScheduledRetry {
-            return
-        }
-
-        hasScheduledRetry = true
-        defer {
-            hasScheduledRetry = false
-        }
         let targetPixelSize = max((width ?? 320) * 2, height * 2)
 
-        for attempt in 0..<3 {
+        for attempt in 0..<Self.loadDelaysNanos.count {
             guard !Task.isCancelled else {
                 return
             }
 
-            guard let readableURL = ManagedScreenshotAccess.readableURL(for: resolvedURL.path) else {
-                if attempt == 2 {
+            guard let readableURL = readableURL(for: resolvedURL) else {
+                if attempt == Self.loadDelaysNanos.count - 1 {
+                    loadState = .failed
                     return
                 }
 
-                let delayNanos: UInt64 = [80_000_000, 180_000_000, 320_000_000][min(attempt, 2)]
+                let delayNanos = Self.loadDelaysNanos[min(attempt, Self.loadDelaysNanos.count - 1)]
                 try? await Task.sleep(nanoseconds: delayNanos)
                 continue
             }
@@ -129,16 +139,30 @@ struct LocalImageThumbnail: View {
             if let decodedImage {
                 Self.imageCache.setObject(decodedImage, forKey: resolvedURL as NSURL)
                 self.image = decodedImage
+                loadState = .idle
                 return
             }
 
-            if attempt == 2 {
+            if attempt == Self.loadDelaysNanos.count - 1 {
+                loadState = .failed
                 return
             }
 
-            let delayNanos: UInt64 = [80_000_000, 180_000_000, 320_000_000][min(attempt, 2)]
+            let delayNanos = Self.loadDelaysNanos[min(attempt, Self.loadDelaysNanos.count - 1)]
             try? await Task.sleep(nanoseconds: delayNanos)
         }
+    }
+
+    private func readableURL(for resolvedURL: URL) -> URL? {
+        if let managedURL = ManagedScreenshotAccess.readableURL(for: resolvedURL.path) {
+            return managedURL
+        }
+
+        guard Self.fileManager.fileExists(atPath: resolvedURL.path) else {
+            return nil
+        }
+
+        return resolvedURL
     }
 
     private static func decodeThumbnail(from url: URL, maxPixelSize: CGFloat) -> NSImage? {

@@ -198,14 +198,17 @@ struct CaptureCardView: View {
                 performPrimaryAction()
             }
         }
-        .onContinuousHover { phase in
-            switch phase {
-            case .active:
-                isCardHovered = true
-            case .ended:
-                isCardHovered = false
-            }
+        .onHover { hovered in
+            setCardHovered(hovered)
         }
+    }
+
+    private func setCardHovered(_ hovered: Bool) {
+        guard isCardHovered != hovered else {
+            return
+        }
+
+        isCardHovered = hovered
     }
 
     private var contentSpacing: CGFloat {
