@@ -127,7 +127,7 @@ private struct SuggestedTargetOriginControl: View {
                 isAutomaticSelected: isAutomaticSelectionActive,
                 isAutomaticFocused: isAutomaticSelectionActive,
                 controlWidth: nil,
-                fixedWidth: PanelMetrics.stackCardColumnWidth,
+                fixedWidth: AppUIConstants.captureSelectorControlWidth,
                 surfaceTopPadding: AppUIConstants.captureChooserSurfaceVerticalPadding,
                 surfaceBottomPadding: AppUIConstants.captureChooserSurfaceVerticalPadding,
                 headerTopPadding: AppUIConstants.captureChooserPromptVerticalPadding,
