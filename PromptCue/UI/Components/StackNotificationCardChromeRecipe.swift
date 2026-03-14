@@ -1,28 +1,21 @@
+import AppKit
 import SwiftUI
 
 // Backtick stack-card chrome recipe.
 // This keeps stack-card appearance decisions owned by the stack-card surface,
 // instead of leaking the math back into feature views or generic token layers.
+//
+// All colors are adaptive — they resolve at draw time via NSColor's
+// appearance callback, eliminating dependence on SwiftUI's
+// @Environment(\.colorScheme) propagation.
 enum StackNotificationCardChromeRecipe {
-    static func chromeOverlay(colorScheme: ColorScheme) -> Color {
-        switch colorScheme {
-        case .light:
-            return Color.white.opacity(0.10)
-        case .dark:
-            return Color.white.opacity(0.015)
-        @unknown default:
-            return Color.white.opacity(0.015)
-        }
-    }
+    static let chromeOverlay = SemanticTokens.adaptiveColor(
+        light: NSColor.white.withAlphaComponent(0.10),
+        dark: NSColor.white.withAlphaComponent(0.015)
+    )
 
-    static func topHighlight(colorScheme: ColorScheme) -> Color {
-        switch colorScheme {
-        case .light:
-            return SemanticTokens.Border.glassHighlight.opacity(0.28)
-        case .dark:
-            return SemanticTokens.Border.glassHighlight.opacity(0.08)
-        @unknown default:
-            return SemanticTokens.Border.glassHighlight.opacity(0.08)
-        }
-    }
+    static let topHighlight = SemanticTokens.adaptiveColor(
+        light: NSColor.white.withAlphaComponent(0.52 * 0.28),
+        dark: NSColor.white.withAlphaComponent(0.44 * 0.08)
+    )
 }
