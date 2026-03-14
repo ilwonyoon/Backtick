@@ -326,12 +326,6 @@ struct CardStackView: View {
 
     private func collapsedCopiedStack(copiedCards: [CaptureCard]) -> some View {
         ZStack(alignment: .topLeading) {
-            ForEach(collapsedBackPlateIndices(for: copiedCards), id: \.self) { index in
-                stackedBackPlate(index: index)
-                    .offset(y: CGFloat(index) * PrimitiveTokens.Space.xs)
-                    .zIndex(Double(-index))
-            }
-
             StackNotificationCardSurface(isEmphasized: isCopiedStackHovered) {
                 VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                     if let card = copiedCards.first {
@@ -359,7 +353,7 @@ struct CardStackView: View {
             .frame(height: collapsedCopiedCardHeight)
             .zIndex(1)
         }
-        .padding(.bottom, collapsedBackPlateBottomPadding(copiedCards: copiedCards))
+        .padding(.bottom, PrimitiveTokens.Space.sm)
         .opacity(isCopiedStackHovered ? 1 : PrimitiveTokens.Opacity.copiedCard)
         .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: isCopiedStackHovered)
         .onHover { hovered in
