@@ -468,17 +468,21 @@ private struct SuggestedTargetAccessoryChrome<Content: View>: View {
     let controlWidth: CGFloat?
     let minimumHeight: CGFloat?
     let backgroundFill: Color
+    let hoverFill: Color
     @ViewBuilder let content: Content
+    @State private var isHovered = false
 
     init(
         controlWidth: CGFloat?,
         minimumHeight: CGFloat? = nil,
         backgroundFill: Color = Color.black.opacity(0.045),
+        hoverFill: Color = Color.black.opacity(0.09),
         @ViewBuilder content: () -> Content
     ) {
         self.controlWidth = controlWidth
         self.minimumHeight = minimumHeight
         self.backgroundFill = backgroundFill
+        self.hoverFill = hoverFill
         self.content = content()
     }
 
@@ -489,12 +493,15 @@ private struct SuggestedTargetAccessoryChrome<Content: View>: View {
             .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .leading)
             .background {
                 chromeShape
-                    .fill(backgroundFill)
+                    .fill(isHovered ? hoverFill : backgroundFill)
             }
             .clipShape(chromeShape)
             .contentShape(chromeShape)
             .frame(width: controlWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: controlWidth == nil ? .leading : .center)
+            .onHover { hovered in
+                isHovered = hovered
+            }
     }
 
     private var chromeShape: Capsule {
