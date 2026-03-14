@@ -47,6 +47,28 @@ Use multi-agent only when it improves one or more of:
 - conflict isolation
 - verification coverage
 
+## Model Routing Rule
+
+Use usage-aware model routing by default:
+
+- default model: `GPT-5.3-Codex-Spark`
+- upgrade to `Codex high` only for short, high-leverage slices:
+  - complex architecture decisions with high regression risk
+  - deeply coupled runtime/build/release failures where Spark stalls
+  - security/signing/notarization blockers that require maximal reasoning depth
+- after the blocking slice is resolved, return immediately to `GPT-5.3-Codex-Spark`
+
+Execution protocol:
+
+- before starting a substantial task, state recommended model in one line: `Model: Spark` or `Model: High`
+- if escalation is needed mid-task, state it explicitly: `Escalate to High for this slice only`
+- once resolved, state downgrade explicitly: `Back to Spark`
+
+Budget guardrail:
+
+- avoid running entire tasks in `Codex high`
+- keep `Codex high` time-boxed to blocker resolution, then continue implementation and verification on Spark
+
 ## Planning Rules
 
 Before editing:
