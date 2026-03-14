@@ -562,7 +562,7 @@ Required manual verification:
 | DMG checksum and release record | `shasum -a 256 <DMGPath>` plus version/build/git SHA/notarization record | Yes |
 | clean install / quarantine smoke | mount DMG, copy app, first launch from quarantined path | Yes |
 | Gumroad listing assets and marketing copy | release operations checklist outside this lane | No |
-| updater framework choice | deferred unless it becomes a direct-launch blocker | No |
+| updater framework choice | `docs/Sparkle-Integration-Plan.md` locks the direct-lane design; runtime adoption stays deferred until after release-lane stability | No |
 
 ## Explicitly Deferred From This Lane
 

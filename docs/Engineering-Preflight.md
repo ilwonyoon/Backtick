@@ -455,6 +455,7 @@ The App Store should not be the first ship target for Backtick. It should be pla
 
 - `Sparkle` is a good later addition once release cadence justifies it
 - wire it only after signing and notarization are already reliable
+- the current design baseline is documented in `docs/Sparkle-Integration-Plan.md`
 
 ### App Store
 

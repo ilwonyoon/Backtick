@@ -599,7 +599,7 @@ Turn the working prototype into an operable macOS utility app.
 | Add settings surface for screenshot folder, TTL, and startup behavior | Product engineering lead | Working core flows | Yes | Sensitive behaviors are user-configurable | In progress |
 | Implement security-scoped bookmark storage for screenshot folder | Platform lead | Settings surface | Yes | Folder access persists across launches | In progress |
 | Add logging for hotkey, capture, storage, and watcher failures | Platform lead | Core services | Yes | Failure paths are observable | Pending |
-| Decide update strategy and wire `Sparkle` if shipping direct | Release lead | Distribution decision | Yes | Auto-update path is documented or implemented | Pending |
+| Decide update strategy and wire `Sparkle` if shipping direct | Release lead | Distribution decision | Yes | Auto-update path is documented or implemented | In progress via `docs/Sparkle-Integration-Plan.md`; runtime adoption deferred |
 | Add notarization/signing pipeline | Release lead | Build stability | Yes | Signed and notarized app can be shipped | Pending |
 | Add DMG packaging pipeline for Gumroad releases | Release lead | Signed app build | Yes | Versioned DMG can be generated repeatably | Pending |
 | Prepare Gumroad release assets and delivery checklist | Product + release lead | DMG pipeline | Yes | Store listing, version notes, and upload checklist exist | Pending |
