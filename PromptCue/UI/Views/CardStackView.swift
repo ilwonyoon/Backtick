@@ -2,7 +2,6 @@ import PromptCueCore
 import SwiftUI
 
 struct CardStackView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: AppModel
     let onBackdropTap: () -> Void
     let onDismissAfterCopy: () -> Void
@@ -340,21 +339,14 @@ struct CardStackView: View {
 
     private func stackedBackPlate(index: Int) -> some View {
         RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-            .fill(
-                SemanticTokens.Surface.notificationStackPlateBase
-                    .opacity(CopiedStackRecipe.backPlateFillOpacity(index: index, colorScheme: colorScheme))
-            )
+            .fill(CopiedStackRecipe.backPlateFill(index: index))
             .overlay {
                 RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-                    .fill(CopiedStackRecipe.backPlateShade(index: index, colorScheme: colorScheme))
+                    .fill(CopiedStackRecipe.backPlateShade(index: index))
             }
             .overlay {
                 RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-                    .stroke(
-                        SemanticTokens.Border.notificationCard.opacity(
-                            CopiedStackRecipe.backPlateBorderOpacity(index: index, colorScheme: colorScheme)
-                        )
-                    )
+                    .stroke(CopiedStackRecipe.backPlateBorder(index: index))
             }
             .frame(height: collapsedCopiedCardHeight)
             .padding(.horizontal, CGFloat(index) * PrimitiveTokens.Space.xs)
@@ -369,11 +361,11 @@ struct CardStackView: View {
     }
 
     private var copiedPreviewTextColor: Color {
-        CopiedStackRecipe.previewTextColor(colorScheme: colorScheme)
+        CopiedStackRecipe.previewTextColor
     }
 
     private var copiedHeaderTextColor: Color {
-        CopiedStackRecipe.headerTextColor(colorScheme: colorScheme)
+        CopiedStackRecipe.headerTextColor
     }
 
     private func offstageControlCluster(

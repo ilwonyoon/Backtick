@@ -1,96 +1,63 @@
+import AppKit
 import SwiftUI
 
 // Backtick capture shell recipe.
 // Owns product-specific chrome values for the capture surface without pushing
 // runtime sizing concerns into the token layers.
+//
+// All colors are adaptive — they resolve at draw time via NSColor's
+// appearance callback, eliminating dependence on SwiftUI's
+// @Environment(\.colorScheme) propagation.
 enum CaptureShellChromeRecipe {
-    static func quietRaisedFill(colorScheme: ColorScheme) -> Color {
-        switch colorScheme {
-        case .light:
-            return SemanticTokens.Surface.glassSheen.opacity(0.76)
-        case .dark:
-            return SemanticTokens.Surface.raisedFill.opacity(0.18)
-        @unknown default:
-            return SemanticTokens.Surface.raisedFill.opacity(0.18)
-        }
+    // glassSheen: light white@0.34, dark white@0.28
+    // raisedFill: textBackgroundColor @ raisedSurface(0.92)
+    static let quietRaisedFill = SemanticTokens.adaptiveColor(
+        light: NSColor.white.withAlphaComponent(0.34 * 0.76),
+        dark: NSColor.textBackgroundColor.withAlphaComponent(0.92 * 0.18)
+    )
+
+    // Gradient stops pre-built as static lets so NSColor(name:) closures
+    // are allocated once, not on every SwiftUI body evaluation.
+    // glassSheen: light white@0.34, dark white@0.28
+    // glassTint:  light white@0.16, dark white@0.18
+    private static let quietSheenTop = SemanticTokens.adaptiveColor(
+        light: NSColor.white.withAlphaComponent(0.34 * 0.74),
+        dark: NSColor.white.withAlphaComponent(0.28 * 0.18)
+    )
+    private static let quietSheenMid = SemanticTokens.adaptiveColor(
+        light: NSColor.white.withAlphaComponent(0.16 * 0.22),
+        dark: NSColor.white.withAlphaComponent(0.18 * 0.12)
+    )
+
+    static var quietSheenGradient: LinearGradient {
+        LinearGradient(
+            colors: [quietSheenTop, quietSheenMid, .clear],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 
-    static func quietSheenGradient(colorScheme: ColorScheme) -> LinearGradient {
-        switch colorScheme {
-        case .light:
-            return LinearGradient(
-                colors: [
-                    SemanticTokens.Surface.glassSheen.opacity(0.74),
-                    SemanticTokens.Surface.glassTint.opacity(0.22),
-                    SemanticTokens.Surface.glassEdge.opacity(0),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        case .dark:
-            return LinearGradient(
-                colors: [
-                    SemanticTokens.Surface.glassSheen.opacity(0.18),
-                    SemanticTokens.Surface.glassTint.opacity(0.12),
-                    SemanticTokens.Surface.glassEdge.opacity(0),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        @unknown default:
-            return LinearGradient(
-                colors: [
-                    SemanticTokens.Surface.glassSheen.opacity(0.18),
-                    SemanticTokens.Surface.glassTint.opacity(0.12),
-                    SemanticTokens.Surface.glassEdge.opacity(0),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-    }
+    // notificationCard border: light black@0.12, dark white@0.06
+    // glassInner:  light white@0.38, dark white@0.18
+    static let quietStroke = SemanticTokens.adaptiveColor(
+        light: NSColor.black.withAlphaComponent(0.12),
+        dark: NSColor.white.withAlphaComponent(0.18 * 0.58)
+    )
 
-    static func quietStroke(colorScheme: ColorScheme) -> Color {
-        switch colorScheme {
-        case .light:
-            return SemanticTokens.Border.notificationCard
-        case .dark:
-            return SemanticTokens.Border.glassInner.opacity(0.58)
-        @unknown default:
-            return SemanticTokens.Border.glassInner.opacity(0.58)
-        }
-    }
+    // glassInner:     light white@0.38, dark white@0.18
+    // glassHighlight: light white@0.52, dark white@0.44
+    static let quietInnerStroke = SemanticTokens.adaptiveColor(
+        light: NSColor.white.withAlphaComponent(0.38 * 0.82),
+        dark: NSColor.white.withAlphaComponent(0.44 * 0.24)
+    )
 
-    static func quietInnerStroke(colorScheme: ColorScheme) -> Color {
-        switch colorScheme {
-        case .light:
-            return SemanticTokens.Border.glassInner.opacity(0.82)
-        case .dark:
-            return SemanticTokens.Border.glassHighlight.opacity(0.24)
-        @unknown default:
-            return SemanticTokens.Border.glassHighlight.opacity(0.24)
-        }
-    }
+    static let quietTopHighlight = SemanticTokens.adaptiveColor(
+        light: NSColor.white.withAlphaComponent(0.52 * 0.82),
+        dark: NSColor.white.withAlphaComponent(0.44 * 0.36)
+    )
 
-    static func quietTopHighlight(colorScheme: ColorScheme) -> Color {
-        switch colorScheme {
-        case .light:
-            return SemanticTokens.Border.glassHighlight.opacity(0.82)
-        case .dark:
-            return SemanticTokens.Border.glassHighlight.opacity(0.36)
-        @unknown default:
-            return SemanticTokens.Border.glassHighlight.opacity(0.36)
-        }
-    }
-
-    static func quietBottomStroke(colorScheme: ColorScheme) -> Color {
-        switch colorScheme {
-        case .light:
-            return SemanticTokens.Border.notificationCard.opacity(0.28)
-        case .dark:
-            return SemanticTokens.Border.notificationCard.opacity(0.22)
-        @unknown default:
-            return SemanticTokens.Border.notificationCard.opacity(0.22)
-        }
-    }
+    static let quietBottomStroke = SemanticTokens.adaptiveColor(
+        light: NSColor.black.withAlphaComponent(0.12 * 0.28),
+        dark: NSColor.white.withAlphaComponent(0.06 * 0.22)
+    )
 }

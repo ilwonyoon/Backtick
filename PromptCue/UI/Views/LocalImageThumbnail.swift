@@ -3,7 +3,6 @@ import ImageIO
 import SwiftUI
 
 struct LocalImageThumbnail: View {
-    @Environment(\.colorScheme) private var colorScheme
     private static let fileManager = FileManager.default
     private static let imageCache = NSCache<NSURL, NSImage>()
     private static let loadDelaysNanos: [UInt64] = [80_000_000, 160_000_000, 280_000_000, 460_000_000, 760_000_000, 1_120_000_000]
@@ -54,13 +53,13 @@ struct LocalImageThumbnail: View {
         .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-                .fill(thumbnailBackdropColor)
+                .fill(Self.thumbnailBackdropColor)
         )
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-                .stroke(thumbnailBorderColor)
+                .stroke(Self.thumbnailBorderColor)
         }
         .allowsHitTesting(false)
         .task(id: resolvedURL.path) {
@@ -68,21 +67,18 @@ struct LocalImageThumbnail: View {
         }
     }
 
-    private var thumbnailBackdropColor: Color {
-        if colorScheme == .light {
-            return SemanticTokens.Surface.notificationCardBackdrop.opacity(0.75)
-        }
+    // notificationCardBackdrop: light black@0.02, dark white@0.006
+    private static let thumbnailBackdropColor = SemanticTokens.adaptiveColor(
+        light: NSColor.black.withAlphaComponent(0.02 * 0.75),
+        dark: NSColor.white.withAlphaComponent(0.006)
+    )
 
-        return SemanticTokens.Surface.notificationCardBackdrop
-    }
-
-    private var thumbnailBorderColor: Color {
-        if colorScheme == .light {
-            return SemanticTokens.Border.notificationCard.opacity(0.9)
-        }
-
-        return SemanticTokens.Border.subtle
-    }
+    // notificationCard border: light black@0.12, dark → subtle
+    // subtle: light black@0.08, dark separatorColor@soft
+    private static let thumbnailBorderColor = SemanticTokens.adaptiveColor(
+        light: NSColor.black.withAlphaComponent(0.12 * 0.9),
+        dark: NSColor.separatorColor.withAlphaComponent(0.65)
+    )
 
     @MainActor
     private func loadImage(from resolvedURL: URL) async {

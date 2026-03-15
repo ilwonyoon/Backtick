@@ -204,7 +204,7 @@ enum SemanticTokens {
         )
     }
 
-    private static func adaptiveColor(light: NSColor, dark: NSColor) -> Color {
+    static func adaptiveColor(light: NSColor, dark: NSColor) -> Color {
         Color(
             nsColor: NSColor(name: nil) { appearance in
                 let bestMatch = appearance.bestMatch(

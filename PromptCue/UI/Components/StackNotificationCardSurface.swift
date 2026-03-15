@@ -1,9 +1,9 @@
+import AppKit
 import SwiftUI
 
 // Backtick stack-card pattern surface.
 // Keep stack card chrome independent from stack backdrop ownership.
 struct StackNotificationCardSurface<Content: View>: View {
-    @Environment(\.colorScheme) private var colorScheme
     let isSelected: Bool
     let isEmphasized: Bool
     @ViewBuilder private var content: Content
@@ -27,7 +27,7 @@ struct StackNotificationCardSurface<Content: View>: View {
                 shape
                     .fill(backgroundFill)
                     .overlay {
-                        shape.fill(chromeOverlay)
+                        shape.fill(StackNotificationCardChromeRecipe.chromeOverlay)
                     }
                     .overlay {
                         shape.fill(SemanticTokens.Surface.notificationCardHoverFill)
@@ -36,7 +36,7 @@ struct StackNotificationCardSurface<Content: View>: View {
                     .overlay(alignment: .top) {
                         TopEdgeStrokeOverlay(
                             shape: shape,
-                            color: topHighlight,
+                            color: StackNotificationCardChromeRecipe.topHighlight,
                             lineWidth: PrimitiveTokens.Stroke.subtle,
                             frameHeight: PrimitiveTokens.Space.sm,
                             maskHeight: PrimitiveTokens.Space.sm
@@ -72,13 +72,10 @@ struct StackNotificationCardSurface<Content: View>: View {
         return SemanticTokens.Surface.notificationCardFill
     }
 
-    private var chromeOverlay: Color {
-        StackNotificationCardChromeRecipe.chromeOverlay(colorScheme: colorScheme)
-    }
-
-    private var topHighlight: Color {
-        StackNotificationCardChromeRecipe.topHighlight(colorScheme: colorScheme)
-    }
+    private static let defaultBorderColor = SemanticTokens.adaptiveColor(
+        light: NSColor.black.withAlphaComponent(0.12 * 0.92),
+        dark: NSColor.white.withAlphaComponent(0.06 * 0.82)
+    )
 
     private var borderColor: Color {
         if isSelected {
@@ -96,14 +93,7 @@ struct StackNotificationCardSurface<Content: View>: View {
             return SemanticTokens.Border.notificationCardHover
         }
 
-        switch colorScheme {
-        case .light:
-            return SemanticTokens.Border.notificationCard.opacity(0.92)
-        case .dark:
-            return SemanticTokens.Border.notificationCard.opacity(0.82)
-        @unknown default:
-            return SemanticTokens.Border.notificationCard.opacity(0.82)
-        }
+        return Self.defaultBorderColor
     }
 
     private var showsElevatedChrome: Bool {

@@ -81,18 +81,18 @@ struct SearchFieldSurface<Content: View>: View {
     private var quietBackground: some View {
         baseQuietBackground
             .overlay {
-                shape.fill(CaptureShellChromeRecipe.quietRaisedFill(colorScheme: colorScheme))
+                shape.fill(CaptureShellChromeRecipe.quietRaisedFill)
             }
             .overlay {
-                shape.fill(CaptureShellChromeRecipe.quietSheenGradient(colorScheme: colorScheme))
+                shape.fill(CaptureShellChromeRecipe.quietSheenGradient)
             }
             .overlay {
-                shape.stroke(CaptureShellChromeRecipe.quietStroke(colorScheme: colorScheme))
+                shape.stroke(CaptureShellChromeRecipe.quietStroke)
             }
             .overlay {
                 shape
                     .inset(by: PrimitiveTokens.Stroke.subtle)
-                    .stroke(CaptureShellChromeRecipe.quietInnerStroke(colorScheme: colorScheme))
+                    .stroke(CaptureShellChromeRecipe.quietInnerStroke)
                     .mask(alignment: .top) {
                         Rectangle()
                             .frame(height: PrimitiveTokens.Space.xl)
@@ -101,7 +101,7 @@ struct SearchFieldSurface<Content: View>: View {
             .overlay(alignment: .top) {
                 TopEdgeStrokeOverlay(
                     shape: shape,
-                    color: CaptureShellChromeRecipe.quietTopHighlight(colorScheme: colorScheme),
+                    color: CaptureShellChromeRecipe.quietTopHighlight,
                     lineWidth: PrimitiveTokens.Stroke.subtle,
                     frameHeight: PrimitiveTokens.Space.lg,
                     maskHeight: PrimitiveTokens.Space.sm
@@ -109,7 +109,7 @@ struct SearchFieldSurface<Content: View>: View {
             }
             .overlay {
                 shape
-                    .stroke(CaptureShellChromeRecipe.quietBottomStroke(colorScheme: colorScheme))
+                    .stroke(CaptureShellChromeRecipe.quietBottomStroke)
                     .mask(alignment: .bottom) {
                         Rectangle()
                             .frame(height: PrimitiveTokens.Space.sm)

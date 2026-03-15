@@ -142,6 +142,13 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         anchoredOriginX = nil
     }
 
+    func markAppearanceDirty() {
+        // No flag needed: show() already calls
+        // runtimeViewController.refreshAppearance() unconditionally,
+        // so a hidden-during-theme-change scenario is handled.
+        // Kept for API symmetry with StackPanelController.
+    }
+
     func refreshForInheritedAppearanceChange() {
         panel?.appearance = nil
         panel?.contentView?.appearance = nil
