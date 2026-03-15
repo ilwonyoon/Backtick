@@ -1,40 +1,64 @@
-# MCP Platform Expansion & Information Temperature Architecture
+# MCP Platform Expansion & Warm Memory Architecture
 
-Research doc — 2026-03-15
+Research doc — 2026-03-15 (v3)
 
-## Part 1: MCP Platform Expansion
+## Vision
 
-### Current State
+Backtick = AI Second Brain. A memory layer that bridges ChatGPT, Claude, Claude Code, Codex — so that opening a new thread in any app doesn't mean starting from scratch. The product holds two types of information:
 
-BacktickMCP is a **stdio-only** JSON-RPC 2.0 server bundled into the app at `Contents/Helpers/BacktickMCP`. It exposes 8 tools (list/get/create/update/delete/mark_executed/classify/group notes) and 4 prompt templates.
+- **Hot (Stack):** Today's execution queue. Short cards, copied and done. Already built.
+- **Warm (Memory):** Project documents that persist across sessions. Key conversations and decisions from AI chats, continuously updated. Not yet built.
 
-**Supported clients today:**
+Cold (secrets, permanent config) is out of scope — convenience, not core.
 
-| Client | Transport | Status |
-|--------|-----------|--------|
-| Claude Code (CLI) | stdio | Supported |
-| Codex (OpenAI CLI) | stdio | Supported |
+---
 
-### Target Platforms
+## Part 1: Connection Architecture
 
-| Platform | Transport Required | Feasibility |
-|----------|-------------------|-------------|
-| **Claude Desktop (Mac)** | stdio | Trivial — same transport, just needs `claude_desktop_config.json` registration |
-| **Claude Web / Mobile** | Remote MCP (HTTP/SSE) | Requires new transport layer + auth |
-| **ChatGPT Desktop (Mac)** | HTTP (SSE / Streamable HTTP) | Supported since Sep 2025 via Developer Mode |
-| **ChatGPT Web** | HTTP (SSE / Streamable HTTP) | Same as Desktop — Developer Mode MCP client |
-| **ChatGPT via Codex CLI** | stdio | Already works |
+### Reference: Muninn's proven patterns
 
-> **Note:** ChatGPT Developer Mode MCP support requires Pro/Team/Enterprise/Edu plan.
-> ChatGPT calls MCP connectors "apps" (renamed Dec 2025).
-> Settings > Apps > Advanced > Developer Mode to add MCP server URL.
+Muninn (`ilwonyoon/muninn`) validated the connection model. Key lessons:
 
-### Expansion Plan
+| Client | Transport | How it connects |
+|--------|-----------|-----------------|
+| Claude Code CLI | stdio | `claude mcp add backtick -- <binary>` |
+| Claude Desktop (Mac) | stdio | `claude_desktop_config.json` → spawns process |
+| Codex CLI | stdio | `codex mcp add backtick -- <binary>` |
+| ChatGPT Mac App | **HTTP localhost** | `http://127.0.0.1:<port>/` — no tunnel needed |
+| Claude Web / Mobile | HTTP + tunnel | Cloudflare Tunnel or ngrok required |
+| ChatGPT Web | HTTP + tunnel | Same as above |
 
-#### Phase 1: Claude Desktop (Low effort)
+**Key correction:** ChatGPT Mac App connects to localhost directly. No tunnel required for same-machine usage.
 
-Claude Desktop reads `~/Library/Application Support/Claude/claude_desktop_config.json`:
+### Stability analysis
 
+Muninn's localhost web dashboard was unstable. Why? Separate Python process that had to be manually started, could crash independently, port conflicts, no lifecycle management.
+
+**How Backtick solves this:**
+
+| Instability source | Backtick's advantage |
+|---|---|
+| Separate process to manage | Backtick app manages the MCP server lifecycle — starts on launch, restarts on crash |
+| Port conflicts | App owns its port, configurable in Settings |
+| No crash recovery | App can supervise the HTTP server (watchdog/respawn) |
+| Manual startup | Backtick is a menu bar app — always running, auto-launches on login |
+| stdio clients need config | Settings UI generates config + one-click install |
+
+**Architecture: single binary, dual transport**
+
+```
+BacktickMCP (bundled in app)
+├── stdio mode  → Claude Desktop, Claude Code, Codex (spawned per-client)
+└── http mode   → ChatGPT Mac App, Claude Web, ChatGPT Web (long-running server)
+```
+
+The app runs the HTTP server as an in-process component (not a child process). This eliminates the "separate process" instability that plagued Muninn.
+
+### Connection setup per client
+
+#### Claude Desktop (stdio — no server needed)
+
+Config: `~/Library/Application Support/Claude/claude_desktop_config.json`
 ```json
 {
   "mcpServers": {
@@ -45,92 +69,97 @@ Claude Desktop reads `~/Library/Application Support/Claude/claude_desktop_config
   }
 }
 ```
+Backtick Settings UI: detect Claude Desktop → generate config → one-click write.
 
-**Work needed:**
-- Add Claude Desktop detection in `MCPConnectorInspector` (check for `~/Library/Application Support/Claude/` directory)
-- Generate config snippet for `claude_desktop_config.json`
-- Add one-click setup button in Settings > MCP Connector
-- Validate that the bundled helper path is stable across app updates
+#### ChatGPT Mac App (HTTP localhost)
 
-#### Phase 2: Remote MCP (HTTP Transport) for Claude Web/Mobile
+1. Backtick starts HTTP server on `127.0.0.1:8321` (configurable)
+2. ChatGPT: Settings > Apps > Advanced > Developer Mode
+3. Add MCP server URL: `http://127.0.0.1:8321/`
+4. Auth: Bearer token (generated in Backtick Settings, copied to ChatGPT)
 
-Claude Pro/Max/Team/Enterprise users can connect to remote MCP servers via HTTP+SSE or Streamable HTTP.
+Requires: ChatGPT Pro/Team/Enterprise/Edu plan for Developer Mode.
 
-**Architecture decision: Local server + tunnel vs. Cloud deployment**
+#### Claude Web / ChatGPT Web (HTTP + tunnel — future)
 
-Recommended: **Dual transport mode** on the local server.
+For accessing from phone or non-local machine:
+1. Backtick HTTP server running locally
+2. Cloudflare Tunnel or ngrok exposes it
+3. Public URL registered in Claude Web or ChatGPT Web
+
+This is Phase 2. Local-first (stdio + HTTP localhost) comes first.
+
+### HTTP transport implementation
+
+**Option A: Swift NIO embedded in BacktickMCP binary**
+- Add Hummingbird or Vapor-lite as dependency
+- BacktickMCP binary gains `--transport http --port 8321` flag
+- Reuses existing JSON-RPC handler, wraps in HTTP
+
+**Option B: Backtick app hosts HTTP server directly**
+- No separate binary for HTTP mode
+- App's main process runs the HTTP server
+- Shares the same GRDB database connection (no concurrency issues)
+- MCP requests handled in-process
+
+**Recommendation: Option B.** The app is always running (menu bar). HTTP server is just another service the app hosts. BacktickMCP binary stays stdio-only (simple, stable). The app handles HTTP transport natively.
+
+This means:
+- stdio clients → BacktickMCP helper binary (existing)
+- HTTP clients → Backtick app process (new)
+- Both read/write the same SQLite database
+
+### Auth for HTTP
+
+Following Muninn's pattern:
 
 ```
-BacktickMCP --transport stdio          # existing (Claude Code, Codex, Claude Desktop)
-BacktickMCP --transport http --port 8321  # new (Claude Web via tunnel)
+Priority:
+1. Bearer token (BACKTICK_API_KEY or generated in Settings)
+2. No auth (localhost dev only, with warning)
 ```
 
-**Work needed:**
-1. Add lightweight HTTP server to BacktickMCP (Swift NIO or built-in `HTTPServer`)
-2. Implement MCP SSE endpoint (`/sse` for connection, `/message` for requests)
-3. Add authentication (API key or token-based)
-4. Document tunnel setup (Cloudflare Tunnel / ngrok)
-5. Settings UI: "Enable Remote Access" toggle with generated auth token
-
-**Considerations:**
-- Mac must be running for remote access to work
-- Security: auth token + localhost binding + optional tunnel
-- SQLite concurrent access: current GRDB setup supports WAL mode for multi-reader
-
-#### Phase 2b: ChatGPT Integration (Same HTTP transport)
-
-ChatGPT has **native MCP client support** since September 2025 (Developer Mode). It uses the same HTTP transport as Claude Web/Mobile — so Phase 2's HTTP work directly enables ChatGPT.
-
-**Connection path:** Settings > Apps > Advanced > Developer Mode > Add MCP server URL
-
-**Proven pattern:** `ilwonyoon/muninn` already connects to ChatGPT Mac App via HTTP transport using FastMCP (Python). BacktickMCP can follow the same approach in Swift.
-
-**Requirements:**
-- SSE or Streamable HTTP endpoint (same as Phase 2)
-- Auth token (same as Phase 2)
-- Tunnel for remote access (ngrok/Cloudflare) OR localhost if ChatGPT Desktop on same Mac
-- ChatGPT Pro/Team/Enterprise/Edu plan for Developer Mode
-
-**Key difference from Claude Web:** ChatGPT cannot connect to localhost directly — tunnel is always required even for local servers. Claude Desktop can use stdio (no tunnel needed).
+Token generated once in Settings, displayed for user to copy into ChatGPT config. Stored in Keychain.
 
 ---
 
-## Part 2: AI Second Brain — Hot + Warm Memory Architecture
+## Part 2: Warm Memory — Saving AI Conversations
 
-### Context
+### What gets saved
 
-The journey: Muninn (project memory, but unstable localhost-only + unclear what to store) → Backtick (nailed Hot: short-lived execution queue). Now the goal is to combine both into one product — an AI Second Brain that holds project context across all AI clients and threads.
+The core use case: AI finishes a meaningful conversation → saves a structured summary to Backtick. Next time any AI client starts a new thread, it recalls the project context.
 
-**The core problem:** AI conversations are scattered across ChatGPT, Claude, Claude Code, Codex. Even within the same app, opening a new thread loses all context. There is no persistent memory layer that bridges these tools.
+**Examples of what AI saves:**
 
-**Scope:** Hot + Warm only. Cold (secrets, permanent config) is a convenience feature, not core — excluded for now.
+```markdown
+## PromptCue — Session 2026-03-15
 
-### Hot vs Warm: Fundamentally Different UX
+### Decisions
+- MCP HTTP transport will be hosted by the app process, not the helper binary
+- Warm documents use ProjectDocument model, separate from CaptureCard
 
-| | Hot (Stack — exists) | Warm (new) |
-|---|---|---|
-| **Unit** | Short card (1-3 lines) | Long document (markdown, sections, pages) |
-| **Lifespan** | Hours (8h TTL) | Days → weeks → months |
-| **Primary action** | Copy → paste → done | Read / review / update |
-| **Input** | Human captures quickly | AI saves via MCP (+ human edits) |
-| **Consumption** | Glance (scan a list) | Scroll / expand / deep read |
-| **Mutation** | Rarely edited | Continuously updated |
-| **Identity** | Disposable (no title needed) | Named per project/topic |
+### Done
+- Added Claude Desktop config generation in Settings
+- Implemented save_document / recall_document MCP tools
 
-**Key insight:** Warm items cannot be cards in a list. A document that's 3 pages long needs a viewer, not a card slot. The UX for Warm is closer to a notes app than a clipboard manager.
+### Open questions
+- Memory tab UX: inline viewer vs separate panel
+- FTS indexing strategy for large documents
 
-### Data Model
+### Next
+- Wire up HTTP server in AppDelegate
+- Test ChatGPT localhost connection
+```
 
-#### Warm documents: separate from CaptureCard
+This is **not** a full conversation transcript. It's a distilled project document that an AI (or human) can update incrementally.
 
-Hot cards and Warm documents are different enough to warrant distinct models rather than overloading CaptureCard with a `tier` field.
+### Data model
 
 ```swift
-// New model in PromptCueCore
 public struct ProjectDocument: Codable, Sendable, Identifiable {
     public let id: UUID
-    public var projectName: String           // e.g. "PromptCue", "muninn"
-    public var summary: String               // markdown body (can be long)
+    public var projectName: String           // unique key for upsert
+    public var summary: String               // markdown body
     public var tags: [CaptureTag]
     public var status: DocumentStatus        // active, paused, archived
     public var createdAt: Date
@@ -138,143 +167,90 @@ public struct ProjectDocument: Codable, Sendable, Identifiable {
 }
 
 public enum DocumentStatus: String, Codable, Sendable {
-    case active     // current work
-    case paused     // on hold
-    case archived   // done, kept for reference
+    case active
+    case paused
+    case archived
 }
 ```
 
-**Database:** New `project_documents` table alongside existing `cards` table.
+Database: `project_documents` table with FTS5 full-text search.
 
-```sql
-CREATE TABLE project_documents (
-    id TEXT PRIMARY KEY NOT NULL,
-    projectName TEXT NOT NULL,
-    summary TEXT NOT NULL,
-    tagsJSON TEXT,
-    status TEXT NOT NULL DEFAULT 'active',
-    createdAt DATETIME NOT NULL,
-    updatedAt DATETIME NOT NULL
-);
-CREATE INDEX idx_project_documents_projectName ON project_documents(projectName);
-CREATE VIRTUAL TABLE project_documents_fts USING fts5(projectName, summary);
-```
+### MCP tools for Warm
 
-#### Inheriting from Muninn
-
-Muninn's document-first model (`projects.summary` = one markdown doc per project) is the right abstraction for Warm. The key improvements over Muninn:
-
-1. **Native macOS UI** instead of localhost web dashboard
-2. **Bundled into Backtick** — single app, single process
-3. **Shared MCP server** — one server exposes both Hot and Warm tools
-4. **Stable transport** — stdio for local clients, HTTP for remote
-
-### MCP Tool Design
-
-Existing Hot tools remain unchanged. New Warm tools added to the same server:
+Added to the same BacktickMCP server alongside existing Hot tools:
 
 | Tool | Purpose |
 |------|---------|
-| `save_document` | Create or update a project document (upsert by projectName) |
-| `recall_document` | Retrieve one project's document, or list all active projects |
-| `search_documents` | Full-text search across all project documents |
-| `manage_document` | Set status (active/paused/archived), rename, delete |
+| `save_document` | Upsert project document by projectName. AI calls this at end of session. |
+| `recall_document` | Get one project's doc (by name) or list all active projects. AI calls at start. |
+| `search_documents` | Full-text search across all documents. |
+| `manage_document` | Set status, rename, delete. |
 
-**Naming convention:** `*_note` = Hot (existing), `*_document` = Warm (new). Clear separation for AI clients.
-
-**AI usage pattern:**
+**AI workflow:**
 ```
-// Claude Code finishing a session:
-save_document(projectName: "PromptCue", summary: "## Session 2026-03-15\n### Done\n- Added HTTP transport...\n### Next\n- Wire up auth...")
+Session start (any client, any thread):
+  → recall_document(projectName: "PromptCue")
+  → AI has full project context
 
-// ChatGPT starting a new thread:
-recall_document(projectName: "PromptCue")
-// → Gets full project context, continues where the last session left off
+Session end:
+  → save_document(projectName: "PromptCue", summary: "<updated markdown>")
+  → Context persists for next session
 ```
 
-### UX: How Warm Fits Into Backtick
+### UX: Memory tab
 
-#### Option A: Drawer/sidebar within Stack panel
+Warm documents need reading/review, not just glancing. Stack's card list UX doesn't fit. Options explored:
+
+**Chosen approach: Tab switcher in Stack panel**
 
 ```
 ┌─────────────────────────────┐
-│ [Stack]  [Memory]           │  ← tab/segment switcher
+│ [Stack]  [Memory]           │  ← segment control
 ├─────────────────────────────┤
 │                             │
-│  PromptCue          active  │  ← project row (collapsed)
+│  PromptCue          active  │  ← project list
 │  muninn             paused  │
-│  client-project-x   active  │
+│  client-project     active  │
 │                             │
-│  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  │
-│  + New Project              │
 └─────────────────────────────┘
 
-click on project row → expands inline or opens detail view:
+tap project → detail view:
 
 ┌─────────────────────────────┐
 │ ← Back    PromptCue         │
 ├─────────────────────────────┤
 │ ## Session 2026-03-15       │
+│ ### Decisions               │
+│ - HTTP transport in app...  │
 │ ### Done                    │
-│ - Added HTTP transport      │
-│ - Fixed auth flow           │
+│ - Claude Desktop config...  │
 │ ### Next                    │
-│ - Wire up tunnel setup      │
-│ - Test ChatGPT connection   │
+│ - Wire up HTTP server...    │
+│                        Edit │
 │                             │
 │ Updated: 2 hours ago        │
-│ [Edit]                      │
 └─────────────────────────────┘
 ```
 
-**Pros:** Single panel, familiar location. Tab switch is low friction.
-**Cons:** Long documents in a narrow panel may feel cramped.
-
-#### Option B: Separate Memory panel (like Stack has its own panel)
-
-A second NSPanel, wider, optimized for reading. Hotkey: `Cmd + 3`.
-
-**Pros:** More room for long documents. Reading-optimized layout.
-**Cons:** Another window to manage. May feel disconnected from Stack.
-
-#### Option C: Stack panel with popover/sheet for document detail
-
-Project rows appear in Stack (below Hot cards or in a collapsible section). Clicking opens a popover or sheet overlay for the full document.
-
-**Pros:** One panel, documents feel connected to the daily workflow.
-**Cons:** Popover size limits. Complex interaction model.
-
-**Recommendation:** Start with **Option A** (tab switcher in Stack panel). It keeps everything in one place, matches the "single app" goal, and the detail view can expand to fill the panel. If reading experience is insufficient, graduate to Option B later.
-
-### Information Flow
-
-```
-AI conversation (any client, any thread)
-    │
-    ├── create_note(text: "run migration")     → Hot (Stack, today)
-    │
-    └── save_document(projectName: "X",        → Warm (Memory, persists)
-         summary: "## Context\n...")
-              │
-              ├── Next session: recall_document("X") → AI has full context
-              └── Human: opens Memory tab → reads/reviews/edits
-```
-
-**Hot → Warm promotion:** A Stack card can be promoted to a document (append to project summary). But this is a nice-to-have, not launch-critical.
+Can graduate to a separate wider panel later if the narrow panel proves insufficient for long documents. Start simple.
 
 ---
 
-## Implementation Priority
+## Implementation Plan
 
-| # | Task | Effort | Dependencies |
-|---|------|--------|-------------|
-| 1 | Claude Desktop stdio registration in Settings | Small | None |
-| 2 | `ProjectDocument` model + DB migration + CRUD services | Medium | None |
-| 3 | MCP Warm tools: save/recall/search/manage_document | Medium | #2 |
-| 4 | Memory tab UI in Stack panel (list + detail view) | Medium | #2 |
-| 5 | HTTP transport for BacktickMCP (enables ChatGPT + Claude Web) | Large | None |
-| 6 | Auth + tunnel documentation | Medium | #5 |
+| # | Task | Effort | What it unlocks |
+|---|------|--------|-----------------|
+| 1 | Claude Desktop stdio registration in Settings | S | Claude Desktop as MCP client |
+| 2 | `ProjectDocument` model + DB migration + services in PromptCueCore | M | Warm storage layer |
+| 3 | MCP Warm tools (save/recall/search/manage_document) | M | AI can save/recall project context |
+| 4 | Memory tab UI in Stack panel | M | Human can review/edit documents |
+| 5 | HTTP server in Backtick app process | L | ChatGPT Mac App connection |
+| 6 | Auth (Bearer token) + Settings UI for HTTP | M | Secure HTTP connections |
 
-**Phase 1 (ship together):** Tasks 1-4. Backtick becomes Hot + Warm, accessible from Claude Desktop + Claude Code + Codex via stdio.
+**Phase 1 (stdio clients + Warm memory):** #1-4
+→ Claude Desktop, Claude Code, Codex can save/recall project documents
 
-**Phase 2:** Tasks 5-6. HTTP transport unlocks ChatGPT and Claude Web/Mobile.
+**Phase 2 (HTTP transport):** #5-6
+→ ChatGPT Mac App connects via localhost HTTP
+
+**Phase 3 (remote access):** Tunnel setup for Claude Web / ChatGPT Web / Mobile
