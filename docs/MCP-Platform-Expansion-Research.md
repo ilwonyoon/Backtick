@@ -21,9 +21,13 @@ BacktickMCP is a **stdio-only** JSON-RPC 2.0 server bundled into the app at `Con
 |----------|-------------------|-------------|
 | **Claude Desktop (Mac)** | stdio | Trivial — same transport, just needs `claude_desktop_config.json` registration |
 | **Claude Web / Mobile** | Remote MCP (HTTP/SSE) | Requires new transport layer + auth |
-| **ChatGPT Desktop** | N/A | OpenAI does not support MCP client natively (as of 2026-03) |
-| **ChatGPT Web** | N/A | No MCP support |
+| **ChatGPT Desktop (Mac)** | HTTP (SSE / Streamable HTTP) | Supported since Sep 2025 via Developer Mode |
+| **ChatGPT Web** | HTTP (SSE / Streamable HTTP) | Same as Desktop — Developer Mode MCP client |
 | **ChatGPT via Codex CLI** | stdio | Already works |
+
+> **Note:** ChatGPT Developer Mode MCP support requires Pro/Team/Enterprise/Edu plan.
+> ChatGPT calls MCP connectors "apps" (renamed Dec 2025).
+> Settings > Apps > Advanced > Developer Mode to add MCP server URL.
 
 ### Expansion Plan
 
@@ -73,20 +77,21 @@ BacktickMCP --transport http --port 8321  # new (Claude Web via tunnel)
 - Security: auth token + localhost binding + optional tunnel
 - SQLite concurrent access: current GRDB setup supports WAL mode for multi-reader
 
-#### Phase 3: ChatGPT Integration (Alternative path)
+#### Phase 2b: ChatGPT Integration (Same HTTP transport)
 
-Since ChatGPT doesn't support MCP natively:
+ChatGPT has **native MCP client support** since September 2025 (Developer Mode). It uses the same HTTP transport as Claude Web/Mobile — so Phase 2's HTTP work directly enables ChatGPT.
 
-**Option A: GPT Actions (Custom GPT)**
-- Expose a REST API from BacktickMCP HTTP mode
-- Register as a Custom GPT Action with OpenAPI spec
-- Requires tunnel for external access
+**Connection path:** Settings > Apps > Advanced > Developer Mode > Add MCP server URL
 
-**Option B: Wait for OpenAI MCP support**
-- OpenAI has shown interest in MCP compatibility
-- Codex CLI already supports MCP
+**Proven pattern:** `ilwonyoon/muninn` already connects to ChatGPT Mac App via HTTP transport using FastMCP (Python). BacktickMCP can follow the same approach in Swift.
 
-**Recommendation:** Phase 2's HTTP transport naturally enables Option A. Build HTTP first, then add OpenAPI spec generation as a follow-up.
+**Requirements:**
+- SSE or Streamable HTTP endpoint (same as Phase 2)
+- Auth token (same as Phase 2)
+- Tunnel for remote access (ngrok/Cloudflare) OR localhost if ChatGPT Desktop on same Mac
+- ChatGPT Pro/Team/Enterprise/Edu plan for Developer Mode
+
+**Key difference from Claude Web:** ChatGPT cannot connect to localhost directly — tunnel is always required even for local servers. Claude Desktop can use stdio (no tunnel needed).
 
 ---
 
@@ -207,16 +212,46 @@ Hot ──promote──→ Warm ──promote──→ Cold
 
 ---
 
+### Relationship with Muninn
+
+`ilwonyoon/muninn` is an existing MCP memory server that already solves Warm/Cold storage with a document-first model. Before building Warm/Cold tiers into Backtick, consider:
+
+| | Backtick (BacktickMCP) | Muninn |
+|---|---|---|
+| **Focus** | Hot — today's execution queue | Warm/Cold — project memory |
+| **Data model** | Atomic cards (short text) | Structured markdown docs per project |
+| **TTL** | 8h default | Manual lifecycle (active/paused/archived) |
+| **Transport** | stdio only (currently) | stdio + HTTP (dual) |
+| **Clients** | Claude Code, Codex | Claude Code, Claude Desktop, ChatGPT, Codex |
+| **Storage** | SQLite (GRDB, Swift) | SQLite (libSQL, Python) |
+
+**Option A: Build Warm/Cold into Backtick** (original plan)
+- Unified experience, single app
+- But duplicates what Muninn already does
+- Backtick's card model (short text, TTL) may not fit long documents well
+
+**Option B: Backtick stays Hot, Muninn stays Warm/Cold, connect via MCP**
+- Each tool does what it's best at
+- AI clients can use both MCP servers simultaneously
+- No duplication of effort
+- Trade-off: two separate apps/processes
+
+**Option C: Backtick integrates Muninn as a backend**
+- Backtick UI shows Muninn data via Muninn's MCP tools
+- Backtick becomes the unified frontend, Muninn provides Warm/Cold storage
+- Best of both worlds but more complex integration
+
+**Recommendation:** Start with Option B (both tools coexist, AI uses both). Evaluate whether unified UI (Option C) adds enough value to justify the integration work.
+
+---
+
 ## Implementation Priority
 
 | # | Task | Effort | Dependencies |
 |---|------|--------|-------------|
 | 1 | Claude Desktop stdio registration in Settings | Small | None |
-| 2 | `CardTier` model + migration | Small | None |
-| 3 | MCP tools: `tier` param on create/list, `promote_note` | Medium | #2 |
-| 4 | Library panel UI (Warm + Cold sections) | Medium | #2 |
-| 5 | HTTP transport for BacktickMCP | Large | None |
-| 6 | Auth + tunnel documentation | Medium | #5 |
-| 7 | OpenAPI spec for ChatGPT Actions | Medium | #5 |
+| 2 | HTTP transport for BacktickMCP (enables ChatGPT + Claude Web) | Large | None |
+| 3 | Auth + tunnel documentation | Medium | #2 |
+| 4 | Evaluate Warm/Cold: build into Backtick vs. coexist with Muninn | Decision | None |
 
-Tasks 1-4 can ship together as a first release. Task 5-7 is a separate track.
+Tasks 1 and 4 can start immediately. Task 2-3 is the main engineering track.
