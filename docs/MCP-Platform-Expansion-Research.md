@@ -1,15 +1,20 @@
 # MCP Platform Expansion & Warm Memory Architecture
 
-Research doc — 2026-03-15 (v3)
+Research doc — 2026-03-15 (v4)
 
 ## Vision
 
-Backtick = AI Second Brain. A memory layer that bridges ChatGPT, Claude, Claude Code, Codex — so that opening a new thread in any app doesn't mean starting from scratch. The product holds two types of information:
+Backtick is the project memory for people who build with AI but aren't engineers. It bridges ChatGPT, Claude, Claude Code, Codex — so that opening a new thread in any app doesn't mean starting from scratch.
 
-- **Hot (Stack):** Today's execution queue. Short cards, copied and done. Already built.
-- **Warm (Memory):** Project documents that persist across sessions. Key conversations and decisions from AI chats, continuously updated. Not yet built.
+Two places, two types of information:
 
-Cold (secrets, permanent config) is out of scope — convenience, not core.
+- **Stack:** Today's prompts. Use and discard. Already built.
+- **Memory:** Project docs that persist across sessions. Key conversations and decisions from AI chats, continuously updated. Not yet built.
+
+> **Stack for today. Memory for everything else.**
+
+Internal terminology (dev docs only): Hot = Stack, Warm = Memory, Cold = out of scope.
+Full terminology system: see `docs/Terminology.md`.
 
 ---
 
@@ -88,6 +93,34 @@ For accessing from phone or non-local machine:
 3. Public URL registered in Claude Web or ChatGPT Web
 
 This is Phase 2. Local-first (stdio + HTTP localhost) comes first.
+
+### Connection UX — what the user actually sees
+
+The user never sees "MCP", "stdio", or "HTTP". They see Connect buttons.
+
+```
+┌─ Backtick Settings ─────────────────────────────┐
+│                                                  │
+│  AI Connections                                  │
+│                                                  │
+│  Claude Desktop         [Connected ✓]            │
+│  Claude Code            [Connected ✓]            │
+│  Codex                  [Connect]                │
+│  ChatGPT                [Connect]                │
+│                                                  │
+└──────────────────────────────────────────────────┘
+```
+
+| Platform | What "Connect" does | User effort |
+|---|---|---|
+| Claude Desktop | Writes `claude_desktop_config.json` automatically | **One click** |
+| Claude Code | Runs `claude mcp add` automatically | **One click** |
+| Codex | Runs `codex mcp add` automatically | **One click** |
+| ChatGPT Mac | Starts HTTP server + copies URL to clipboard + opens ChatGPT settings | **One click + paste URL** |
+
+ChatGPT is the only one that can't be fully automated (ChatGPT doesn't provide an auto-registration API). But "click Connect → paste URL" is still zero-config for the user — no terminal, no JSON editing, no API keys to generate.
+
+**Principle: the app absorbs the complexity.** Same MCP protocol underneath, but the user never touches it.
 
 ### HTTP transport implementation
 
@@ -366,25 +399,66 @@ Next day, different AI client, new thread:
   → Continues where yesterday left off (human-verified version)
 ```
 
-### Customer-facing naming
+### Customer-facing terminology
 
-Internal terms Hot/Warm are technical. Consumer-facing names:
+Full terminology system documented in `docs/Terminology.md`. Key decisions:
 
-| Internal | Customer name | Rationale |
-|----------|--------------|-----------|
-| Hot | **Stack** | Already in use. "Stacked tasks" is intuitive. Keep as-is. |
-| Warm | **Memory** | AI memory is the core concept. Stack ↔ Memory pairing is natural (short-term ↔ long-term). |
+#### Places (two, no more)
+
+| Internal | User-facing | What it is |
+|----------|------------|-----------|
+| Hot | **Stack** | Short-term prompt queue. Auto-expires. |
+| Warm | **Memory** | Long-term project documents. Persists across sessions. |
+
+#### Objects (different words signal different nature)
+
+| Place | Objects called | Example header |
+|---|---|---|
+| Stack | **prompts** | `4 prompts` |
+| Memory | **docs** | `3 docs` |
+
+"prompts" = short, disposable. "docs" = long, structured. Different words prevent "what's the difference?" confusion.
+
+#### States (label the exception, not the norm)
+
+| State | Label | Meaning |
+|---|---|---|
+| Default (uncopied prompt) | _(no label)_ | Just a prompt. No special state. |
+| After copy | **Copied** | Moves to collapsed Copied section. |
+
+"On Stage" / "Off Stage" retired. Default state doesn't need a name — only label the action that happened.
+
+#### Stack panel simplification
+
+Filter (All / On Stage / Off Stage) removed entirely. Unnecessary complexity.
+
+```
+┌─────────────────────────────┐
+│  4 prompts        [Copy ⊕] │  ← uncopied count + action
+├─────────────────────────────┤
+│  [prompt]                   │
+│  [prompt]                   │
+├─────────────────────────────┤
+│  Copied  2           [▼]   │  ← collapsible, delete-all
+└─────────────────────────────┘
+```
+
+#### Naming principles
+
+1. First-time user must understand the word without explanation
+2. Internal concepts (Hot/Warm/Cold, Card, Stage) stay in code — never in UI
+3. When in doubt, use fewer words
 
 **Brand line:** "Stack for today. Memory for everything else."
 
-Alternatives considered:
+Alternatives considered for Memory:
 
 | Name | Why not |
 |------|---------|
 | Notes | Too generic. Confused with Apple Notes. |
 | Vault | Security connotation. Obsidian already owns this. |
-| Brain | Overused by competitors (Brainsave, Second Brain I/O). Overpromises. |
-| Docs | Google Docs association. |
+| Brain | Overused by competitors. Overpromises. |
+| Docs | Google Docs association. (But "docs" lowercase as object name is fine.) |
 | Log | Developer-facing. |
 
 ### UX: Memory panel
@@ -703,6 +777,40 @@ Not developers at tech companies (they have scoped work, limited context switchi
 | Target | Developers | Consumers | Dev+Obsidian | PMs | **Vibe-coding solopreneurs** |
 
 **One-liner:** Backtick is the project memory for people who build with AI but aren't engineers.
+
+### Product pitch
+
+#### For consumers
+
+Every time you open a new ChatGPT thread or start a new Claude conversation, you start from scratch. "I'm building this app, the pricing model is freemium, we decided on this color palette last week..." — every. single. time.
+
+Backtick fixes this. Cmd+` to dump a thought. Your AI tools pick it up instantly via Stack. Important decisions and project context get saved to Memory — so next week, in a different AI app, in a brand new thread, your AI already knows.
+
+**Stack for today. Memory for everything else.**
+
+No setup. No API keys. No terminal commands. Install the app, click Connect, done.
+
+#### For investors
+
+**Category:** Cross-platform AI memory — consumer product, not infrastructure.
+
+**Market observation:**
+- LLMs are stateless. Every session starts from zero.
+- Users switch between 3-4 AI tools daily (ChatGPT, Claude, Codex, Cursor...)
+- Each platform's built-in memory is siloed — ChatGPT Memory doesn't talk to Claude Projects.
+- The cross-platform memory layer is an empty category.
+
+**Backtick's position:**
+
+```
+  ChatGPT ──┐
+  Claude  ──┼── Backtick ── user's context
+  Codex   ──┘     (MCP)
+```
+
+**Competitive moat:** Not technology (MCP is an open protocol) — **UX.** The only product where a non-developer can install a .app file, click "Connect to Claude", and have cross-platform AI memory running in under a minute. Every competitor requires Docker, API keys, config files, or terminal literacy.
+
+**Target:** AI-native solopreneurs — non-developers building products with AI. This segment is growing fast and is underserved by developer-focused tools.
 
 ---
 
