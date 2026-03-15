@@ -8,11 +8,10 @@ struct CardStackView: View {
     let onEditCard: (CaptureCard) -> Void
     let onDeleteCard: (CaptureCard) -> Void
     private let ttlTicker = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-    @State private var stackFilter: StackRailFilter = .all
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
     @State private var expandedCardIDs = Set<CaptureCard.ID>()
     @State private var isCopiedStackHovered = false
-    @State private var isConfirmingOffstageDelete = false
+    @State private var isConfirmingCopiedDelete = false
     @State private var classificationCache: [CaptureCard.ID: ContentClassification]
     @State private var cardSections: CardSections
     @State private var stagedCopiedCardIDSet: Set<CaptureCard.ID>
@@ -38,7 +37,6 @@ struct CardStackView: View {
             initialValue: Self.buildClassificationCache(
                 for: Self.classificationRelevantCards(
                     sections: initialSections,
-                    filter: .all,
                     isCopiedStackExpanded: ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
                 )
             )
@@ -51,10 +49,8 @@ struct CardStackView: View {
         let railState = StackRailState(
             activeCount: allSections.active.count,
             copiedCount: allSections.copied.count,
-            stagedCount: model.stagedCopiedCount,
-            filter: stackFilter
+            stagedCount: model.stagedCopiedCount
         )
-        let visibleSections = filteredSections(from: allSections, state: railState)
 
         ZStack {
             Color.clear
@@ -64,29 +60,23 @@ struct CardStackView: View {
             VStack(alignment: .trailing, spacing: PrimitiveTokens.Space.xs) {
                 header(railState: railState)
 
-                if visibleSections.isEmpty {
+                if allSections.isEmpty {
                     emptyState
                 } else {
                     ScrollView {
                         LazyVStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
-                            if railState.filter == .offstage {
-                                ForEach(visibleSections.copied) { card in
+                            if !allSections.active.isEmpty {
+                                ForEach(allSections.active) { card in
                                     cardRow(for: card)
                                 }
-                            } else {
-                                if !visibleSections.active.isEmpty {
-                                    ForEach(visibleSections.active) { card in
-                                        cardRow(for: card)
-                                    }
-                                }
+                            }
 
-                                if !visibleSections.copied.isEmpty {
-                                    copiedSection(
-                                        copiedCards: visibleSections.copied,
-                                        forceExpanded: railState.forcesExpandedCopiedSection
-                                    )
-                                        .padding(.top, PrimitiveTokens.Space.sm)
-                                }
+                            if !allSections.copied.isEmpty {
+                                copiedSection(
+                                    copiedCards: allSections.copied,
+                                    forceExpanded: false
+                                )
+                                    .padding(.top, PrimitiveTokens.Space.sm)
                             }
                         }
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
@@ -104,7 +94,6 @@ struct CardStackView: View {
         .onAppear {
             refreshDerivedState(
                 cards: model.cards,
-                filter: stackFilter,
                 isCopiedStackExpanded: isCopiedStackExpanded
             )
             flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
@@ -121,27 +110,16 @@ struct CardStackView: View {
         .onChange(of: model.cards) { _, newCards in
             refreshDerivedState(
                 cards: newCards,
-                filter: stackFilter,
                 isCopiedStackExpanded: isCopiedStackExpanded
             )
         }
         .onChange(of: model.stagedCopiedCardIDs) { _, newIDs in
             stagedCopiedCardIDSet = Set(newIDs)
         }
-        .onChange(of: stackFilter) { _, newFilter in
-            classificationCache = Self.buildClassificationCache(
-                for: Self.classificationRelevantCards(
-                    sections: cardSections,
-                    filter: newFilter,
-                    isCopiedStackExpanded: isCopiedStackExpanded
-                )
-            )
-        }
         .onChange(of: isCopiedStackExpanded) { _, expanded in
             classificationCache = Self.buildClassificationCache(
                 for: Self.classificationRelevantCards(
                     sections: cardSections,
-                    filter: stackFilter,
                     isCopiedStackExpanded: expanded
                 )
             )
@@ -281,7 +259,7 @@ struct CardStackView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            offstageControlCluster(
+            copiedControlCluster(
                 copiedCards: copiedCards,
                 isExpanded: isExpanded,
                 isCollapsible: isCollapsible
@@ -368,16 +346,16 @@ struct CardStackView: View {
         CopiedStackRecipe.headerTextColor
     }
 
-    private func offstageControlCluster(
+    private func copiedControlCluster(
         copiedCards: [CaptureCard],
         isExpanded: Bool,
         isCollapsible: Bool
     ) -> some View {
         HStack(spacing: 16) {
             HStack(spacing: PrimitiveTokens.Space.xs) {
-                if isConfirmingOffstageDelete {
+                if isConfirmingCopiedDelete {
                     Button {
-                        isConfirmingOffstageDelete = false
+                        isConfirmingCopiedDelete = false
                     } label: {
                         Text("Cancel")
                             .font(.system(size: 13, weight: .medium))
@@ -388,7 +366,7 @@ struct CardStackView: View {
 
                     Button {
                         model.deleteOffstageCards()
-                        isConfirmingOffstageDelete = false
+                        isConfirmingCopiedDelete = false
                     } label: {
                         Text("Delete all")
                             .font(.system(size: 13, weight: .medium))
@@ -398,7 +376,7 @@ struct CardStackView: View {
                     .buttonStyle(.plain)
                 } else if !copiedCards.isEmpty {
                     Button {
-                        isConfirmingOffstageDelete = true
+                        isConfirmingCopiedDelete = true
                     } label: {
                         Text("Delete all")
                             .font(.system(size: 13, weight: .medium))
@@ -412,14 +390,14 @@ struct CardStackView: View {
             if isCollapsible {
                 StackRailControlButton(
                     systemName: "chevron.down",
-                    accessibilityLabel: isExpanded ? "Collapse off stage cues" : "Expand off stage cues",
+                    accessibilityLabel: isExpanded ? "Collapse copied prompts" : "Expand copied prompts",
                     glyphSize: 12,
                     controlSize: 20,
                     isActive: isExpanded,
                     rotationDegrees: isExpanded ? 180 : 0
                 ) {
                     isCopiedStackExpanded.toggle()
-                    isConfirmingOffstageDelete = false
+                    isConfirmingCopiedDelete = false
                 }
                 .frame(height: 16)
             }
@@ -532,16 +510,8 @@ struct CardStackView: View {
         return CardSections(active: active, copied: copied)
     }
 
-    private func filteredSections(from sections: CardSections, state: StackRailState) -> CardSections {
-        CardSections(
-            active: state.showsActiveCards ? sections.active : [],
-            copied: state.showsCopiedCards ? sections.copied : []
-        )
-    }
-
     private func refreshDerivedState(
         cards: [CaptureCard],
-        filter: StackRailFilter,
         isCopiedStackExpanded: Bool
     ) {
         let sections = Self.partitionedCards(from: cards)
@@ -549,7 +519,6 @@ struct CardStackView: View {
         classificationCache = Self.buildClassificationCache(
             for: Self.classificationRelevantCards(
                 sections: sections,
-                filter: filter,
                 isCopiedStackExpanded: isCopiedStackExpanded
             )
         )
@@ -557,22 +526,12 @@ struct CardStackView: View {
 
     private static func classificationRelevantCards(
         sections: CardSections,
-        filter: StackRailFilter,
         isCopiedStackExpanded: Bool
     ) -> [CaptureCard] {
-        switch filter {
-        case .all:
-            if isCopiedStackExpanded {
-                return sections.active + sections.copied
-            }
-            return sections.active + sections.copied.prefix(1)
-
-        case .onStage:
-            return sections.active
-
-        case .offstage:
-            return isCopiedStackExpanded ? sections.copied : Array(sections.copied.prefix(1))
+        if isCopiedStackExpanded {
+            return sections.active + sections.copied
         }
+        return sections.active + sections.copied.prefix(1)
     }
 
     private func ttlProgressRemaining(for card: CaptureCard) -> Double? {

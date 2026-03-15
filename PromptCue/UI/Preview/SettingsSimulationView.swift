@@ -202,12 +202,12 @@ struct SettingsSimulationView: View {
                 title: "Retention",
                 footer: "Proposal: keep dense form rows only for short settings."
             ) {
-                simulationGroupRow(title: "Card Lifetime", verticalAlignment: .top, showsDivider: false) {
+                simulationGroupRow(title: "Prompt Lifetime", verticalAlignment: .top, showsDivider: false) {
                     VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                        Toggle("Auto-expire stack cards after 8 hours", isOn: .constant(false))
+                        Toggle("Auto-expire stack prompts after 8 hours", isOn: .constant(false))
                             .toggleStyle(.checkbox)
 
-                        Text("Cards stay until you delete them unless auto-expire is enabled.")
+                        Text("Prompts stay until you delete them unless auto-expire is enabled.")
                             .font(SettingsTokens.Typography.supporting)
                             .foregroundStyle(SettingsSemanticTokens.Text.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -230,7 +230,7 @@ struct SettingsSimulationView: View {
                             Toggle("Append AI export tail", isOn: .constant(true))
                                 .toggleStyle(.checkbox)
 
-                            Text("Append your reusable instruction block to copied text without modifying saved cards.")
+                            Text("Append your reusable instruction block to copied text without modifying saved prompts.")
                                 .font(SettingsTokens.Typography.supporting)
                                 .foregroundStyle(SettingsSemanticTokens.Text.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -304,7 +304,7 @@ struct SettingsSimulationView: View {
                             Toggle("Enable iCloud sync", isOn: .constant(false))
                                 .toggleStyle(.checkbox)
 
-                            Text("Cards sync automatically between Macs signed into the same Apple ID.")
+                            Text("Prompts sync automatically between Macs signed into the same Apple ID.")
                                 .font(SettingsTokens.Typography.supporting)
                                 .foregroundStyle(SettingsSemanticTokens.Text.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
