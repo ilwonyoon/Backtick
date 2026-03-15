@@ -7,6 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - User-facing product name: **Backtick**
 - Code-level names (`PromptCue`, `PromptCueCore`) are temporary technical identifiers, not product-direction cues
 - Interaction model: Capture = frictionless dump, Stack = execution queue, AI compression happens in Stack not Capture
+- **Terminology**: See `docs/Terminology.md` — all user-facing labels must follow this guide
+- **Retired terms**: Never use "On Stage", "Off Stage", "Cards", "Artifacts" in UI
+- **Active terms**: prompts (Stack objects), docs (Memory objects), Copied (post-copy state)
+- **Design**: BW monochrome palette — no blue accent colors in core UI. Selection = stroke only.
 
 ## Build & Test Commands
 
@@ -87,6 +91,26 @@ All colors, spacing, radius, fonts, shadows must go through the token system —
 
 - `PrimitiveTokens.swift` — Raw values: `FontSize`, `LineHeight`, `Space`, `Radius`, `Shadow`, etc.
 - `SemanticTokens.swift` — Role-based, adaptive light/dark: `Surface`, `Text`, `Border`, `Accent`, `Shadow`, `MaterialStyle`
+
+### Theme adaptation rules
+
+**Never use `switch colorScheme` in view bodies.** Use `SemanticTokens.adaptiveColor(light:dark:)` instead:
+
+```swift
+// WRONG — reads stale colorScheme, breaks on theme change
+switch colorScheme {
+case .light: return Color.black.opacity(0.5)
+case .dark: return Color.white.opacity(0.7)
+}
+
+// CORRECT — resolves dynamically via NSColor
+SemanticTokens.adaptiveColor(
+    light: NSColor.black.withAlphaComponent(0.5),
+    dark: NSColor.white.withAlphaComponent(0.7)
+)
+```
+
+This pattern ensures colors update automatically when the system theme changes, without requiring view rebuilds or runloop deferrals.
 
 ### Dependencies
 
