@@ -266,6 +266,79 @@ public struct ProjectDocument: Codable, Sendable, Identifiable {
 
 **Excluded from scope:** Coding session logs (git history already covers this). Warm is for **discussions and decisions** from ChatGPT/Claude conversations, not development progress from Codex/Claude Code.
 
+#### Tool description design — making AI proactive
+
+Lesson from Muninn: Claude proactively asks "이거 저장할까요?" because the tool descriptions tell it to. The tool description IS the AI's behavioral instruction. This is the single most important design decision for Warm tools.
+
+**Principles (learned from Muninn):**
+
+| Principle | Tool description pattern | Why |
+|-----------|------------------------|-----|
+| Proactive recall | "When user mentions a project, recall immediately — do not wait to be asked" | Prevents re-explaining context |
+| Proactive save | "At session end, offer to save key decisions and context" | User doesn't have to remember to save |
+| Recall before save | "Always recall_document first, merge new info, then save back" | Prevents overwriting existing content |
+| Fit existing topics | "Check list_documents first. Fit into existing topic if possible. Only create new topic if clearly distinct" | Prevents topic explosion |
+| Structured content | "Content MUST be markdown with ## headers. Never save a single-line summary. Minimum 200 characters" | Ensures readable documents |
+| Exclude noise | "Do NOT save: code snippets, test results, function names, raw conversation logs. Save: decisions, reasoning, status, open questions" | Keeps documents useful |
+
+**Draft tool descriptions:**
+
+```
+recall_document:
+  "Load a project topic document. Call proactively when user
+   mentions a project — do not wait to be asked. Proactive
+   recall prevents context re-explanation."
+
+save_document:
+  "Save or replace a project topic document. At session end,
+   proactively offer to save key decisions and context. ALWAYS
+   call recall_document first to avoid overwriting existing
+   content. Content must be full markdown with ## section
+   headers — never a single-line summary."
+
+list_documents:
+  "List all topics in a project, or all projects. Call before
+   save_document to check if a matching topic already exists.
+   Fit new content into existing topics when possible."
+
+update_document:
+  "Partially update a document — append, replace, or remove
+   a section. Prefer this over save_document for small changes.
+   Always specify section header for replace/delete actions."
+```
+
+#### Content quality rules
+
+What AI should save:
+- Key decisions with reasoning ("chose freemium because...")
+- Project status and direction changes
+- Open questions and unresolved debates
+- Agreed-upon specs or requirements
+
+What AI should NOT save:
+- Code, function names, test results (git history covers this)
+- Raw conversation transcripts
+- Implementation details that change daily
+- Anything already in the repo (CLAUDE.md, README, etc.)
+
+#### Human review is essential
+
+AI-saved content needs verification. The Memory panel exists for this:
+
+```
+AI saves document via MCP
+    │
+    ├→ Document appears in Memory panel
+    │  (user sees "Updated 2 min ago" badge)
+    │
+    ├→ User opens, reads, edits if needed
+    │  (fix wrong decisions, add missing context, delete noise)
+    │
+    └→ Next AI session recalls the human-verified version
+```
+
+The review loop is what makes this different from Mem0 (black box, user can't see what's stored) and Pluro (auto-collected, no curation).
+
 #### AI workflow
 
 ```
@@ -282,10 +355,15 @@ New topic emerges:
   → save_document(project: "backtick", topic: "distribution",
        content: "## App Store vs Direct\n### Pros/Cons\n...")
 
+Session end:
+  → AI: "오늘 가격 모델이랑 배포 방식 정리했는데, 저장할까요?"
+  → User: "응"
+  → save_document / update_document
+
 Next day, different AI client, new thread:
   → list_documents(project: "backtick")
   → recall_document(project: "backtick", topic: "distribution")
-  → Continues where yesterday left off
+  → Continues where yesterday left off (human-verified version)
 ```
 
 ### UX: Memory panel
@@ -538,19 +616,38 @@ Not developers at tech companies (they have scoped work, limited context switchi
 
 ## Implementation Plan
 
+### Critical constraint: Warm must not block app launch
+
+Capture + Stack (Hot) is the shipping product. Warm (Memory) is a post-launch feature track. Zero code from Warm work may touch Capture/Stack files. If a Warm task creates risk for launch, it gets deferred.
+
+### Phasing
+
+**Pre-launch (ship Capture + Stack):**
+
 | # | Task | Effort | What it unlocks |
 |---|------|--------|-----------------|
-| 1 | Claude Desktop stdio registration in Settings | S | Claude Desktop as MCP client |
+| 1 | Claude Desktop stdio registration in Settings | S | Claude Desktop as MCP client for existing Hot tools |
+
+This is the only MCP expansion task safe to include before launch — it's additive (new client config), touches only `MCPConnectorSettingsModel`, and has zero regression risk.
+
+**Post-launch Phase 1 (Warm memory via stdio):**
+
+| # | Task | Effort | What it unlocks |
+|---|------|--------|-----------------|
 | 2 | `Project` + `ProjectDocument` models + DB migration + services | M | Warm storage layer |
 | 3 | MCP Warm tools (save/update/recall/list/delete/search/manage) | M | AI can save/recall project context |
-| 4 | Memory panel (NSPanel, project list → topic list → doc viewer) | M | Human can review/edit documents |
+| 4 | Memory panel (NSPanel, project list → topic list → doc viewer/editor) | M | Human can review/edit AI-saved documents |
+
+→ Claude Desktop, Claude Code, Codex can save/recall project documents. Human reviews in Memory panel.
+
+**Post-launch Phase 2 (HTTP transport):**
+
+| # | Task | Effort | What it unlocks |
+|---|------|--------|-----------------|
 | 5 | HTTP server in Backtick app process | L | ChatGPT Mac App connection |
 | 6 | Auth (Bearer token) + Settings UI for HTTP | M | Secure HTTP connections |
 
-**Phase 1 (stdio clients + Warm memory):** #1-4
-→ Claude Desktop, Claude Code, Codex can save/recall project documents
+→ ChatGPT Mac App connects via localhost HTTP. Both Hot and Warm tools available.
 
-**Phase 2 (HTTP transport):** #5-6
-→ ChatGPT Mac App connects via localhost HTTP
-
-**Phase 3 (remote access):** Tunnel setup for Claude Web / ChatGPT Web / Mobile
+**Post-launch Phase 3 (remote access):**
+Tunnel setup for Claude Web / ChatGPT Web / Mobile. Only if demand exists.
