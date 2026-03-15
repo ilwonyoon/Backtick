@@ -475,8 +475,8 @@ private struct SuggestedTargetAccessoryChrome<Content: View>: View {
     init(
         controlWidth: CGFloat?,
         minimumHeight: CGFloat? = nil,
-        backgroundFill: Color = Color.black.opacity(0.045),
-        hoverFill: Color = Color.black.opacity(0.09),
+        backgroundFill: Color = SemanticTokens.Surface.captureChooserRowFill,
+        hoverFill: Color = SemanticTokens.Surface.captureChooserRowHoverFill,
         @ViewBuilder content: () -> Content
     ) {
         self.controlWidth = controlWidth

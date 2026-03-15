@@ -630,15 +630,15 @@ private struct CaptureCardActionStyle {
     )
     private static let defaultPrimaryIconColor = SemanticTokens.adaptiveColor(
         light: NSColor.secondaryLabelColor.withAlphaComponent(0.80),
-        dark: NSColor.secondaryLabelColor.withAlphaComponent(0.86)
+        dark: NSColor.white.withAlphaComponent(0.50)
     )
     private static let copiedDeleteIconColor = SemanticTokens.adaptiveColor(
         light: NSColor.secondaryLabelColor.withAlphaComponent(0.62),
-        dark: NSColor.secondaryLabelColor.withAlphaComponent(0.56)
+        dark: NSColor.white.withAlphaComponent(0.35)
     )
     private static let defaultDeleteIconColor = SemanticTokens.adaptiveColor(
         light: NSColor.secondaryLabelColor.withAlphaComponent(0.76),
-        dark: NSColor.secondaryLabelColor.withAlphaComponent(0.82)
+        dark: NSColor.white.withAlphaComponent(0.45)
     )
     private static let screenshotPrimaryIconBg = SemanticTokens.adaptiveColor(
         light: NSColor.black.withAlphaComponent(0.02 * 0.72),

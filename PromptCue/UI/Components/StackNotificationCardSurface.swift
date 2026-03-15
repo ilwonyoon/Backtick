@@ -72,28 +72,26 @@ struct StackNotificationCardSurface<Content: View>: View {
         return SemanticTokens.Surface.notificationCardFill
     }
 
-    private static let defaultBorderColor = SemanticTokens.adaptiveColor(
-        light: NSColor.black.withAlphaComponent(0.12 * 0.92),
-        dark: NSColor.white.withAlphaComponent(0.06 * 0.82)
-    )
+    private var defaultBorderColor: Color {
+        SemanticTokens.adaptiveColor(
+            light: NSColor.black.withAlphaComponent(0.12 * 0.92),
+            dark: NSColor.white.withAlphaComponent(0.06 * 0.82)
+        )
+    }
 
     private var borderColor: Color {
         if isSelected {
-            switch colorScheme {
-            case .light:
-                return Color.black.opacity(0.5)
-            case .dark:
-                return Color.white.opacity(0.7)
-            @unknown default:
-                return Color.white.opacity(0.7)
-            }
+            return SemanticTokens.adaptiveColor(
+                light: NSColor.black.withAlphaComponent(0.5),
+                dark: NSColor.white.withAlphaComponent(0.7)
+            )
         }
 
         if isEmphasized {
             return SemanticTokens.Border.notificationCardHover
         }
 
-        return Self.defaultBorderColor
+        return defaultBorderColor
     }
 
     private var showsElevatedChrome: Bool {
