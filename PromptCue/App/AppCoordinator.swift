@@ -51,6 +51,13 @@ final class AppCoordinator: AppLifecycleCoordinating {
             // refresh — the root cause of the recurring regression.
             DispatchQueue.main.async {
                 self?.refreshForInheritedAppearanceChange()
+
+                // Second pass: "Auto" mode transitions can take longer
+                // for AppKit to resolve the effective appearance. A
+                // delayed retry ensures the panel catches up.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self?.refreshForInheritedAppearanceChange()
+                }
             }
         }
     }

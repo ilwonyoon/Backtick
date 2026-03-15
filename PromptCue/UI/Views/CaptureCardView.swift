@@ -625,8 +625,8 @@ private struct CaptureCardActionStyle {
     // Adaptive tokens — resolve at draw time via NSColor, independent of
     // SwiftUI's @Environment(\.colorScheme) propagation timing.
     private static let copiedBodyColor = SemanticTokens.adaptiveColor(
-        light: NSColor.labelColor.withAlphaComponent(0.74),
-        dark: NSColor.secondaryLabelColor.withAlphaComponent(0.78)
+        light: NSColor.labelColor.withAlphaComponent(0.42),
+        dark: NSColor.white.withAlphaComponent(0.35)
     )
     private static let defaultPrimaryIconColor = SemanticTokens.adaptiveColor(
         light: NSColor.secondaryLabelColor.withAlphaComponent(0.80),
