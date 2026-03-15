@@ -366,9 +366,43 @@ Next day, different AI client, new thread:
   → Continues where yesterday left off (human-verified version)
 ```
 
+### Customer-facing naming
+
+Internal terms Hot/Warm are technical. Consumer-facing names:
+
+| Internal | Customer name | Rationale |
+|----------|--------------|-----------|
+| Hot | **Stack** | Already in use. "Stacked tasks" is intuitive. Keep as-is. |
+| Warm | **Memory** | AI memory is the core concept. Stack ↔ Memory pairing is natural (short-term ↔ long-term). |
+
+**Brand line:** "Stack for today. Memory for everything else."
+
+Alternatives considered:
+
+| Name | Why not |
+|------|---------|
+| Notes | Too generic. Confused with Apple Notes. |
+| Vault | Security connotation. Obsidian already owns this. |
+| Brain | Overused by competitors (Brainsave, Second Brain I/O). Overpromises. |
+| Docs | Google Docs association. |
+| Log | Developer-facing. |
+
 ### UX: Memory panel
 
 Warm documents need reading/editing, not glancing. Stack's narrow card-list UX doesn't fit long markdown. Memory gets its **own panel** — same pattern as Capture and Stack (separate NSPanel, own hotkey).
+
+#### Design references
+
+| App | What to learn | Link |
+|-----|--------------|------|
+| [Meny](https://apps.apple.com/us/app/meny/id1671366999?mt=12) | Menu bar → markdown panel. WYSIWYG rendering. Minimal chrome. Closest reference for document detail view. | App Store |
+| [FiveNotes](https://www.apptorium.com/fivenotes) | 5 notes, color dot switcher (→ topic chips). Pin button for floating. Intentional constraint as UX. | apptorium.com |
+| [NotesBar](https://github.com/aman-senpai/NotesBar) | Obsidian notes from menu bar. File list → hover preview. Search built-in. Closest reference for list → detail navigation. | GitHub |
+
+**What to borrow:**
+- **From NotesBar:** List → preview 2-step navigation. Built-in search. File browser feel.
+- **From FiveNotes:** Topic switcher via chips (instead of file tree). Pin/float mode. Constraint-driven simplicity.
+- **From Meny:** Clean markdown rendering in a narrow panel. Edit-in-place without mode switch.
 
 ```
 Menu bar icon
@@ -503,6 +537,64 @@ The app no longer has a user-facing Light/Dark/Auto toggle. It inherits macOS sy
 - No hardcoded colors, spacing, radius, fonts, or shadows
 
 **Validation:** `python3 scripts/validate_ui_tokens.py` must pass with all new Memory panel views included.
+
+---
+
+## Lessons from Muninn (ilwonyoon/muninn)
+
+109 commits over 3 weeks. Peak ~3,900 LOC → stripped to ~1,800 LOC. The project's evolution is a masterclass in what to build and what to cut.
+
+### Timeline
+
+| Phase | Period | What happened |
+|-------|--------|---------------|
+| Foundation | Feb 24-25 | 5 MCP tools, SQLite+FTS5, depth hierarchy, 73 tests |
+| Over-engineering | Feb 25-27 | Added OAuth, semantic search, Docker, graph UI, 8 categories |
+| Aggressive rollback | Feb 27 | Removed ~2,200 LOC. "These features don't serve single-user stdio." |
+| Hardening | Feb 28-Mar 3 | 9 security fixes, 12 stability fixes, 17 perf improvements |
+| Turso mistake | Feb 28-Mar 5 | Tried libSQL cloud replication → "database is locked" → reverted to pure local SQLite |
+| Document-first pivot | Mar 3-5 | Removed atomic memory CRUD from tools. One document per project. **Most important change.** |
+
+### What worked — bring to Backtick
+
+| Pattern | Why it worked | Backtick application |
+|---------|--------------|---------------------|
+| **Document-first design** | One structured doc per project > scattered fragments. LLM knows what to update. | ProjectDocument model. `save_document` replaces whole doc, not fragments. |
+| **Tool docstrings as AI instructions** | Docstrings shape LLM behavior. Examples improve compliance ~40%. | Warm tool descriptions with examples, format rules, proactive behavior hints. |
+| **Per-operation DB connections** | Persistent connections caused "database is locked" when multiple clients ran. | GRDB's `db.write { }` / `db.read { }` blocks already do this. Don't hold connections. |
+| **Explicit transactions** | Multi-statement writes without BEGIN/COMMIT → partial commits. | `db.inTransaction { }` for all multi-step mutations. |
+| **Keyword search (FTS5)** | Semantic/vector search was removed — keyword search was sufficient and simpler. | FTS5 on `project_documents` table. Don't add embeddings unless keyword fails. |
+| **Format validation in tool layer** | Reject empty/unstructured content immediately. Return error string, never crash. | MCP tools validate markdown headers, min length, return error messages. |
+| **Frozen/immutable models** | Thread-safe across concurrent clients. Prevents accidental mutation. | Swift structs (already the pattern in PromptCueCore). |
+| **Character budgets on recall** | Prevents context window overflow when loading documents. | `recall_document` should respect budget, paginate if needed. |
+| **Integration tests with real SQLite** | Temp database per test. No mocks for DB layer. | Already the pattern in BacktickMCPServerTests. |
+
+### What failed — don't repeat
+
+| Mistake | What happened | Backtick lesson |
+|---------|--------------|-----------------|
+| **Semantic search / embeddings** | 320 LOC added then removed. Users search by keyword, not intent. Vector drift caused false positives. | **Don't add.** FTS5 keyword search is enough. |
+| **OAuth 2.0** | 420 LOC for multi-user auth. Single-user app doesn't need federation. | **Bearer token only.** Generated in Settings, stored in Keychain. |
+| **Turso / cloud DB** | libSQL cloud replication caused WAL checkpoint blocking. "database is locked" everywhere. | **Pure local SQLite.** Don't add cloud sync for a local-first app. |
+| **Persistent DB connections** | Multiple clients (CLI, Desktop, HTTP) holding connections → deadlocks. | **Per-operation connections.** GRDB handles this natively. |
+| **Atomic memory CRUD** | LLMs created 10 fragments per session instead of one coherent document. Unusable. | **Document-first.** save_document replaces whole doc. update_document edits sections. No create_memory. |
+| **Complex depth/category hierarchy** | 8 categories, L0-L3 depth levels. LLMs couldn't consistently classify. | **Flat structure.** project × topic only. No depth levels. |
+| **Graph UI** | Visual tree navigation. Users used search instead. Never navigated hierarchy. | **List + search.** No tree views. |
+| **Building infra before validating core** | OAuth, Docker, graph UI before confirming "do LLMs maintain memory coherence?" | **Ship Stack first (done). Validate Warm with real usage before adding HTTP/tunnel.** |
+| **Vercel serverless attempt** | Duplicated 500+ LOC Python→TypeScript for Next.js API routes. | **One runtime.** BacktickMCP is Swift. Don't duplicate logic. |
+| **Soft-deleted records never cleaned** | Superseded memories accumulated indefinitely. | **Add cleanup policy.** Archived documents can be purged after N days. |
+
+### The document-first pivot — critical lesson
+
+Before: LLMs called `create_memory(content, depth, tags)` → 10 fragments per session. Incoherent.
+
+After: LLMs call `save_document(project, content)` → One structured markdown doc. Must have `##` headers. Replaces previous version.
+
+**This is the single most important architectural decision for Warm.** Backtick's `save_document` / `update_document` tools must enforce:
+1. Full markdown with `##` headers (reject plain text)
+2. Minimum content length (reject single-line saves)
+3. recall before save (prevent overwriting existing content)
+4. One document per (project, topic) — not fragments
 
 ---
 
