@@ -162,6 +162,12 @@ final class PromptCueDatabase {
             )
         }
 
+        migrator.registerMigration("addIsPinned") { db in
+            try db.alter(table: PromptCueDatabaseSchema.cardsTableName) { table in
+                table.add(column: "isPinned", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }

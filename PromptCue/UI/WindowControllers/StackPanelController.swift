@@ -859,6 +859,12 @@ private final class StackPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+    // Always accept mouse-moved events so hover tracking works
+    // even if AppKit tries to disable them during panel transitions.
+    override var acceptsMouseMovedEvents: Bool {
+        get { true }
+        set {}
+    }
 
     /// Bypass AppKit's default frame constraint so the panel can be placed
     /// off-screen (to the right of the visible area) for the slide-in/out

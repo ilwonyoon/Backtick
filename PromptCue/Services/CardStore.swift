@@ -175,6 +175,7 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
     let screenshotPath: String?
     let lastCopiedAt: Date?
     let sortOrder: Double
+    let isPinned: Bool
 
     init(captureCard: CaptureCard) {
         id = captureCard.id.uuidString
@@ -185,6 +186,7 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
         screenshotPath = captureCard.screenshotPath
         lastCopiedAt = captureCard.lastCopiedAt
         sortOrder = captureCard.sortOrder
+        isPinned = captureCard.isPinned
     }
 
     var captureCard: CaptureCard {
@@ -196,7 +198,8 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: lastCopiedAt,
-            sortOrder: sortOrder
+            sortOrder: sortOrder,
+            isPinned: isPinned
         )
     }
 

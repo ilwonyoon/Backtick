@@ -114,6 +114,41 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func pinnedCardIsNotExpiredEvenPastTTL() {
+        let createdAt = Date(timeIntervalSince1970: 1_000)
+        let card = CaptureCard(text: "pinned note", createdAt: createdAt, isPinned: true)
+        let wellPastExpiry = createdAt.addingTimeInterval(CaptureCard.ttl * 10)
+
+        #expect(card.isExpired(relativeTo: wellPastExpiry) == false)
+    }
+
+    @Test
+    func togglePinnedReturnsFlippedState() {
+        let card = CaptureCard(text: "toggle me", createdAt: .now)
+
+        #expect(card.isPinned == false)
+
+        let pinned = card.togglePinned()
+        #expect(pinned.isPinned == true)
+        #expect(pinned.id == card.id)
+        #expect(pinned.text == card.text)
+
+        let unpinned = pinned.togglePinned()
+        #expect(unpinned.isPinned == false)
+    }
+
+    @Test
+    func pinnedCardsSortBeforeUnpinned() {
+        let now = Date(timeIntervalSince1970: 2_000)
+        let unpinnedNewer = CaptureCard(text: "newer unpinned", createdAt: now.addingTimeInterval(10))
+        let pinnedOlder = CaptureCard(text: "older pinned", createdAt: now, isPinned: true)
+
+        let ordered = CardStackOrdering.sort([unpinnedNewer, pinnedOlder])
+
+        #expect(ordered.map(\.text) == ["older pinned", "newer unpinned"])
+    }
+
+    @Test
     func captureCardJSONCodecRoundTrip() throws {
         let id = UUID()
         let createdAt = Date(timeIntervalSince1970: 1_700_000_000)

@@ -75,8 +75,8 @@ struct CmdIndicatorButton: View {
                     .font(.system(size: PrimitiveTokens.FontSize.micro, weight: .medium))
             }
             .foregroundStyle(foregroundColor)
-            .padding(.horizontal, PrimitiveTokens.Space.xs + 2)
-            .padding(.vertical, PrimitiveTokens.Space.xxs + 2)
+            .padding(.horizontal, PrimitiveTokens.Space.xs)
+            .padding(.vertical, PrimitiveTokens.Space.xxs)
             .background(
                 Capsule()
                     .fill(backgroundFill)

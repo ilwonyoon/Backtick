@@ -6,6 +6,8 @@ public enum CardStackOrdering {
     }
 
     private static func compare(_ lhs: CaptureCard, _ rhs: CaptureCard) -> Bool {
+        if lhs.isPinned != rhs.isPinned { return lhs.isPinned }
+
         switch (lhs.lastCopiedAt, rhs.lastCopiedAt) {
         case (nil, nil):
             return compareByFreshPriority(lhs, rhs)

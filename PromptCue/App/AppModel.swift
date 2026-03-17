@@ -134,7 +134,7 @@ final class AppModel: ObservableObject {
             attachmentStore: AttachmentStore(),
             recentScreenshotCoordinator: RecentScreenshotCoordinator(),
             suggestedTargetProvider: RecentSuggestedAppTargetTracker(),
-            cloudSyncEngine: syncEnabled ? CloudSyncEngine() : nil
+            cloudSyncEngine: syncEnabled && Self.hasCloudEntitlements ? CloudSyncEngine() : nil
         )
     }
 
@@ -327,6 +327,20 @@ final class AppModel: ObservableObject {
 
         markCopied(orderedIDs: deferredCopiedIDs)
         exitMultiSelectMode()
+    }
+
+    func togglePin(card: CaptureCard) {
+        let toggled = card.togglePinned()
+
+        do {
+            try cardStore.upsert([toggled])
+            storageErrorMessage = nil
+        } catch {
+            logStorageFailure("Card pin toggle failed", error: error)
+            return
+        }
+
+        cards = sortedCards(cards.map { $0.id == toggled.id ? toggled : $0 })
     }
 
     func delete(card: CaptureCard) {

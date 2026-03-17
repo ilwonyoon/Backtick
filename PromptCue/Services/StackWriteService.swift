@@ -18,6 +18,7 @@ struct StackNoteCreateRequest: Equatable, Sendable {
     let suggestedTarget: CaptureSuggestedTarget?
     let screenshotPath: String?
     let createdAt: Date
+    let isPinned: Bool
 
     init(
         id: UUID = UUID(),
@@ -25,7 +26,8 @@ struct StackNoteCreateRequest: Equatable, Sendable {
         tags: [CaptureTag] = [],
         suggestedTarget: CaptureSuggestedTarget? = nil,
         screenshotPath: String? = nil,
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        isPinned: Bool = false
     ) {
         self.id = id
         self.text = text
@@ -33,6 +35,7 @@ struct StackNoteCreateRequest: Equatable, Sendable {
         self.suggestedTarget = suggestedTarget
         self.screenshotPath = screenshotPath
         self.createdAt = createdAt
+        self.isPinned = isPinned
     }
 }
 
@@ -41,17 +44,20 @@ struct StackNoteUpdate: Equatable, Sendable {
     let tags: StackOptionalUpdate<[CaptureTag]>
     let suggestedTarget: StackOptionalUpdate<CaptureSuggestedTarget>
     let screenshotPath: StackOptionalUpdate<String>
+    let isPinned: StackOptionalUpdate<Bool>
 
     init(
         text: String? = nil,
         tags: StackOptionalUpdate<[CaptureTag]> = .keep,
         suggestedTarget: StackOptionalUpdate<CaptureSuggestedTarget> = .keep,
-        screenshotPath: StackOptionalUpdate<String> = .keep
+        screenshotPath: StackOptionalUpdate<String> = .keep,
+        isPinned: StackOptionalUpdate<Bool> = .keep
     ) {
         self.text = text
         self.tags = tags
         self.suggestedTarget = suggestedTarget
         self.screenshotPath = screenshotPath
+        self.isPinned = isPinned
     }
 }
 
@@ -104,7 +110,8 @@ final class StackWriteService {
             suggestedTarget: request.suggestedTarget,
             createdAt: request.createdAt,
             screenshotPath: preparedScreenshotPath.path,
-            sortOrder: nextTopSortOrder(in: existingCards)
+            sortOrder: nextTopSortOrder(in: existingCards),
+            isPinned: request.isPinned
         )
 
         do {
@@ -140,7 +147,8 @@ final class StackWriteService {
             createdAt: existingNote.createdAt,
             screenshotPath: preparedScreenshotPath.path,
             lastCopiedAt: existingNote.lastCopiedAt,
-            sortOrder: existingNote.sortOrder
+            sortOrder: existingNote.sortOrder,
+            isPinned: resolvedValue(current: existingNote.isPinned, update: changes.isPinned)
         )
 
         do {

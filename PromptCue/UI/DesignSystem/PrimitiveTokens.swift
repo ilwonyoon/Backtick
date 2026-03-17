@@ -29,6 +29,7 @@ enum PrimitiveTokens {
     }
 
     enum Radius {
+        static let compactCard: CGFloat = 12
         static let sm: CGFloat = 12
         static let md: CGFloat = 18
         static let lg: CGFloat = 26
@@ -52,6 +53,10 @@ enum PrimitiveTokens {
         static let emptyStatePadding: CGFloat = 24
         static let cardStackSpacing: CGFloat = 12
         static let panelSectionSpacing: CGFloat = 14
+        static let compactCardPadding: CGFloat = 10
+        static let compactCardPaddingHorizontal: CGFloat = 12
+        static let pinnedCardWidth: CGFloat = 170
+        static let copiedControlClusterSpacing: CGFloat = 16
     }
 
     enum Stroke {

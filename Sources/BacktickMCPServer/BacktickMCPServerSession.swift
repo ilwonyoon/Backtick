@@ -233,6 +233,7 @@ final class BacktickMCPServerSession {
                         "tags": tagSchema(),
                         "suggestedTarget": suggestedTargetSchema(),
                         "screenshotPath": ["type": ["string", "null"]],
+                        "isPinned": ["type": ["boolean", "null"], "description": "Pin or unpin this note. Pinned notes never expire and sort to top."],
                         "createdAt": [
                             "type": "string",
                             "format": "date-time",
@@ -256,6 +257,7 @@ final class BacktickMCPServerSession {
                         "tags": tagSchema(),
                         "suggestedTarget": suggestedTargetSchema(),
                         "screenshotPath": ["type": ["string", "null"]],
+                        "isPinned": ["type": ["boolean", "null"], "description": "Pin or unpin this note. Pinned notes never expire and sort to top."],
                     ],
                     "required": ["id"],
                     "additionalProperties": false,
@@ -455,7 +457,8 @@ final class BacktickMCPServerSession {
             tags: try parseTags(arguments["tags"]),
             suggestedTarget: try parseSuggestedTarget(arguments["suggestedTarget"]),
             screenshotPath: try parseOptionalString(arguments["screenshotPath"]),
-            createdAt: try parseDate(arguments["createdAt"]) ?? Date()
+            createdAt: try parseDate(arguments["createdAt"]) ?? Date(),
+            isPinned: (arguments["isPinned"] as? Bool) ?? false
         )
         let note = try writeService.createNote(request)
 
@@ -470,7 +473,8 @@ final class BacktickMCPServerSession {
             text: try parseTextUpdate(arguments, key: "text"),
             tags: try parseTagsUpdate(arguments, key: "tags"),
             suggestedTarget: try parseSuggestedTargetUpdate(arguments, key: "suggestedTarget"),
-            screenshotPath: try parseStringUpdate(arguments, key: "screenshotPath")
+            screenshotPath: try parseStringUpdate(arguments, key: "screenshotPath"),
+            isPinned: try parseBoolUpdate(arguments, key: "isPinned")
         )
         let note = try writeService.updateNote(id: id, changes: changes)
 
@@ -639,6 +643,7 @@ final class BacktickMCPServerSession {
             "screenshotPath": note.screenshotPath ?? NSNull(),
             "lastCopiedAt": note.lastCopiedAt.map { Self.iso8601Formatter.string(from: $0) } ?? NSNull(),
             "isCopied": note.isCopied,
+            "isPinned": note.isPinned,
             "sortOrder": note.sortOrder,
             "suggestedTarget": note.suggestedTarget.map(suggestedTargetDictionary) ?? NSNull(),
         ]
@@ -873,6 +878,22 @@ final class BacktickMCPServerSession {
             return .clear
         }
         return .set(target)
+    }
+
+    private func parseBoolUpdate(
+        _ arguments: [String: Any],
+        key: String
+    ) throws -> StackOptionalUpdate<Bool> {
+        guard arguments.keys.contains(key) else {
+            return .keep
+        }
+        if arguments[key] is NSNull {
+            return .keep
+        }
+        guard let boolValue = arguments[key] as? Bool else {
+            throw BacktickMCPToolError(message: "\(key) must be a boolean or null")
+        }
+        return .set(boolValue)
     }
 
     private func parseTagsUpdate(

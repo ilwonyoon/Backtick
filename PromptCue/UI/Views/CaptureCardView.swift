@@ -50,6 +50,8 @@ struct CaptureCardView: View {
     let onCmdClick: () -> Void
     let onToggleExpansion: () -> Void
     let onDelete: () -> Void
+    var onTogglePin: (() -> Void)?
+    var compactMode: Bool = false
     let onRefreshSuggestedTargets: () -> Void
     let onAssignSuggestedTarget: (CaptureSuggestedTarget) -> Void
     @State private var isCardHovered = false
@@ -92,6 +94,8 @@ struct CaptureCardView: View {
         onCmdClick: @escaping () -> Void = {},
         onToggleExpansion: @escaping () -> Void,
         onDelete: @escaping () -> Void,
+        onTogglePin: (() -> Void)? = nil,
+        compactMode: Bool = false,
         onRefreshSuggestedTargets: @escaping () -> Void = {},
         onAssignSuggestedTarget: @escaping (CaptureSuggestedTarget) -> Void = { _ in }
     ) {
@@ -111,6 +115,8 @@ struct CaptureCardView: View {
         self.onCmdClick = onCmdClick
         self.onToggleExpansion = onToggleExpansion
         self.onDelete = onDelete
+        self.onTogglePin = onTogglePin
+        self.compactMode = compactMode
         self.onRefreshSuggestedTargets = onRefreshSuggestedTargets
         self.onAssignSuggestedTarget = onAssignSuggestedTarget
     }
@@ -134,11 +140,25 @@ struct CaptureCardView: View {
 
         StackNotificationCardSurface(
             isSelected: isSelected,
-            isEmphasized: isCardHoveredState
+            isEmphasized: isCardHoveredState,
+            contentPadding: compactMode
+                ? EdgeInsets(
+                    top: PrimitiveTokens.Size.compactCardPadding,
+                    leading: PrimitiveTokens.Size.compactCardPaddingHorizontal,
+                    bottom: PrimitiveTokens.Size.compactCardPadding,
+                    trailing: PrimitiveTokens.Size.compactCardPaddingHorizontal
+                )
+                : EdgeInsets(
+                    top: PrimitiveTokens.Size.notificationCardPadding,
+                    leading: PrimitiveTokens.Size.notificationCardPadding,
+                    bottom: PrimitiveTokens.Size.notificationCardPadding,
+                    trailing: PrimitiveTokens.Size.notificationCardPadding
+                ),
+            cornerRadius: compactMode ? PrimitiveTokens.Radius.compactCard : PrimitiveTokens.Radius.md
         ) {
-            ZStack(alignment: .topTrailing) {
+            ZStack(alignment: compactMode ? .leading : .topTrailing) {
                 VStack(alignment: .leading, spacing: contentSpacing) {
-                    if let screenshotURL = card.screenshotURL {
+                    if !compactMode, let screenshotURL = card.screenshotURL {
                         LocalImageThumbnail(
                             url: screenshotURL,
                             height: PrimitiveTokens.Size.notificationThumbnailHeight
@@ -146,30 +166,41 @@ struct CaptureCardView: View {
                         .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }
 
-                    InteractiveDetectedTextView(styledText: styledText)
-                    .frame(
-                        height: displayConfiguration.prefersSingleLine
-                            ? nil
-                            : visibleTextHeight(for: overflowMetrics),
-                        alignment: .top
-                    )
-                    .clipped()
+                    if compactMode {
+                        Text(card.text)
+                            .font(.system(size: PrimitiveTokens.FontSize.meta, weight: .medium))
+                            .foregroundStyle(SemanticTokens.Text.primary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        InteractiveDetectedTextView(styledText: styledText)
+                        .frame(
+                            height: displayConfiguration.prefersSingleLine
+                                ? nil
+                                : visibleTextHeight(for: overflowMetrics),
+                            alignment: .top
+                        )
+                        .clipped()
+                    }
 
-                    if !displayConfiguration.prefersSingleLine && overflowMetrics.overflowsAtRest {
+                    if !compactMode && !displayConfiguration.prefersSingleLine && overflowMetrics.overflowsAtRest {
                         overflowAffordance(metrics: overflowMetrics)
                             .padding(.top, StackCardOverflowPolicy.affordanceTopSpacing)
                     }
 
-                    CaptureCardSuggestedTargetAccessoryView(
-                        currentTarget: card.suggestedTarget,
-                        availableTargets: availableSuggestedTargets,
-                        automaticTarget: automaticSuggestedTarget,
-                        onRefreshTargets: onRefreshSuggestedTargets,
-                        onAssignTarget: onAssignSuggestedTarget
-                    )
-                    .padding(.top, PrimitiveTokens.Space.xxxs)
+                    if !compactMode {
+                        CaptureCardSuggestedTargetAccessoryView(
+                            currentTarget: card.suggestedTarget,
+                            availableTargets: availableSuggestedTargets,
+                            automaticTarget: automaticSuggestedTarget,
+                            onRefreshTargets: onRefreshSuggestedTargets,
+                            onAssignTarget: onAssignSuggestedTarget
+                        )
+                        .padding(.top, PrimitiveTokens.Space.xxxs)
+                    }
                 }
-                .padding(.trailing, actionColumnReservedWidth)
+                .padding(.trailing, compactMode ? 0 : actionColumnReservedWidth)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .animation(.easeOut(duration: PrimitiveTokens.Motion.standard), value: isExpanded)
 
@@ -190,19 +221,22 @@ struct CaptureCardView: View {
                         isCopyHovered = hovered
                     }
 
-                    iconButton(
-                        systemName: "trash",
-                        foregroundColor: actionStyle.deleteIconColor,
-                        backgroundColor: actionStyle.deleteIconBackground,
-                        action: onDelete
-                    )
-                    .accessibilityLabel("Delete cue")
-                    .accessibilityHint("Permanently removes this cue")
-                    .onHover { hovered in
-                        isDeleteHovered = hovered
+                    if !compactMode {
+                        iconButton(
+                            systemName: "trash",
+                            foregroundColor: actionStyle.deleteIconColor,
+                            backgroundColor: actionStyle.deleteIconBackground,
+                            action: onDelete
+                        )
+                        .accessibilityLabel("Delete cue")
+                        .accessibilityHint("Permanently removes this cue")
+                        .onHover { hovered in
+                            isDeleteHovered = hovered
+                        }
                     }
                 }
-                .frame(width: actionColumnWidth, alignment: .topTrailing)
+                .frame(width: compactMode ? 0 : actionColumnWidth, alignment: .topTrailing)
+                .opacity(compactMode ? 0 : 1)
                 .zIndex(1)
 
                 if let ttlProgressRemaining {
@@ -221,6 +255,17 @@ struct CaptureCardView: View {
         }
         .contentShape(Rectangle())
         .contextMenu {
+            if let onTogglePin {
+                Button {
+                    onTogglePin()
+                } label: {
+                    Label(
+                        card.isPinned ? "Unpin" : "Pin",
+                        systemImage: card.isPinned ? "pin.slash" : "pin"
+                    )
+                }
+                Divider()
+            }
             Button("Edit", action: onEdit)
             Button("Copy Raw", action: onCopyRaw)
         }
@@ -416,7 +461,7 @@ struct CaptureCardView: View {
                 let options: NSTrackingArea.Options = [
                     .mouseEnteredAndExited,
                     .mouseMoved,
-                    .activeInKeyWindow,
+                    .activeAlways,
                     .inVisibleRect
                 ]
                 trackingArea = NSTrackingArea(

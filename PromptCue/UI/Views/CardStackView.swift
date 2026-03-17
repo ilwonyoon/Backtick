@@ -57,26 +57,43 @@ struct CardStackView: View {
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onBackdropTap)
 
-            VStack(alignment: .trailing, spacing: PrimitiveTokens.Space.xs) {
-                header(railState: railState)
-
+            VStack(alignment: .trailing, spacing: 0) {
                 if allSections.isEmpty {
+                    header(railState: railState)
                     emptyState
                 } else {
+                    let pinnedCards = allSections.active.filter(\.isPinned)
+                    let unpinnedCards = allSections.active.filter { !$0.isPinned }
+
                     ScrollView {
-                        LazyVStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
-                            if !allSections.active.isEmpty {
-                                ForEach(allSections.active) { card in
-                                    cardRow(for: card)
+                        LazyVStack(spacing: 0) {
+                            header(railState: railState)
+
+                            if !pinnedCards.isEmpty {
+                                pinnedCarousel(cards: pinnedCards)
+                                    .padding(.bottom, PrimitiveTokens.Size.cardStackSpacing)
+                            }
+
+                            if !unpinnedCards.isEmpty {
+                                LazyVStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
+                                    ForEach(unpinnedCards) { card in
+                                        cardRow(for: card)
+                                    }
                                 }
                             }
 
                             if !allSections.copied.isEmpty {
-                                copiedSection(
+                                copiedSectionHeader(
+                                    copiedCards: allSections.copied,
+                                    isExpanded: isCopiedStackExpanded,
+                                    isCollapsible: true
+                                )
+                                .padding(.top, PrimitiveTokens.Space.md)
+
+                                copiedSectionContent(
                                     copiedCards: allSections.copied,
                                     forceExpanded: false
                                 )
-                                    .padding(.top, PrimitiveTokens.Space.sm)
                             }
                         }
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
@@ -129,36 +146,17 @@ struct CardStackView: View {
         }
     }
 
+    @ViewBuilder
     private func header(railState: StackRailState) -> some View {
-        HStack(alignment: .center, spacing: PrimitiveTokens.Space.sm) {
-            if selectionMode {
-                Text("\(railState.stagedCount) Copied")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(SemanticTokens.Text.primary)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
-                    Text(railState.headerTitle)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(SemanticTokens.Text.secondary)
-                        .lineLimit(1)
-                        .layoutPriority(1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            if !selectionMode {
+        if selectionMode {
+            StackSectionHeader(title: "\(railState.stagedCount) Copied")
+        } else {
+            StackSectionHeader(title: railState.headerTitle) {
                 CmdIndicatorButton(isActive: isCmdPressed) {
                     isCmdPressed.toggle()
                 }
             }
         }
-        .padding(.leading, PrimitiveTokens.Space.xxxs)
-        .padding(.trailing, PrimitiveTokens.Space.xs)
-        .padding(.vertical, PrimitiveTokens.Space.xxxs)
-        .frame(height: 32)
-        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .leading)
     }
 
     private var emptyState: some View {
@@ -172,6 +170,55 @@ struct CardStackView: View {
                 .accessibilityLabel("No cues yet")
         }
         .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
+    }
+
+    private func pinnedCarousel(cards: [CaptureCard]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: PrimitiveTokens.Space.xs) {
+                ForEach(cards) { card in
+                    pinnedCardRow(for: card)
+                }
+            }
+            .padding(.horizontal, PrimitiveTokens.Space.xxxs)
+        }
+        .contentMargins(0)
+        .scrollContentBackground(.hidden)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .leading)
+    }
+
+    private func pinnedCardRow(for card: CaptureCard) -> some View {
+        CaptureCardView(
+            card: card,
+            classification: resolveClassification(for: card),
+            availableSuggestedTargets: [],
+            automaticSuggestedTarget: nil,
+            isSelected: stagedCopiedCardIDSet.contains(card.id),
+            isRecentlyCopied: false,
+            selectionMode: selectionMode,
+            isExpanded: false,
+            onCopy: {
+                _ = model.copySingleCard(card)
+            },
+            onEdit: {
+                onEditCard(card)
+            },
+            onCopyRaw: {
+                _ = model.copyRaw(card: card)
+            },
+            onToggleSelection: {
+                _ = model.toggleMultiCopiedCard(card)
+            },
+            onToggleExpansion: {},
+            onDelete: {
+                onDeleteCard(card)
+            },
+            onTogglePin: {
+                model.togglePin(card: card)
+            },
+            compactMode: true
+        )
+        .frame(width: PrimitiveTokens.Size.pinnedCardWidth)
     }
 
     private var selectionMode: Bool {
@@ -215,6 +262,9 @@ struct CardStackView: View {
                 onDelete: {
                     onDeleteCard(card)
                 },
+                onTogglePin: {
+                    model.togglePin(card: card)
+                },
                 onRefreshSuggestedTargets: {
                     model.refreshAvailableSuggestedTargets()
                 },
@@ -227,45 +277,29 @@ struct CardStackView: View {
     }
 
     @ViewBuilder
-    private func copiedSection(copiedCards: [CaptureCard], forceExpanded: Bool) -> some View {
+    private func copiedSectionContent(copiedCards: [CaptureCard], forceExpanded: Bool) -> some View {
         if forceExpanded || isCopiedStackExpanded {
-            LazyVStack(alignment: .leading, spacing: PrimitiveTokens.Size.cardStackSpacing) {
-                copiedSectionHeader(copiedCards: copiedCards, isExpanded: true, isCollapsible: !forceExpanded)
-
+            LazyVStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
                 ForEach(copiedCards) { card in
                     cardRow(for: card)
                 }
             }
             .id("copied-expanded")
         } else {
-            LazyVStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                copiedSectionHeader(copiedCards: copiedCards, isExpanded: false, isCollapsible: true)
-                collapsedCopiedStack(copiedCards: copiedCards)
-            }
+            collapsedCopiedStack(copiedCards: copiedCards)
                 .id("copied-collapsed")
         }
     }
 
     private func copiedSectionHeader(copiedCards: [CaptureCard], isExpanded: Bool, isCollapsible: Bool) -> some View {
-        HStack(spacing: PrimitiveTokens.Space.xs) {
-            HStack(alignment: .firstTextBaseline, spacing: PrimitiveTokens.Space.xxs) {
-                Text("Copied")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-
-                Text("\(copiedCards.count)")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
+        StackSectionHeader(title: "Copied", count: copiedCards.count) {
             copiedControlCluster(
                 copiedCards: copiedCards,
                 isExpanded: isExpanded,
                 isCollapsible: isCollapsible
             )
         }
-        .accessibilityLabel("Copied section, \(copiedCards.count) cues")
+        .accessibilityLabel("Copied section, \(copiedCards.count) prompts")
     }
 
     private func collapsedCopiedStack(copiedCards: [CaptureCard]) -> some View {
@@ -297,7 +331,6 @@ struct CardStackView: View {
             .frame(height: collapsedCopiedCardHeight)
             .zIndex(1)
         }
-        .padding(.bottom, PrimitiveTokens.Space.sm)
         .opacity(isCopiedStackHovered ? 1 : PrimitiveTokens.Opacity.copiedCard)
         .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: isCopiedStackHovered)
         .onHover { hovered in
@@ -351,7 +384,7 @@ struct CardStackView: View {
         isExpanded: Bool,
         isCollapsible: Bool
     ) -> some View {
-        HStack(spacing: 16) {
+        HStack(spacing: PrimitiveTokens.Size.copiedControlClusterSpacing) {
             HStack(spacing: PrimitiveTokens.Space.xs) {
                 if isConfirmingCopiedDelete {
                     Button {
@@ -391,18 +424,16 @@ struct CardStackView: View {
                 StackRailControlButton(
                     systemName: "chevron.down",
                     accessibilityLabel: isExpanded ? "Collapse copied prompts" : "Expand copied prompts",
-                    glyphSize: 12,
-                    controlSize: 20,
+                    glyphSize: 10,
+                    controlSize: 16,
                     isActive: isExpanded,
                     rotationDegrees: isExpanded ? 180 : 0
                 ) {
                     isCopiedStackExpanded.toggle()
                     isConfirmingCopiedDelete = false
                 }
-                .frame(height: 16)
             }
         }
-        .frame(height: 16, alignment: .center)
     }
 
     private func copiedSummaryMetrics(copiedCards: [CaptureCard]) -> StackCardOverflowPolicy.Metrics? {
@@ -500,7 +531,9 @@ struct CardStackView: View {
         copied.reserveCapacity(cards.count / 2)
 
         for card in cards {
-            if card.isCopied {
+            if card.isPinned {
+                active.append(card)
+            } else if card.isCopied {
                 copied.append(card)
             } else {
                 active.append(card)
@@ -535,7 +568,8 @@ struct CardStackView: View {
     }
 
     private func ttlProgressRemaining(for card: CaptureCard) -> Double? {
-        guard card.isCopied == false,
+        guard !card.isPinned,
+              card.isCopied == false,
               let ttl = CardRetentionPreferences.load().effectiveTTL
         else {
             return nil

@@ -11,6 +11,7 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
     public let screenshotPath: String?
     public let lastCopiedAt: Date?
     public let sortOrder: Double
+    public let isPinned: Bool
 
     public init(
         id: UUID = UUID(),
@@ -20,7 +21,8 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         createdAt: Date,
         screenshotPath: String? = nil,
         lastCopiedAt: Date? = nil,
-        sortOrder: Double? = nil
+        sortOrder: Double? = nil,
+        isPinned: Bool = false
     ) {
         self.id = id
         self.text = text
@@ -30,6 +32,7 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         self.screenshotPath = screenshotPath
         self.lastCopiedAt = lastCopiedAt
         self.sortOrder = sortOrder ?? createdAt.timeIntervalSinceReferenceDate
+        self.isPinned = isPinned
     }
 
     enum CodingKeys: String, CodingKey {
@@ -41,6 +44,7 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         case screenshotPath
         case lastCopiedAt
         case sortOrder
+        case isPinned
     }
 
     public init(from decoder: Decoder) throws {
@@ -56,6 +60,7 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         lastCopiedAt = try container.decodeIfPresent(Date.self, forKey: .lastCopiedAt)
         sortOrder = try container.decodeIfPresent(Double.self, forKey: .sortOrder)
             ?? createdAt.timeIntervalSinceReferenceDate
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -68,6 +73,7 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         try container.encodeIfPresent(screenshotPath, forKey: .screenshotPath)
         try container.encodeIfPresent(lastCopiedAt, forKey: .lastCopiedAt)
         try container.encode(sortOrder, forKey: .sortOrder)
+        try container.encode(isPinned, forKey: .isPinned)
     }
 
     public var isCopied: Bool {
@@ -137,7 +143,8 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: date,
-            sortOrder: sortOrder
+            sortOrder: sortOrder,
+            isPinned: isPinned
         )
     }
 
@@ -150,7 +157,8 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: lastCopiedAt,
-            sortOrder: sortOrder
+            sortOrder: sortOrder,
+            isPinned: isPinned
         )
     }
 
@@ -163,7 +171,8 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: lastCopiedAt,
-            sortOrder: sortOrder
+            sortOrder: sortOrder,
+            isPinned: isPinned
         )
     }
 
@@ -181,7 +190,22 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: lastCopiedAt,
-            sortOrder: sortOrder
+            sortOrder: sortOrder,
+            isPinned: isPinned
+        )
+    }
+
+    public func togglePinned() -> CaptureCard {
+        CaptureCard(
+            id: id,
+            text: text,
+            tags: tags,
+            suggestedTarget: suggestedTarget,
+            createdAt: createdAt,
+            screenshotPath: screenshotPath,
+            lastCopiedAt: lastCopiedAt,
+            sortOrder: sortOrder,
+            isPinned: !isPinned
         )
     }
 
@@ -189,7 +213,8 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         relativeTo date: Date = Date(),
         ttl: TimeInterval = CaptureCard.ttl
     ) -> Bool {
-        createdAt.addingTimeInterval(ttl) < date
+        if isPinned { return false }
+        return createdAt.addingTimeInterval(ttl) < date
     }
 
     public func ttlProgressRemaining(

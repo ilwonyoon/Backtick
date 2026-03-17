@@ -6,23 +6,34 @@ import SwiftUI
 struct StackNotificationCardSurface<Content: View>: View {
     let isSelected: Bool
     let isEmphasized: Bool
+    let contentPadding: EdgeInsets
+    let cornerRadius: CGFloat
     @ViewBuilder private var content: Content
 
     init(
         isSelected: Bool = false,
         isEmphasized: Bool = false,
+        contentPadding: EdgeInsets = EdgeInsets(
+            top: PrimitiveTokens.Size.notificationCardPadding,
+            leading: PrimitiveTokens.Size.notificationCardPadding,
+            bottom: PrimitiveTokens.Size.notificationCardPadding,
+            trailing: PrimitiveTokens.Size.notificationCardPadding
+        ),
+        cornerRadius: CGFloat = PrimitiveTokens.Radius.md,
         @ViewBuilder content: () -> Content
     ) {
         self.isSelected = isSelected
         self.isEmphasized = isEmphasized
+        self.contentPadding = contentPadding
+        self.cornerRadius = cornerRadius
         self.content = content()
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
         let cardBody = content
-            .padding(PrimitiveTokens.Size.notificationCardPadding)
+            .padding(contentPadding)
             .background {
                 shape
                     .fill(backgroundFill)
