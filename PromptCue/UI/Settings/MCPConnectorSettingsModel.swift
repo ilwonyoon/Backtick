@@ -40,6 +40,15 @@ enum MCPConnectorClient: String, CaseIterable, Identifiable {
         }
     }
 
+    var supportsTerminalSetupAutomation: Bool {
+        switch self {
+        case .claudeDesktop:
+            return false
+        case .claudeCode, .codex:
+            return true
+        }
+    }
+
     var executableName: String? {
         switch self {
         case .claudeDesktop:
@@ -594,6 +603,7 @@ struct MCPConnectorInspector {
 final class MCPConnectorSettingsModel: ObservableObject {
     @Published private(set) var inspection: MCPConnectorInspection
     @Published private(set) var connectionState: MCPServerConnectionState = .idle
+    @Published private(set) var clientConnectionStates: [MCPConnectorClient: MCPServerConnectionState] = [:]
     @Published var directConfigSuccessClient: MCPConnectorClient?
 
     private let inspector: MCPConnectorInspector
@@ -601,20 +611,28 @@ final class MCPConnectorSettingsModel: ObservableObject {
     private let terminalLauncher: MCPConnectorTerminalLaunching
     private let workspace: NSWorkspace
     private let pasteboard: NSPasteboard
+    private let setupRefreshPollIntervalNanoseconds: UInt64
+    private let setupRefreshMaxAttempts: Int
     private var connectionTask: Task<Void, Never>?
+    private var connectionTaskClient: MCPConnectorClient?
+    private var setupRefreshTask: Task<Void, Never>?
 
     init(
         inspector: MCPConnectorInspector = MCPConnectorInspector(),
         connectionTester: MCPServerConnectionTesting = MCPServerSelfTester(),
         terminalLauncher: MCPConnectorTerminalLaunching = MCPConnectorTerminalLauncher(),
         workspace: NSWorkspace = .shared,
-        pasteboard: NSPasteboard = .general
+        pasteboard: NSPasteboard = .general,
+        setupRefreshPollIntervalNanoseconds: UInt64 = 350_000_000,
+        setupRefreshMaxAttempts: Int = 18
     ) {
         self.inspector = inspector
         self.connectionTester = connectionTester
         self.terminalLauncher = terminalLauncher
         self.workspace = workspace
         self.pasteboard = pasteboard
+        self.setupRefreshPollIntervalNanoseconds = setupRefreshPollIntervalNanoseconds
+        self.setupRefreshMaxAttempts = setupRefreshMaxAttempts
         self.inspection = inspector.inspect()
     }
 
@@ -732,7 +750,18 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     func refresh() {
-        inspection = inspector.inspect()
+        let updatedInspection = inspector.inspect()
+        inspection = updatedInspection
+        let configuredClients = Set(
+            updatedInspection.clients
+                .filter(\.hasConfiguredScope)
+                .map(\.client)
+        )
+        clientConnectionStates = clientConnectionStates.filter { configuredClients.contains($0.key) }
+    }
+
+    func verificationState(for client: MCPConnectorClientStatus) -> MCPServerConnectionState {
+        clientConnectionStates[client.client] ?? .idle
     }
 
     func clientSetupTitle(for client: MCPConnectorClientStatus) -> String {
@@ -764,7 +793,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return nil
         }
 
-        switch connectionState {
+        switch verificationState(for: client) {
         case .idle:
             return "Not verified"
         case .running:
@@ -786,12 +815,26 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 return "Click Connect to add Backtick to \(client.client.title) automatically."
             }
 
-            if client.client == .claudeCode {
+            if client.client.supportsTerminalSetupAutomation {
                 if client.hasOtherConfigFiles {
-                    return "Backtick is not in Claude Code yet. Click Connect to run the global setup command, or use the config-file fallback."
+                    switch client.client {
+                    case .claudeCode:
+                        return "Backtick is not in Claude Code yet. Click Connect to run the global setup command, or use the config-file fallback."
+                    case .codex:
+                        return "Backtick is not in Codex yet. Click Connect to run the setup command, or use the config-file fallback."
+                    case .claudeDesktop:
+                        break
+                    }
                 }
 
-                return "Click Connect and Backtick will open Terminal to add itself to Claude Code globally."
+                switch client.client {
+                case .claudeCode:
+                    return "Click Connect and Backtick will open Terminal to add itself to Claude Code globally."
+                case .codex:
+                    return "Click Connect and Backtick will open Terminal to add itself to Codex."
+                case .claudeDesktop:
+                    break
+                }
             }
 
             if client.hasOtherConfigFiles {
@@ -801,7 +844,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return "Add Backtick to a project or home config before using this connector."
         }
 
-        switch connectionState {
+        switch verificationState(for: client) {
         case .idle:
             return "Backtick is set up here. Run a local test before relying on it in another client."
         case .running:
@@ -832,7 +875,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         let location = client.configuredScope?.title ?? "Unknown"
 
-        switch connectionState {
+        switch verificationState(for: client) {
         case .idle:
             return "Backtick is configured in \(location), but not verified yet."
         case .running:
@@ -854,14 +897,14 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 return "Connect to \(client.client.title)"
             }
 
-            if client.client == .claudeCode {
-                return "Connect to Claude Code"
+            if client.client.supportsTerminalSetupAutomation {
+                return "Connect to \(client.client.title)"
             }
 
             return "Add Backtick to \(client.client.title)"
         }
 
-        switch connectionState {
+        switch verificationState(for: client) {
         case .idle:
             return "Verify the setup"
         case .running:
@@ -883,8 +926,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 return "Click Connect and Backtick will write the config file automatically. Restart \(client.client.title) to pick up the change."
             }
 
-            if client.client == .claudeCode {
-                return "Click Connect and Backtick will open Terminal and run the global Claude Code setup command. Then return here and verify."
+            if client.client.supportsTerminalSetupAutomation {
+                switch client.client {
+                case .claudeCode:
+                    return "Click Connect and Backtick will open Terminal and run the global Claude Code setup command. Then return here and verify."
+                case .codex:
+                    return "Click Connect and Backtick will open Terminal and run the Codex setup command. Then return here and verify."
+                case .claudeDesktop:
+                    break
+                }
             }
 
             if client.hasOtherConfigFiles {
@@ -894,7 +944,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return "Open setup steps, paste the command into Terminal, then come back here."
         }
 
-        switch connectionState {
+        switch verificationState(for: client) {
         case .idle:
             return "Run one local verification before you rely on Backtick inside \(client.client.title)."
         case .running:
@@ -960,7 +1010,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return nil
         }
 
-        guard case .failed(let failure) = connectionState else {
+        guard case .failed(let failure) = verificationState(for: client) else {
             return nil
         }
 
@@ -972,7 +1022,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return []
         }
 
-        guard case .passed(let report) = connectionState else {
+        guard case .passed(let report) = verificationState(for: client) else {
             return []
         }
 
@@ -985,7 +1035,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 return inspection.launchSpec == nil ? nil : .writeConfig
             }
 
-            if case .passed = connectionState {
+            if case .passed = verificationState(for: client) {
                 return nil
             }
 
@@ -1001,14 +1051,14 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 return nil
             }
 
-            if client.client == .claudeCode {
+            if client.client.supportsTerminalSetupAutomation {
                 return .launchTerminalSetup
             }
 
             return .copyAddCommand
         }
 
-        if case .passed = connectionState {
+        if case .passed = verificationState(for: client) {
             return nil
         }
 
@@ -1030,7 +1080,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             openDocumentation(for: client.client)
             return true
         case .runServerTest:
-            runServerTest()
+            runServerTest(for: client.client)
             return true
         }
     }
@@ -1048,19 +1098,39 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
     }
 
-    func runServerTest() {
+    func runServerTest(for client: MCPConnectorClient? = nil) {
+        let targetClient = resolvedVerificationClient(explicitClient: client)
         connectionTask?.cancel()
-        connectionTask = Task { [weak self] in
-            await self?.performServerTest()
+        if let previousClient = connectionTaskClient,
+           clientConnectionStates[previousClient] == .running {
+            clientConnectionStates[previousClient] = .idle
         }
-    }
-
-    func performServerTest() async {
-        guard let launchSpec = inspection.launchSpec else {
+        guard let targetClient else {
             connectionState = .failed(.unavailable)
             return
         }
+        connectionTaskClient = targetClient
+        clientConnectionStates[targetClient] = .running
+        connectionState = .running
+        connectionTask = Task { [weak self] in
+            await self?.performServerTest(for: targetClient)
+        }
+    }
 
+    func performServerTest(for client: MCPConnectorClient? = nil) async {
+        let targetClient = resolvedVerificationClient(explicitClient: client)
+        guard let launchSpec = inspection.launchSpec else {
+            connectionState = .failed(.unavailable)
+            if let targetClient {
+                clientConnectionStates[targetClient] = .failed(.unavailable)
+            }
+            return
+        }
+
+        if let targetClient {
+            connectionTaskClient = targetClient
+            clientConnectionStates[targetClient] = .running
+        }
         connectionState = .running
         let result = await connectionTester.run(launchSpec: launchSpec)
         guard !Task.isCancelled else {
@@ -1068,6 +1138,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         connectionState = result
+        if let targetClient {
+            clientConnectionStates[targetClient] = result
+        }
+        connectionTaskClient = nil
         connectionTask = nil
     }
 
@@ -1085,7 +1159,12 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return false
         }
 
-        return terminalLauncher.launchInTerminal(command: addCommand)
+        let didLaunch = terminalLauncher.launchInTerminal(command: addCommand)
+        if didLaunch {
+            scheduleSetupRefresh(for: client)
+        }
+
+        return didLaunch
     }
 
     func writeDirectConfig(for client: MCPConnectorClient) {
@@ -1222,6 +1301,40 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         pasteboard.clearContents()
         pasteboard.setString(value, forType: .string)
+    }
+
+    private func resolvedVerificationClient(explicitClient: MCPConnectorClient?) -> MCPConnectorClient? {
+        if let explicitClient {
+            return explicitClient
+        }
+
+        return inspection.clients.first(where: \.hasConfiguredScope)?.client
+    }
+
+    private func scheduleSetupRefresh(for client: MCPConnectorClient) {
+        guard client.supportsTerminalSetupAutomation else {
+            return
+        }
+
+        setupRefreshTask?.cancel()
+        setupRefreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            for attempt in 0..<self.setupRefreshMaxAttempts {
+                if attempt > 0 {
+                    try? await Task.sleep(nanoseconds: self.setupRefreshPollIntervalNanoseconds)
+                }
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                self.refresh()
+                if self.inspection.status(for: client).hasConfiguredScope {
+                    return
+                }
+            }
+        }
     }
 
     private func revealPath(_ path: String) {

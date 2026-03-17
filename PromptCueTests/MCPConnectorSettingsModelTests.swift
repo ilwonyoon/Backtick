@@ -308,6 +308,68 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testVerifyingCodexDoesNotMarkClaudeClientsConnected() async throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(executableURL.path)",
+              "args": []
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let codexConfigURL = homeDirectoryURL.appendingPathComponent(".codex/config.toml")
+        try FileManager.default.createDirectory(
+            at: codexConfigURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        [mcp_servers.backtick]
+        command = "\(executableURL.path)"
+        args = []
+        """.write(to: codexConfigURL, atomically: true, encoding: .utf8)
+
+        let expectedReport = MCPServerConnectionReport(
+            protocolVersion: "2025-03-26",
+            toolNames: ["list_notes", "get_note", "create_note"]
+        )
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .passed(expectedReport))
+        )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+        let codex = try XCTUnwrap(model.clients.first(where: { $0.client == .codex }))
+
+        await model.performServerTest(for: .codex)
+
+        XCTAssertEqual(model.clientVerificationTitle(for: codex), "Local server OK")
+        XCTAssertEqual(model.connectedToolNames(for: codex), expectedReport.toolNames)
+        XCTAssertNil(model.primaryAction(for: codex))
+
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Not verified")
+        XCTAssertTrue(model.connectedToolNames(for: claude).isEmpty)
+        XCTAssertEqual(model.primaryAction(for: claude), .runServerTest)
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Verify the setup")
+    }
+
+    @MainActor
     func testClaudeAutomationExampleIncludesAllowList() {
         let model = MCPConnectorSettingsModel(
             inspector: makeInspector(),
@@ -351,6 +413,34 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testModelPrefersTerminalSetupWhenCodexNeedsSetup() throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+        let codex = try XCTUnwrap(model.clients.first(where: { $0.client == .codex }))
+
+        XCTAssertEqual(model.clientSetupTitle(for: codex), "Needs setup")
+        XCTAssertEqual(model.clientScopeTitle(for: codex), nil)
+        XCTAssertEqual(model.primaryAction(for: codex), .launchTerminalSetup)
+        XCTAssertEqual(model.primaryActionTitle(for: codex), "Connect")
+        XCTAssertEqual(model.clientNextStepTitle(for: codex), "Connect to Codex")
+    }
+
+    @MainActor
     func testLaunchAddCommandInTerminalUsesClaudeCodeUserScopeCommand() throws {
         let executableURL = repositoryRootURL
             .appendingPathComponent(".build/debug", isDirectory: true)
@@ -379,6 +469,85 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertTrue(launcher.commands[0].contains("claude mcp add"))
         XCTAssertTrue(launcher.commands[0].contains("--scope user"))
         XCTAssertTrue(launcher.commands[0].contains(executableURL.path))
+    }
+
+    @MainActor
+    func testLaunchAddCommandInTerminalUsesCodexCommand() throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+
+        let launcher = TestTerminalLauncher()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            terminalLauncher: launcher
+        )
+
+        let didLaunch = model.launchAddCommandInTerminal(for: .codex)
+
+        XCTAssertTrue(didLaunch)
+        XCTAssertEqual(launcher.commands.count, 1)
+        XCTAssertTrue(launcher.commands[0].contains("codex mcp add"))
+        XCTAssertTrue(launcher.commands[0].contains("backtick --"))
+        XCTAssertTrue(launcher.commands[0].contains(executableURL.path))
+    }
+
+    @MainActor
+    func testLaunchAddCommandInTerminalRefreshesConfiguredScopeSoonAfterCodexSetupAppears() async throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+
+        let codexConfigURL = homeDirectoryURL.appendingPathComponent(".codex/config.toml")
+        let launcher = TestTerminalLauncher()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            terminalLauncher: launcher,
+            setupRefreshPollIntervalNanoseconds: 10_000_000,
+            setupRefreshMaxAttempts: 20
+        )
+
+        XCTAssertFalse(model.clients.contains(where: { $0.client == .codex && $0.hasConfiguredScope }))
+
+        let didLaunch = model.launchAddCommandInTerminal(for: .codex)
+        XCTAssertTrue(didLaunch)
+
+        try await Task.sleep(nanoseconds: 15_000_000)
+        try FileManager.default.createDirectory(
+            at: codexConfigURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        [mcp_servers.backtick]
+        command = "\(executableURL.path)"
+        args = []
+        """.write(to: codexConfigURL, atomically: true, encoding: .utf8)
+
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        let codex = try XCTUnwrap(model.clients.first(where: { $0.client == .codex }))
+        XCTAssertTrue(codex.hasConfiguredScope)
+        XCTAssertEqual(model.primaryAction(for: codex), .runServerTest)
     }
 
     @MainActor

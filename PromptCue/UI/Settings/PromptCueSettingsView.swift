@@ -1,3 +1,4 @@
+import AppKit
 import KeyboardShortcuts
 import SwiftUI
 
@@ -70,11 +71,10 @@ struct PromptCueSettingsView: View {
             height: PanelMetrics.settingsPanelHeight
         )
         .onAppear {
-            screenshotSettingsModel.refresh()
-            exportTailSettingsModel.refresh()
-            retentionSettingsModel.refresh()
-            cloudSyncSettingsModel.refresh()
-            mcpConnectorSettingsModel.refresh()
+            refreshSettingsModels()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshSettingsModels()
         }
         .onChange(of: mcpConnectorSettingsModel.connectionState) { _, newValue in
             if case .passed = newValue {
@@ -100,6 +100,14 @@ struct PromptCueSettingsView: View {
                 Text("Backtick has been added to \(client.title). Restart \(client.title) to activate, then try asking: \"List my Backtick notes\"")
             }
         }
+    }
+
+    private func refreshSettingsModels() {
+        screenshotSettingsModel.refresh()
+        exportTailSettingsModel.refresh()
+        retentionSettingsModel.refresh()
+        cloudSyncSettingsModel.refresh()
+        mcpConnectorSettingsModel.refresh()
     }
 
     private var settingsContentPane: some View {
@@ -569,10 +577,10 @@ struct PromptCueSettingsView: View {
 
                                 HStack(spacing: PrimitiveTokens.Space.xs) {
                                     Button("Verify Again") {
-                                        mcpConnectorSettingsModel.runServerTest()
+                                        mcpConnectorSettingsModel.runServerTest(for: client.client)
                                     }
                                     .controlSize(.small)
-                                    .disabled(mcpConnectorSettingsModel.connectionState.isRunning)
+                                    .disabled(mcpConnectorSettingsModel.verificationState(for: client).isRunning)
 
                                     Button("Open \(client.client.title) Config") {
                                         mcpConnectorSettingsModel.openPreferredConfig(for: client.client)
@@ -617,7 +625,7 @@ struct PromptCueSettingsView: View {
             return "Add Backtick to \(client.client.title) to connect it."
         }
 
-        switch mcpConnectorSettingsModel.connectionState {
+        switch mcpConnectorSettingsModel.verificationState(for: client) {
         case .idle:
             if client.client.usesDirectConfig {
                 return "Config saved. Restart \(client.client.title), then ask: \"List my Backtick notes\""
@@ -675,11 +683,11 @@ struct PromptCueSettingsView: View {
                 }
             case .runServerTest:
                 Button(repairActionTitle(for: client)) {
-                    mcpConnectorSettingsModel.runServerTest()
+                    mcpConnectorSettingsModel.runServerTest(for: client.client)
                 }
-                .disabled(mcpConnectorSettingsModel.connectionState.isRunning)
+                .disabled(mcpConnectorSettingsModel.verificationState(for: client).isRunning)
             case nil:
-                if case .passed = mcpConnectorSettingsModel.connectionState,
+                if case .passed = mcpConnectorSettingsModel.verificationState(for: client),
                    client.hasConfiguredScope {
                     Button(
                         isToolsExpanded(for: client)
@@ -697,7 +705,7 @@ struct PromptCueSettingsView: View {
     }
 
     private func repairActionTitle(for client: MCPConnectorClientStatus) -> String {
-        if case .failed = mcpConnectorSettingsModel.connectionState {
+        if case .failed = mcpConnectorSettingsModel.verificationState(for: client) {
             return "Fix"
         }
 
@@ -717,7 +725,7 @@ struct PromptCueSettingsView: View {
             return .accent
         }
 
-        switch mcpConnectorSettingsModel.connectionState {
+        switch mcpConnectorSettingsModel.verificationState(for: client) {
         case .passed:
             return .success
         case .failed:
@@ -749,7 +757,7 @@ struct PromptCueSettingsView: View {
             return "Setup Needed"
         }
 
-        switch mcpConnectorSettingsModel.connectionState {
+        switch mcpConnectorSettingsModel.verificationState(for: client) {
         case .idle:
             return "Ready to Verify"
         case .running:
@@ -778,7 +786,7 @@ struct PromptCueSettingsView: View {
             return .accent
         }
 
-        switch mcpConnectorSettingsModel.connectionState {
+        switch mcpConnectorSettingsModel.verificationState(for: client) {
         case .idle, .running:
             return .accent
         case .passed:
@@ -789,8 +797,13 @@ struct PromptCueSettingsView: View {
     }
 
     private func configuredSetupPrompt(for client: MCPConnectorClientStatus) -> String {
-        if client.client == .claudeCode {
+        switch client.client {
+        case .claudeCode:
             return "Connect opens Terminal and runs the global Claude Code setup command. If Terminal did not open, run this command manually, or use Config File Instead for ~/.claude.json."
+        case .codex:
+            return "Connect opens Terminal and runs the Codex setup command. If Terminal did not open, run this command manually, or use Config File Instead for ~/.codex/config.toml."
+        case .claudeDesktop:
+            break
         }
 
         if client.hasOtherConfigFiles {
@@ -862,7 +875,7 @@ struct PromptCueSettingsView: View {
             return false
         }
 
-        if case .failed = mcpConnectorSettingsModel.connectionState {
+        if case .failed = mcpConnectorSettingsModel.verificationState(for: client) {
             return true
         }
 
@@ -874,7 +887,7 @@ struct PromptCueSettingsView: View {
             return false
         }
 
-        guard case .passed = mcpConnectorSettingsModel.connectionState else {
+        guard case .passed = mcpConnectorSettingsModel.verificationState(for: client) else {
             return false
         }
 
@@ -989,7 +1002,7 @@ struct PromptCueSettingsView: View {
                             .controlSize(.small)
                             .disabled(
                                 primaryAction == .runServerTest
-                                    && mcpConnectorSettingsModel.connectionState.isRunning
+                                    && mcpConnectorSettingsModel.verificationState(for: client).isRunning
                             )
                         }
                     }
@@ -1016,7 +1029,7 @@ struct PromptCueSettingsView: View {
                             .controlSize(.small)
                         }
 
-                        if mcpConnectorSettingsModel.connectionState.isRunning,
+                        if mcpConnectorSettingsModel.verificationState(for: client).isRunning,
                            mcpConnectorSettingsModel.primaryAction(for: client) == .runServerTest {
                             ProgressView()
                                 .controlSize(.small)
@@ -1310,7 +1323,7 @@ struct PromptCueSettingsView: View {
 
                     Button("Verify Connection") {
                         setupGuideClient = nil
-                        mcpConnectorSettingsModel.runServerTest()
+                        mcpConnectorSettingsModel.runServerTest(for: client)
                     }
                     .controlSize(.small)
                     .keyboardShortcut(.defaultAction)
