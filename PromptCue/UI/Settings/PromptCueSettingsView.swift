@@ -85,6 +85,21 @@ struct PromptCueSettingsView: View {
 
             expandedToolsClient = nil
         }
+        .alert(
+            "Connected",
+            isPresented: Binding(
+                get: { mcpConnectorSettingsModel.directConfigSuccessClient != nil },
+                set: { if !$0 { mcpConnectorSettingsModel.directConfigSuccessClient = nil } }
+            )
+        ) {
+            Button("OK") {
+                mcpConnectorSettingsModel.directConfigSuccessClient = nil
+            }
+        } message: {
+            if let client = mcpConnectorSettingsModel.directConfigSuccessClient {
+                Text("Backtick has been added to \(client.title). Restart \(client.title) to activate, then try asking: \"List my Backtick notes\"")
+            }
+        }
     }
 
     private var settingsContentPane: some View {

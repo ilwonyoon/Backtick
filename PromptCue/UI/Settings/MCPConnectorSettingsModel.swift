@@ -580,6 +580,7 @@ struct MCPConnectorInspector {
 final class MCPConnectorSettingsModel: ObservableObject {
     @Published private(set) var inspection: MCPConnectorInspection
     @Published private(set) var connectionState: MCPServerConnectionState = .idle
+    @Published var directConfigSuccessClient: MCPConnectorClient?
 
     private let inspector: MCPConnectorInspector
     private let connectionTester: MCPServerConnectionTesting
@@ -1066,6 +1067,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             let parentDirectory = configURL.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: parentDirectory, withIntermediateDirectories: true)
             try data.write(to: configURL, options: .atomic)
+            directConfigSuccessClient = client
         } catch {
             NSLog("writeDirectConfig: failed to write %@: %@", configURL.path, error.localizedDescription)
         }
