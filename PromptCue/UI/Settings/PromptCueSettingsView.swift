@@ -644,6 +644,16 @@ struct PromptCueSettingsView: View {
             EmptyView()
         } else {
             switch focusedPrimaryAction(for: client) {
+            case .writeConfig:
+                Button(isSetupExpanded(for: client) ? "Hide" : "Connect") {
+                    let wasExpanded = isSetupExpanded(for: client)
+                    expandedSetupClient = wasExpanded ? nil : client.client
+                    expandedManualSetupClient = nil
+                    expandedToolsClient = nil
+                    if !wasExpanded {
+                        didCopySetupCommand = false
+                    }
+                }
             case .copyAddCommand:
                 Button(isSetupExpanded(for: client) ? "Hide" : "Connect") {
                     let wasExpanded = isSetupExpanded(for: client)
