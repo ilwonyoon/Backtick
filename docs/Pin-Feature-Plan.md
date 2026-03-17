@@ -1,5 +1,8 @@
 # Pin Feature Plan
 
+> **Status: COMPLETED** — Merged to main on 2026-03-17 (commit `28ee95f`).
+> All phases implemented and shipped. This document is retained as design reference.
+
 ## Why Pin Exists
 
 ### Vibe Coder Behavioral Research (요약)
@@ -136,31 +139,28 @@ AI 에이전트가 자주 쓰는 프롬프트를 직접 핀/언핀 가능.
 
 ### Implementation Phases
 
+All phases completed and merged (2026-03-17).
+
 ```
-Phase 1: Domain (no dependencies)
+Phase 1: Domain ✅
   ├─ CaptureCard.isPinned + togglePinned()
   ├─ CardStackOrdering pinned-first
   ├─ isExpired() pin bypass
   └─ PromptCueCore tests
-  → Verify: swift test
 
-Phase 2: Persistence (depends on Phase 1)
+Phase 2: Persistence ✅
   ├─ PromptCueDatabase addIsPinned migration
   └─ CardRecord isPinned mapping
-  → Verify: swift test + xcodebuild build
 
-Phase 3: Services (depends on Phase 2)
+Phase 3: Services ✅
   ├─ StackNoteUpdate.isPinned
   └─ StackWriteService.updateNote() handling
-  → Verify: xcodebuild test
 
-Phase 4: MCP (depends on Phase 1, parallel with Phase 3)
+Phase 4: MCP ✅
   └─ BacktickMCPServerSession schema + response
-  → Verify: swift test --filter BacktickMCPServerTests
 
-Phase 5: UI (depends on Phase 3)
-  └─ CardStackView pin icon + context menu
-  → Verify: xcodebuild build + manual QA
+Phase 5: UI ✅
+  └─ CardStackView pin icon + horizontal carousel for pinned cards
 ```
 
 ---

@@ -1,6 +1,6 @@
 # Competitive Landscape & Future Backlogs
 
-> Last updated: 2026-03-15
+> Last updated: 2026-03-17
 > Status: Living document — research synthesis + actionable backlog extraction
 
 ---
@@ -322,17 +322,17 @@ No one else is building: **intentional capture → structured execution queue �
 
 ### P0 — Core Differentiators (Ship First)
 
-#### 6.1 Cross-Platform MCP Delivery
+#### 6.1 Cross-Platform MCP Delivery ✅ Partially Done
 **Source**: Vibe-coder pain point #2, Pluro's existence, 70% multi-tool usage
 **What**: Backtick's MCP server should work with Claude Desktop, Cursor, ChatGPT (when MCP support lands), Codex
 **Why**: This is the #1 reason someone would use Backtick over platform-native memory. "Capture once, use everywhere"
-**Priority**: Already in progress (BacktickMCP exists). Ensure it works seamlessly with top 3 clients
+**Status**: Claude Code + Codex connectors shipped. **Claude Desktop connector added 2026-03-17** (PR #58, one-click config write). ChatGPT HTTP connector not yet started.
 
-#### 6.2 Prompt/Context Reuse
+#### 6.2 Prompt/Context Reuse ✅ Done (Pin Feature)
 **Source**: Vibe-coder pain point #3, no existing solution
 **What**: Saved prompts, templates, snippets that persist beyond TTL. Reusable across sessions and tools
 **Why**: "No standard tooling for maintaining prompt libraries across AI tools" — this is an open gap
-**Priority**: Natural extension of Stack. Pinned cards or a separate "Templates" concept
+**Status**: **Shipped 2026-03-17** as Pin feature (commit `28ee95f`). Pinned cards never expire, displayed in horizontal carousel at top of Stack. MCP `update_note` supports `isPinned` for AI-driven pin/unpin.
 
 #### 6.3 Session Handoff Support
 **Source**: Vibe-coder pain point #1 (cross-session amnesia), Felix's daily notes pattern

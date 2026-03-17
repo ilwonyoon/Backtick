@@ -1,6 +1,6 @@
 # MCP Platform Expansion & Warm Memory Architecture
 
-Research doc — 2026-03-15 (v4)
+Research doc — 2026-03-15 (v4, updated 2026-03-17)
 
 ## Vision
 
@@ -937,30 +937,31 @@ Capture + Stack (Hot) is the shipping product. Warm (Memory) is a post-launch fe
 
 **Pre-launch (ship Capture + Stack):**
 
-| # | Task | Effort | What it unlocks |
-|---|------|--------|-----------------|
-| 1 | Claude Desktop stdio registration in Settings | S | Claude Desktop as MCP client for existing Hot tools |
+| # | Task | Effort | Status | What it unlocks |
+|---|------|--------|--------|-----------------|
+| 1 | Claude Desktop stdio registration in Settings | S | **✅ DONE** (PR #58, 2026-03-17) | Claude Desktop as MCP client for existing Hot tools |
+| 1b | Pin feature — permanent prompt cards | M | **✅ DONE** (commit `28ee95f`, 2026-03-17) | Pinned cards never expire, horizontal carousel UI |
 
-This is the only MCP expansion task safe to include before launch — it's additive (new client config), touches only `MCPConnectorSettingsModel`, and has zero regression risk.
+Claude Desktop connector: one-click config write to `claude_desktop_config.json`, no CLI required. Includes `usesDirectConfig` guard, error logging, and full test coverage.
 
 **Post-launch Phase 1 (Warm memory via stdio):**
 
-| # | Task | Effort | What it unlocks |
-|---|------|--------|-----------------|
-| 2 | `Project` + `ProjectDocument` models + DB migration + services | M | Warm storage layer |
-| 3 | MCP Warm tools (save/update/recall/list/delete/search/manage) | M | AI can save/recall project context |
-| 4 | Memory panel (NSPanel, project list → topic list → doc viewer/editor) | M | Human can review/edit AI-saved documents |
+| # | Task | Effort | Status | What it unlocks |
+|---|------|--------|--------|-----------------|
+| 2 | `Project` + `ProjectDocument` models + DB migration + services | M | Not started | Warm storage layer |
+| 3 | MCP Warm tools (save/update/recall/list/delete/search/manage) | M | Not started | AI can save/recall project context |
+| 4 | Memory panel (NSPanel, project list → topic list → doc viewer/editor) | M | Not started | Human can review/edit AI-saved documents |
 
 → Claude Desktop, Claude Code, Codex can save/recall project documents. Human reviews in Memory panel.
 
 **Post-launch Phase 2 (HTTP transport):**
 
-| # | Task | Effort | What it unlocks |
-|---|------|--------|-----------------|
-| 5 | HTTP server in Backtick app process | L | ChatGPT Mac App connection |
-| 6 | Auth (Bearer token) + Settings UI for HTTP | M | Secure HTTP connections |
+| # | Task | Effort | Status | What it unlocks |
+|---|------|--------|--------|-----------------|
+| 5 | HTTP server in Backtick app process | L | Not started | ChatGPT Mac App connection |
+| 6 | Auth (Bearer token) + Settings UI for HTTP | M | Not started | Secure HTTP connections |
 
 → ChatGPT Mac App connects via localhost HTTP. Both Hot and Warm tools available.
 
 **Post-launch Phase 3 (remote access):**
-Tunnel setup for Claude Web / ChatGPT Web / Mobile. Only if demand exists.
+Tunnel setup for Claude Web / ChatGPT Web / Mobile. Only if demand exists. Not started.
