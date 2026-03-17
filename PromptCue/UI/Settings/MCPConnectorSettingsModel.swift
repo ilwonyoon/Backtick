@@ -1029,6 +1029,11 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     func writeDirectConfig(for client: MCPConnectorClient) {
+        guard client.usesDirectConfig else {
+            assertionFailure("writeDirectConfig called for CLI-based client \(client)")
+            return
+        }
+
         guard let launchSpec = inspection.launchSpec else { return }
 
         let configURL = URL(fileURLWithPath: inspection.status(for: client).homeConfig.path)
@@ -1049,13 +1054,21 @@ final class MCPConnectorSettingsModel: ObservableObject {
         servers["backtick"] = serverEntry
         root["mcpServers"] = servers
 
-        guard let data = try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys]) else {
+        let data: Data
+        do {
+            data = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
+        } catch {
+            NSLog("writeDirectConfig: failed to serialize config: %@", error.localizedDescription)
             return
         }
 
-        let parentDirectory = configURL.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(at: parentDirectory, withIntermediateDirectories: true)
-        try? data.write(to: configURL, options: .atomic)
+        do {
+            let parentDirectory = configURL.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: parentDirectory, withIntermediateDirectories: true)
+            try data.write(to: configURL, options: .atomic)
+        } catch {
+            NSLog("writeDirectConfig: failed to write %@: %@", configURL.path, error.localizedDescription)
+        }
 
         refresh()
     }

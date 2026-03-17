@@ -587,6 +587,49 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertNotNil(servers["backtick"], "Backtick server entry should be added")
     }
 
+    @MainActor
+    func testClaudeDesktopWriteConfigDoesNotCrashOnInvalidPath() throws {
+        // Use a home directory pointing to a non-writable location
+        let readOnlyURL = tempDirectoryURL.appendingPathComponent("ReadOnly", isDirectory: true)
+        try FileManager.default.createDirectory(at: readOnlyURL, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o444],
+            ofItemAtPath: readOnlyURL.path
+        )
+
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+
+        let inspector = MCPConnectorInspector(
+            environment: ["PATH": homeDirectoryURL.appendingPathComponent(".local/bin").path],
+            homeDirectoryURL: readOnlyURL,
+            repositoryRootURL: repositoryRootURL
+        )
+        let model = MCPConnectorSettingsModel(
+            inspector: inspector,
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+
+        // Should not crash — failure is logged, not thrown
+        model.writeDirectConfig(for: .claudeDesktop)
+
+        // Restore permissions for cleanup
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: readOnlyURL.path
+        )
+    }
+
     private func installClientExecutable(named executableName: String) throws {
         let executableURL = homeDirectoryURL
             .appendingPathComponent(".local/bin", isDirectory: true)

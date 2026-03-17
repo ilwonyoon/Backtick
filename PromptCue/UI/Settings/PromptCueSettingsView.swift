@@ -818,7 +818,11 @@ struct PromptCueSettingsView: View {
 
     private func projectConfigButtonTitle(for client: MCPConnectorClient) -> String {
         switch client {
-        case .claudeDesktop, .claudeCode:
+        case .claudeDesktop:
+            // Claude Desktop has no project config (projectConfigRelativePath is nil),
+            // so this case is unreachable in practice.
+            return "Open Config"
+        case .claudeCode:
             return "Open .mcp.json"
         case .codex:
             return "Open Project Config"
@@ -1529,7 +1533,7 @@ struct PromptCueSettingsView: View {
     private func clientBadgeAssetName(for client: MCPConnectorClient) -> String? {
         switch client {
         case .claudeDesktop:
-            return "ClaudeDesktopIcon"
+            return nil
         case .claudeCode:
             return "ClaudeCodeIcon"
         case .codex:
