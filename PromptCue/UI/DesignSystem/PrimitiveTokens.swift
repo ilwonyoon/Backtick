@@ -124,7 +124,41 @@ enum PrimitiveTokens {
         static let floatingControlY: CGFloat = 2
     }
 
+    // MARK: - macOS System Alert Specs (Figma macOS 26 Community reference)
+    //
+    // NSAlert / SwiftUI .alert() standard typography:
+    //   Title (messageText):       13pt Bold,  line-height 16pt
+    //   Body  (informativeText):   11pt Regular, line-height 14pt
+    //   Title ↔ Body spacing:      10pt
+    //   Alert width:               260pt (content area)
+    //   Icon size:                 64×64pt
+    //   Corner radius:             26pt (Liquid Glass)
+    //   Button height:             ~21pt
+    //
+    // These map to existing primitive values:
+    //   FontSize.meta (13) → alert title
+    //   FontSize.micro (11) → alert body
+    //   LineHeight.micro (14) → alert body line-height
+    //
+    // Use NSAlert or SwiftUI .alert() directly for standard system alerts.
+    // Only build custom alert views when system alerts are insufficient.
+
+    enum Alert {
+        static let titleSize: CGFloat = FontSize.meta       // 13pt — macOS systemFontSize
+        static let bodySize: CGFloat = FontSize.micro        // 11pt — macOS smallSystemFontSize
+        static let titleLineHeight: CGFloat = 16
+        static let bodyLineHeight: CGFloat = LineHeight.micro // 14pt
+        static let titleBodySpacing: CGFloat = 10
+        static let contentWidth: CGFloat = 260
+        static let iconSize: CGFloat = 64
+        static let cornerRadius: CGFloat = Radius.lg         // 26pt
+        static let buttonMinWidth: CGFloat = 68
+    }
+
     enum Typography {
+        static let alertTitle = Font.system(size: FontSize.meta, weight: .bold)
+        static let alertBody = Font.system(size: FontSize.micro, weight: .regular)
+
         static let panelTitle = Font.system(size: FontSize.body, weight: .semibold)
         static let body = Font.system(size: FontSize.body, weight: .regular)
         static let bodyStrong = Font.system(size: FontSize.body, weight: .medium)
