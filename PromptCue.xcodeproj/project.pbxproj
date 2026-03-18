@@ -757,6 +757,7 @@
 /* Begin PBXShellScriptBuildPhase section */
 		3879EF547AF6D3141524E813 /* Bundle BacktickMCP Helper */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);

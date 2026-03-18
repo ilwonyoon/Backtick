@@ -4,6 +4,13 @@ import PromptCueCore
 
 @MainActor
 final class AppCoordinator: AppLifecycleCoordinating {
+    private struct ExperimentalMCPHTTPLaunchConfiguration: Equatable {
+        let port: UInt16
+        let authMode: ExperimentalMCPHTTPAuthMode
+        let apiKey: String?
+        let publicBaseURL: URL?
+    }
+
     let model = AppModel()
     private let hotKeyCenter = HotKeyCenter()
     private let screenshotSettingsModel = ScreenshotSettingsModel()
@@ -30,6 +37,14 @@ final class AppCoordinator: AppLifecycleCoordinating {
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?
     private var systemThemeObserver: NSObjectProtocol?
+    private var experimentalMCPHTTPSettingsObserver: NSObjectProtocol?
+    private var experimentalMCPHTTPProcess: Process?
+    private var experimentalMCPHTTPLogPipe: Pipe?
+    private var experimentalMCPHTTPRestartWorkItem: DispatchWorkItem?
+    private var shouldKeepExperimentalMCPHTTPRunning = false
+    private var currentExperimentalMCPHTTPLaunchConfiguration: ExperimentalMCPHTTPLaunchConfiguration?
+
+    private static let experimentalMCPHTTPRestartDelay: TimeInterval = 1
 
     init() {
         systemThemeObserver = DistributedNotificationCenter.default().addObserver(
@@ -37,27 +52,43 @@ final class AppCoordinator: AppLifecycleCoordinating {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            // Mark controllers immediately so a show() racing with this
-            // notification picks up the pending flag even before the
-            // dispatched block runs.
-            self?.stackPanelController.markAppearanceDirty()
-            self?.capturePanelController.markAppearanceDirty()
-
-            // Defer the actual refresh to the next runloop iteration.
-            // The distributed notification arrives *before* AppKit
-            // finishes propagating the new effective appearance to
-            // windows, so reading effectiveAppearance synchronously
-            // returns the stale value and deduplication skips the
-            // refresh — the root cause of the recurring regression.
-            DispatchQueue.main.async {
-                self?.refreshForInheritedAppearanceChange()
-
-                // Second pass: "Auto" mode transitions can take longer
-                // for AppKit to resolve the effective appearance. A
-                // delayed retry ensures the panel catches up.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    self?.refreshForInheritedAppearanceChange()
+            Task { @MainActor [weak self] in
+                guard let self else {
+                    return
                 }
+
+                // Mark controllers immediately so a show() racing with this
+                // notification picks up the pending flag even before the
+                // dispatched block runs.
+                self.stackPanelController.markAppearanceDirty()
+                self.capturePanelController.markAppearanceDirty()
+
+                // Defer the actual refresh to the next runloop iteration.
+                // The distributed notification arrives *before* AppKit
+                // finishes propagating the new effective appearance to
+                // windows, so reading effectiveAppearance synchronously
+                // returns the stale value and deduplication skips the
+                // refresh — the root cause of the recurring regression.
+                DispatchQueue.main.async { [weak self] in
+                    self?.refreshForInheritedAppearanceChange()
+
+                    // Second pass: "Auto" mode transitions can take longer
+                    // for AppKit to resolve the effective appearance. A
+                    // delayed retry ensures the panel catches up.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                        self?.refreshForInheritedAppearanceChange()
+                    }
+                }
+            }
+        }
+
+        experimentalMCPHTTPSettingsObserver = NotificationCenter.default.addObserver(
+            forName: .experimentalMCPHTTPSettingsDidChange,
+            object: mcpConnectorSettingsModel,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.syncExperimentalMCPHTTPConfiguration()
             }
         }
     }
@@ -66,6 +97,9 @@ final class AppCoordinator: AppLifecycleCoordinating {
         if let systemThemeObserver {
             DistributedNotificationCenter.default().removeObserver(systemThemeObserver)
         }
+        if let experimentalMCPHTTPSettingsObserver {
+            NotificationCenter.default.removeObserver(experimentalMCPHTTPSettingsObserver)
+        }
     }
 
     func start() {
@@ -73,6 +107,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
         ScreenshotDirectoryResolver.bootstrapPreferredDirectoryIfNeeded()
         model.start()
         applyCaptureQADraftSeedIfNeeded(environment)
+        syncExperimentalMCPHTTPConfiguration()
         hotKeyCenter.registerDefaultShortcuts(
             onCapture: { [weak self] in
                 self?.showCapturePanel()
@@ -124,6 +159,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
     func stop() {
         pendingStackToggleTask?.cancel()
         pendingStackToggleTask = nil
+        stopExperimentalMCPHTTP()
         hotKeyCenter.unregisterAll()
         model.stop()
         statusItem = nil
@@ -319,5 +355,231 @@ final class AppCoordinator: AppLifecycleCoordinating {
         case nil:
             return nil
         }
+    }
+
+    private func syncExperimentalMCPHTTPConfiguration() {
+        guard let desiredConfiguration = desiredExperimentalMCPHTTPLaunchConfiguration() else {
+            currentExperimentalMCPHTTPLaunchConfiguration = nil
+            mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(.stopped)
+            stopExperimentalMCPHTTP()
+            return
+        }
+
+        let configurationChanged = currentExperimentalMCPHTTPLaunchConfiguration != desiredConfiguration
+        currentExperimentalMCPHTTPLaunchConfiguration = desiredConfiguration
+
+        if let process = experimentalMCPHTTPProcess, process.isRunning {
+            guard configurationChanged else {
+                return
+            }
+
+            shouldKeepExperimentalMCPHTTPRunning = true
+            experimentalMCPHTTPRestartWorkItem?.cancel()
+            experimentalMCPHTTPRestartWorkItem = nil
+            mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(.restarting)
+            process.terminate()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                if process.isRunning {
+                    process.interrupt()
+                }
+            }
+            return
+        }
+
+        shouldKeepExperimentalMCPHTTPRunning = true
+        launchExperimentalMCPHTTPHelper()
+    }
+
+    private func launchExperimentalMCPHTTPHelper() {
+        guard experimentalMCPHTTPProcess == nil else {
+            return
+        }
+
+        guard let launchConfiguration = currentExperimentalMCPHTTPLaunchConfiguration
+                ?? desiredExperimentalMCPHTTPLaunchConfiguration() else {
+            shouldKeepExperimentalMCPHTTPRunning = false
+            mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(.stopped)
+            return
+        }
+
+        if launchConfiguration.authMode == .oauth, launchConfiguration.publicBaseURL == nil {
+            shouldKeepExperimentalMCPHTTPRunning = false
+            mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(
+                .failed("OAuth mode needs a valid public HTTPS URL before Backtick can start the remote server.")
+            )
+            return
+        }
+
+        guard let launchSpec = mcpConnectorSettingsModel.inspection.launchSpec else {
+            shouldKeepExperimentalMCPHTTPRunning = false
+            mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(
+                .failed("Backtick MCP helper launch spec is unavailable.")
+            )
+            NSLog("Experimental MCP HTTP launch skipped: BacktickMCP helper launch spec unavailable")
+            return
+        }
+
+        experimentalMCPHTTPRestartWorkItem?.cancel()
+        experimentalMCPHTTPRestartWorkItem = nil
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: launchSpec.command)
+        var arguments = launchSpec.arguments + [
+            "--transport",
+            "http",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "\(launchConfiguration.port)",
+            "--auth-mode",
+            launchConfiguration.authMode.rawValue,
+            "--parent-pid",
+            "\(ProcessInfo.processInfo.processIdentifier)",
+        ]
+        if let apiKey = launchConfiguration.apiKey, launchConfiguration.authMode == .apiKey {
+            arguments += ["--api-key", apiKey]
+        }
+        if let publicBaseURL = launchConfiguration.publicBaseURL {
+            arguments += ["--public-base-url", publicBaseURL.absoluteString]
+        }
+        process.arguments = arguments
+
+        let logPipe = Pipe()
+        process.standardOutput = logPipe
+        process.standardError = logPipe
+        process.terminationHandler = { [weak self] process in
+            DispatchQueue.main.async {
+                self?.handleExperimentalMCPHTTPTermination(process)
+            }
+        }
+
+        beginExperimentalMCPHTTPLogStreaming(from: logPipe)
+        mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(.starting)
+
+        do {
+            try process.run()
+            experimentalMCPHTTPProcess = process
+            experimentalMCPHTTPLogPipe = logPipe
+            mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(.running)
+            NSLog(
+                "Experimental MCP HTTP helper started on http://127.0.0.1:%d/mcp",
+                Int(launchConfiguration.port)
+            )
+        } catch {
+            logPipe.fileHandleForReading.readabilityHandler = nil
+            shouldKeepExperimentalMCPHTTPRunning = false
+            mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(
+                .failed(error.localizedDescription)
+            )
+            NSLog("Experimental MCP HTTP helper failed to start: %@", String(describing: error))
+        }
+    }
+
+    private func stopExperimentalMCPHTTP() {
+        shouldKeepExperimentalMCPHTTPRunning = false
+        experimentalMCPHTTPRestartWorkItem?.cancel()
+        experimentalMCPHTTPRestartWorkItem = nil
+
+        guard let process = experimentalMCPHTTPProcess else {
+            return
+        }
+
+        experimentalMCPHTTPProcess = nil
+        process.terminationHandler = nil
+        experimentalMCPHTTPLogPipe?.fileHandleForReading.readabilityHandler = nil
+        experimentalMCPHTTPLogPipe = nil
+        mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(.stopped)
+        guard process.isRunning else {
+            return
+        }
+
+        process.terminate()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+            if process.isRunning {
+                process.interrupt()
+            }
+        }
+    }
+
+    private func handleExperimentalMCPHTTPTermination(_ process: Process) {
+        NSLog(
+            "Experimental MCP HTTP helper exited with status %d",
+            process.terminationStatus
+        )
+
+        guard experimentalMCPHTTPProcess === process else {
+            return
+        }
+
+        experimentalMCPHTTPProcess = nil
+        experimentalMCPHTTPLogPipe?.fileHandleForReading.readabilityHandler = nil
+        experimentalMCPHTTPLogPipe = nil
+
+        guard shouldKeepExperimentalMCPHTTPRunning else {
+            mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(.stopped)
+            return
+        }
+
+        scheduleExperimentalMCPHTTPRestart()
+    }
+
+    private func scheduleExperimentalMCPHTTPRestart() {
+        experimentalMCPHTTPRestartWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else {
+                return
+            }
+
+            self.experimentalMCPHTTPRestartWorkItem = nil
+            self.launchExperimentalMCPHTTPHelper()
+        }
+
+        experimentalMCPHTTPRestartWorkItem = workItem
+        mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(.restarting)
+        NSLog(
+            "Experimental MCP HTTP helper restart scheduled in %.1f seconds",
+            Self.experimentalMCPHTTPRestartDelay
+        )
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.experimentalMCPHTTPRestartDelay,
+            execute: workItem
+        )
+    }
+
+    private func beginExperimentalMCPHTTPLogStreaming(from pipe: Pipe) {
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty,
+                  let chunk = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !chunk.isEmpty else {
+                return
+            }
+
+            NSLog("Experimental MCP HTTP helper: %@", chunk)
+        }
+    }
+
+    private func desiredExperimentalMCPHTTPLaunchConfiguration() -> ExperimentalMCPHTTPLaunchConfiguration? {
+        if environment.shouldLaunchExperimentalMCPHTTPOnStart {
+            return ExperimentalMCPHTTPLaunchConfiguration(
+                port: environment.experimentalMCPHTTPPort,
+                authMode: .apiKey,
+                apiKey: environment.experimentalMCPHTTPAPIKey,
+                publicBaseURL: nil
+            )
+        }
+
+        guard mcpConnectorSettingsModel.experimentalRemoteSettings.isEnabled else {
+            return nil
+        }
+
+        return ExperimentalMCPHTTPLaunchConfiguration(
+            port: mcpConnectorSettingsModel.experimentalRemoteSettings.port,
+            authMode: mcpConnectorSettingsModel.experimentalRemoteSettings.authMode,
+            apiKey: mcpConnectorSettingsModel.experimentalRemoteSettings.apiKey,
+            publicBaseURL: mcpConnectorSettingsModel.experimentalRemotePublicBaseURL
+        )
     }
 }

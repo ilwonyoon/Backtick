@@ -191,10 +191,72 @@ struct MCPConnectorInspection: Equatable {
     let repositoryRootPath: String?
     let bundledHelperPath: String?
     let launchSpec: MCPServerLaunchSpec?
+    let ngrokPath: String?
     let clients: [MCPConnectorClientStatus]
 
     func status(for client: MCPConnectorClient) -> MCPConnectorClientStatus {
         clients.first(where: { $0.client == client })!
+    }
+}
+
+extension Notification.Name {
+    static let experimentalMCPHTTPSettingsDidChange = Notification.Name(
+        "MCPConnectorSettingsModel.experimentalMCPHTTPSettingsDidChange"
+    )
+}
+
+enum ExperimentalMCPHTTPAuthMode: String, CaseIterable, Equatable {
+    case apiKey
+    case oauth
+
+    var title: String {
+        switch self {
+        case .apiKey:
+            return "Bearer Token"
+        case .oauth:
+            return "OAuth"
+        }
+    }
+}
+
+struct ExperimentalMCPHTTPSettings: Equatable {
+    static let defaultPort: UInt16 = 8321
+
+    var isEnabled: Bool
+    var port: UInt16
+    var authMode: ExperimentalMCPHTTPAuthMode
+    var apiKey: String
+    var publicBaseURL: String
+}
+
+enum ExperimentalMCPHTTPRuntimeState: Equatable {
+    case stopped
+    case starting
+    case restarting
+    case running
+    case failed(String)
+
+    var title: String {
+        switch self {
+        case .stopped:
+            return "Off"
+        case .starting:
+            return "Starting"
+        case .restarting:
+            return "Restarting"
+        case .running:
+            return "Running"
+        case .failed:
+            return "Needs attention"
+        }
+    }
+
+    var failureDetail: String? {
+        guard case .failed(let detail) = self else {
+            return nil
+        }
+
+        return detail
     }
 }
 
@@ -315,6 +377,7 @@ struct MCPConnectorInspector {
             repositoryRootPath: repositoryRootURL?.path,
             bundledHelperPath: bundledHelperURL?.path,
             launchSpec: launchSpec,
+            ngrokPath: locateExecutable(named: "ngrok"),
             clients: MCPConnectorClient.allCases.map { client in
                 clientStatus(for: client, launchSpec: launchSpec)
             }
@@ -601,9 +664,21 @@ struct MCPConnectorInspector {
 
 @MainActor
 final class MCPConnectorSettingsModel: ObservableObject {
+    private static let experimentalRemoteTunnelDocumentationURL = URL(string: "https://ngrok.com/download")!
+
+    private enum ExperimentalRemoteDefaultsKey {
+        static let isEnabled = "Backtick.ExperimentalMCPHTTP.Enabled"
+        static let port = "Backtick.ExperimentalMCPHTTP.Port"
+        static let authMode = "Backtick.ExperimentalMCPHTTP.AuthMode"
+        static let apiKey = "Backtick.ExperimentalMCPHTTP.APIKey"
+        static let publicBaseURL = "Backtick.ExperimentalMCPHTTP.PublicBaseURL"
+    }
+
     @Published private(set) var inspection: MCPConnectorInspection
     @Published private(set) var connectionState: MCPServerConnectionState = .idle
     @Published private(set) var clientConnectionStates: [MCPConnectorClient: MCPServerConnectionState] = [:]
+    @Published private(set) var experimentalRemoteSettings: ExperimentalMCPHTTPSettings
+    @Published private(set) var experimentalRemoteRuntimeState: ExperimentalMCPHTTPRuntimeState = .stopped
     @Published var directConfigSuccessClient: MCPConnectorClient?
 
     private let inspector: MCPConnectorInspector
@@ -611,6 +686,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
     private let terminalLauncher: MCPConnectorTerminalLaunching
     private let workspace: NSWorkspace
     private let pasteboard: NSPasteboard
+    private let userDefaults: UserDefaults
+    private let notificationCenter: NotificationCenter
     private let setupRefreshPollIntervalNanoseconds: UInt64
     private let setupRefreshMaxAttempts: Int
     private var connectionTask: Task<Void, Never>?
@@ -623,6 +700,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
         terminalLauncher: MCPConnectorTerminalLaunching = MCPConnectorTerminalLauncher(),
         workspace: NSWorkspace = .shared,
         pasteboard: NSPasteboard = .general,
+        userDefaults: UserDefaults = .standard,
+        notificationCenter: NotificationCenter = .default,
         setupRefreshPollIntervalNanoseconds: UInt64 = 350_000_000,
         setupRefreshMaxAttempts: Int = 18
     ) {
@@ -631,9 +710,13 @@ final class MCPConnectorSettingsModel: ObservableObject {
         self.terminalLauncher = terminalLauncher
         self.workspace = workspace
         self.pasteboard = pasteboard
+        self.userDefaults = userDefaults
+        self.notificationCenter = notificationCenter
         self.setupRefreshPollIntervalNanoseconds = setupRefreshPollIntervalNanoseconds
         self.setupRefreshMaxAttempts = setupRefreshMaxAttempts
         self.inspection = inspector.inspect()
+        self.experimentalRemoteSettings = Self.loadExperimentalRemoteSettings(from: userDefaults)
+        ensureExperimentalRemoteAPIKeyIfNeeded()
     }
 
     var repositoryRootPath: String {
@@ -752,12 +835,155 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func refresh() {
         let updatedInspection = inspector.inspect()
         inspection = updatedInspection
+        experimentalRemoteSettings = Self.loadExperimentalRemoteSettings(from: userDefaults)
+        ensureExperimentalRemoteAPIKeyIfNeeded()
         let configuredClients = Set(
             updatedInspection.clients
                 .filter(\.hasConfiguredScope)
                 .map(\.client)
         )
         clientConnectionStates = clientConnectionStates.filter { configuredClients.contains($0.key) }
+    }
+
+    var experimentalRemoteLocalEndpoint: String {
+        "http://127.0.0.1:\(experimentalRemoteSettings.port)/mcp"
+    }
+
+    var experimentalRemotePublicEndpoint: String? {
+        experimentalRemotePublicBaseURL?.appending(path: "mcp").absoluteString
+    }
+
+    var experimentalRemotePublicBaseURL: URL? {
+        let trimmedValue = experimentalRemoteSettings.publicBaseURL
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty,
+              let url = URL(string: trimmedValue),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "https",
+              (url.path.isEmpty || url.path == "/"),
+              url.host != nil else {
+            return nil
+        }
+
+        return url
+    }
+
+    var experimentalRemoteRecommendedTunnelPath: String? {
+        inspection.ngrokPath
+    }
+
+    var experimentalRemoteRecommendedTunnelCommand: String {
+        MCPServerLaunchSpec(
+            command: experimentalRemoteRecommendedTunnelPath ?? "ngrok",
+            arguments: ["http", "\(experimentalRemoteSettings.port)"]
+        ).commandLine
+    }
+
+    var experimentalRemoteRecommendedTunnelSummary: String {
+        if let ngrokPath = experimentalRemoteRecommendedTunnelPath {
+            return "Recommended for advanced users. ngrok is installed at \(ngrokPath). Run it against port \(experimentalRemoteSettings.port) to get a public HTTPS URL, then paste that base URL below."
+        }
+
+        return "Recommended for advanced users. Install ngrok, sign in, then run `ngrok http \(experimentalRemoteSettings.port)` to get a public HTTPS URL for this Mac."
+    }
+
+    func updateExperimentalRemoteEnabled(_ isEnabled: Bool) {
+        var updatedSettings = experimentalRemoteSettings
+        updatedSettings.isEnabled = isEnabled
+        if isEnabled,
+           updatedSettings.authMode == .apiKey,
+           updatedSettings.apiKey.isEmpty {
+            updatedSettings.apiKey = Self.generateExperimentalRemoteAPIKey()
+        }
+        saveExperimentalRemoteSettings(updatedSettings)
+    }
+
+    func updateExperimentalRemoteAuthMode(_ authMode: ExperimentalMCPHTTPAuthMode) {
+        var updatedSettings = experimentalRemoteSettings
+        updatedSettings.authMode = authMode
+        if authMode == .apiKey, updatedSettings.apiKey.isEmpty {
+            updatedSettings.apiKey = Self.generateExperimentalRemoteAPIKey()
+        }
+        saveExperimentalRemoteSettings(updatedSettings)
+    }
+
+    @discardableResult
+    func updateExperimentalRemotePort(_ rawValue: String) -> Bool {
+        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let parsedPort = UInt16(trimmedValue), parsedPort > 0 else {
+            return false
+        }
+
+        var updatedSettings = experimentalRemoteSettings
+        updatedSettings.port = parsedPort
+        saveExperimentalRemoteSettings(updatedSettings)
+        return true
+    }
+
+    @discardableResult
+    func updateExperimentalRemoteAPIKey(_ rawValue: String) -> Bool {
+        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else {
+            return false
+        }
+
+        var updatedSettings = experimentalRemoteSettings
+        updatedSettings.apiKey = trimmedValue
+        saveExperimentalRemoteSettings(updatedSettings)
+        return true
+    }
+
+    func generateExperimentalRemoteAPIKey() {
+        var updatedSettings = experimentalRemoteSettings
+        updatedSettings.apiKey = Self.generateExperimentalRemoteAPIKey()
+        saveExperimentalRemoteSettings(updatedSettings)
+    }
+
+    @discardableResult
+    func updateExperimentalRemotePublicBaseURL(_ rawValue: String) -> Bool {
+        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty,
+              let url = URL(string: trimmedValue),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "https",
+              (url.path.isEmpty || url.path == "/"),
+              url.host != nil else {
+            return false
+        }
+
+        var updatedSettings = experimentalRemoteSettings
+        updatedSettings.publicBaseURL = Self.normalizedExperimentalRemotePublicBaseURL(url)
+        saveExperimentalRemoteSettings(updatedSettings)
+        return true
+    }
+
+    func copyExperimentalRemoteEndpoint() {
+        copy(experimentalRemoteLocalEndpoint)
+    }
+
+    func copyExperimentalRemotePublicEndpoint() {
+        copy(experimentalRemotePublicEndpoint)
+    }
+
+    func copyExperimentalRemoteRecommendedTunnelCommand() {
+        copy(experimentalRemoteRecommendedTunnelCommand)
+    }
+
+    func copyExperimentalRemoteAPIKey() {
+        copy(experimentalRemoteSettings.apiKey)
+    }
+
+    @discardableResult
+    func launchExperimentalRemoteRecommendedTunnelInTerminal() -> Bool {
+        terminalLauncher.launchInTerminal(command: experimentalRemoteRecommendedTunnelCommand)
+    }
+
+    func openExperimentalRemoteTunnelDocumentation() {
+        workspace.open(Self.experimentalRemoteTunnelDocumentationURL)
+    }
+
+    func setExperimentalRemoteRuntimeState(_ state: ExperimentalMCPHTTPRuntimeState) {
+        experimentalRemoteRuntimeState = state
     }
 
     func verificationState(for client: MCPConnectorClientStatus) -> MCPServerConnectionState {
@@ -1365,6 +1591,66 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         return standardizedURL.deletingLastPathComponent()
+    }
+
+    private func ensureExperimentalRemoteAPIKeyIfNeeded() {
+        guard experimentalRemoteSettings.isEnabled,
+              experimentalRemoteSettings.authMode == .apiKey,
+              experimentalRemoteSettings.apiKey.isEmpty else {
+            return
+        }
+
+        var updatedSettings = experimentalRemoteSettings
+        updatedSettings.apiKey = Self.generateExperimentalRemoteAPIKey()
+        saveExperimentalRemoteSettings(updatedSettings)
+    }
+
+    private func saveExperimentalRemoteSettings(_ settings: ExperimentalMCPHTTPSettings) {
+        userDefaults.set(settings.isEnabled, forKey: ExperimentalRemoteDefaultsKey.isEnabled)
+        userDefaults.set(Int(settings.port), forKey: ExperimentalRemoteDefaultsKey.port)
+        userDefaults.set(settings.authMode.rawValue, forKey: ExperimentalRemoteDefaultsKey.authMode)
+        userDefaults.set(settings.apiKey, forKey: ExperimentalRemoteDefaultsKey.apiKey)
+        userDefaults.set(settings.publicBaseURL, forKey: ExperimentalRemoteDefaultsKey.publicBaseURL)
+        experimentalRemoteSettings = settings
+        notificationCenter.post(name: .experimentalMCPHTTPSettingsDidChange, object: self)
+    }
+
+    private static func loadExperimentalRemoteSettings(from userDefaults: UserDefaults) -> ExperimentalMCPHTTPSettings {
+        let storedPort = userDefaults.integer(forKey: ExperimentalRemoteDefaultsKey.port)
+        let port: UInt16
+        if storedPort > 0, storedPort <= Int(UInt16.max) {
+            port = UInt16(storedPort)
+        } else {
+            port = ExperimentalMCPHTTPSettings.defaultPort
+        }
+        let authMode = userDefaults.string(forKey: ExperimentalRemoteDefaultsKey.authMode)
+            .flatMap(ExperimentalMCPHTTPAuthMode.init(rawValue:)) ?? .apiKey
+        let apiKey = userDefaults.string(forKey: ExperimentalRemoteDefaultsKey.apiKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let publicBaseURL = userDefaults.string(forKey: ExperimentalRemoteDefaultsKey.publicBaseURL)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        return ExperimentalMCPHTTPSettings(
+            isEnabled: userDefaults.bool(forKey: ExperimentalRemoteDefaultsKey.isEnabled),
+            port: port,
+            authMode: authMode,
+            apiKey: apiKey,
+            publicBaseURL: publicBaseURL
+        )
+    }
+
+    private static func generateExperimentalRemoteAPIKey() -> String {
+        (UUID().uuidString + UUID().uuidString)
+            .replacingOccurrences(of: "-", with: "")
+            .lowercased()
+    }
+
+    private static func normalizedExperimentalRemotePublicBaseURL(_ url: URL) -> String {
+        var normalizedURL = url.absoluteString
+        while normalizedURL.hasSuffix("/") {
+            normalizedURL.removeLast()
+        }
+        return normalizedURL
     }
 }
 

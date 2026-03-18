@@ -62,4 +62,28 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(environment.qaDraftText, "seeded text")
         XCTAssertNil(environment.qaDraftTextFilePath)
     }
+
+    func testExperimentalMCPHTTPFlagsReadValues() {
+        let environment = AppEnvironment(
+            values: [
+                "PROMPTCUE_EXPERIMENTAL_MCP_HTTP_ON_START": "1",
+                "PROMPTCUE_EXPERIMENTAL_MCP_HTTP_PORT": "9123",
+                "PROMPTCUE_EXPERIMENTAL_MCP_HTTP_API_KEY": "  secret-key  ",
+            ]
+        )
+
+        XCTAssertTrue(environment.shouldLaunchExperimentalMCPHTTPOnStart)
+        XCTAssertEqual(environment.experimentalMCPHTTPPort, 9123)
+        XCTAssertEqual(environment.experimentalMCPHTTPAPIKey, "secret-key")
+    }
+
+    func testExperimentalMCPHTTPPortFallsBackToDefault() {
+        let environment = AppEnvironment(
+            values: [
+                "PROMPTCUE_EXPERIMENTAL_MCP_HTTP_PORT": "not-a-number",
+            ]
+        )
+
+        XCTAssertEqual(environment.experimentalMCPHTTPPort, 8321)
+    }
 }

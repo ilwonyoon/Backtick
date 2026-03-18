@@ -582,6 +582,105 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testExperimentalRemoteSettingsPersistAndRegenerateAPIKey() {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults
+        )
+
+        XCTAssertFalse(model.experimentalRemoteSettings.isEnabled)
+        XCTAssertEqual(model.experimentalRemoteSettings.port, ExperimentalMCPHTTPSettings.defaultPort)
+        XCTAssertEqual(model.experimentalRemoteSettings.authMode, .apiKey)
+        XCTAssertTrue(model.experimentalRemoteSettings.publicBaseURL.isEmpty)
+
+        model.updateExperimentalRemoteEnabled(true)
+        let generatedAPIKey = model.experimentalRemoteSettings.apiKey
+
+        XCTAssertTrue(model.experimentalRemoteSettings.isEnabled)
+        XCTAssertFalse(generatedAPIKey.isEmpty)
+
+        XCTAssertTrue(model.updateExperimentalRemotePort("9123"))
+        XCTAssertTrue(model.updateExperimentalRemoteAPIKey("  custom-secret  "))
+        XCTAssertTrue(model.updateExperimentalRemotePublicBaseURL(" https://backtick.test/ "))
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        XCTAssertEqual(model.experimentalRemoteSettings.port, 9123)
+        XCTAssertEqual(model.experimentalRemoteSettings.authMode, .oauth)
+        XCTAssertEqual(model.experimentalRemoteSettings.apiKey, "custom-secret")
+        XCTAssertEqual(model.experimentalRemoteSettings.publicBaseURL, "https://backtick.test")
+        XCTAssertEqual(model.experimentalRemoteLocalEndpoint, "http://127.0.0.1:9123/mcp")
+        XCTAssertEqual(model.experimentalRemotePublicEndpoint, "https://backtick.test/mcp")
+
+        model.generateExperimentalRemoteAPIKey()
+
+        XCTAssertNotEqual(model.experimentalRemoteSettings.apiKey, "custom-secret")
+
+        let reloadedModel = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults
+        )
+
+        XCTAssertTrue(reloadedModel.experimentalRemoteSettings.isEnabled)
+        XCTAssertEqual(reloadedModel.experimentalRemoteSettings.port, 9123)
+        XCTAssertEqual(reloadedModel.experimentalRemoteSettings.authMode, .oauth)
+        XCTAssertEqual(reloadedModel.experimentalRemoteSettings.publicBaseURL, "https://backtick.test")
+        XCTAssertEqual(
+            reloadedModel.experimentalRemoteSettings.apiKey,
+            model.experimentalRemoteSettings.apiKey
+        )
+    }
+
+    @MainActor
+    func testExperimentalRemoteSettingsPostChangeNotification() {
+        let userDefaults = makeUserDefaults()
+        let notificationCenter = NotificationCenter()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults,
+            notificationCenter: notificationCenter
+        )
+        let expectation = expectation(description: "experimental remote settings changed")
+
+        let observer = notificationCenter.addObserver(
+            forName: .experimentalMCPHTTPSettingsDidChange,
+            object: model,
+            queue: nil
+        ) { _ in
+            expectation.fulfill()
+        }
+
+        model.updateExperimentalRemoteEnabled(true)
+
+        wait(for: [expectation], timeout: 1)
+        notificationCenter.removeObserver(observer)
+    }
+
+    @MainActor
+    func testExperimentalRemoteRecommendedTunnelUsesDetectedNgrokAndCurrentPort() throws {
+        try installClientExecutable(named: "ngrok")
+        let launcher = TestTerminalLauncher()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            terminalLauncher: launcher
+        )
+
+        XCTAssertTrue(model.updateExperimentalRemotePort("8844"))
+        let ngrokPath = try XCTUnwrap(model.experimentalRemoteRecommendedTunnelPath)
+        XCTAssertEqual(
+            model.experimentalRemoteRecommendedTunnelCommand,
+            "\(ngrokPath) http 8844"
+        )
+        XCTAssertTrue(model.experimentalRemoteRecommendedTunnelSummary.contains(ngrokPath))
+
+        XCTAssertTrue(model.launchExperimentalRemoteRecommendedTunnelInTerminal())
+        XCTAssertEqual(launcher.commands, ["\(ngrokPath) http 8844"])
+    }
+
+    @MainActor
     func testModelSurfacesBundledHelperSourceWhenAppBundleContainsHelper() throws {
         let appBundleURL = tempDirectoryURL
             .appendingPathComponent("Prompt Cue.app", isDirectory: true)
@@ -844,6 +943,13 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             [.posixPermissions: 0o755],
             ofItemAtPath: executableURL.path
         )
+    }
+
+    private func makeUserDefaults() -> UserDefaults {
+        let suiteName = "MCPConnectorSettingsModelTests.\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        userDefaults.removePersistentDomain(forName: suiteName)
+        return userDefaults
     }
 }
 

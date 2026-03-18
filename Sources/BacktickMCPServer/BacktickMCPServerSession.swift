@@ -54,11 +54,19 @@ final class BacktickMCPServerSession {
             )
         }
 
+        guard let responseData = handleRequestData(data) else {
+            return nil
+        }
+
+        return String(data: responseData, encoding: .utf8)
+    }
+
+    func handleRequestData(_ data: Data) -> Data? {
         let payload: Any
         do {
             payload = try JSONSerialization.jsonObject(with: data)
         } catch {
-            return serializedResponse(
+            return serializedResponseData(
                 errorResponse(
                     id: nil,
                     code: .parseError,
@@ -73,16 +81,16 @@ final class BacktickMCPServerSession {
             guard !responses.isEmpty else {
                 return nil
             }
-            return serializedResponse(responses)
+            return serializedResponseData(responses)
 
         case let object as [String: Any]:
             guard let response = handleObject(object) else {
                 return nil
             }
-            return serializedResponse(response)
+            return serializedResponseData(response)
 
         default:
-            return serializedResponse(
+            return serializedResponseData(
                 errorResponse(
                     id: nil,
                     code: .invalidRequest,
@@ -1011,14 +1019,26 @@ final class BacktickMCPServerSession {
         Self.jsonString(for: object)
     }
 
+    private func serializedResponseData(_ object: Any) -> Data {
+        Self.jsonData(for: object)
+    }
+
     private static func jsonString(for object: Any) -> String {
-        guard JSONSerialization.isValidJSONObject(object),
-              let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]),
-              let string = String(data: data, encoding: .utf8) else {
+        let data = jsonData(for: object)
+        guard let string = String(data: data, encoding: .utf8) else {
             return #"{"error":"Failed to serialize JSON response"}"#
         }
 
         return string
+    }
+
+    private static func jsonData(for object: Any) -> Data {
+        guard JSONSerialization.isValidJSONObject(object),
+              let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else {
+            return Data(#"{"error":"Failed to serialize JSON response"}"#.utf8)
+        }
+
+        return data
     }
 }
 

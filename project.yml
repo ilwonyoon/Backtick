@@ -52,7 +52,7 @@ targets:
       - path: PromptCue
     postBuildScripts:
       - name: Bundle BacktickMCP Helper
-        basedOnDependencyAnalysis: true
+        basedOnDependencyAnalysis: false
         inputFiles:
           - $(SRCROOT)/Package.swift
           - $(SRCROOT)/Package.resolved
