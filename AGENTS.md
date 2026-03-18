@@ -28,11 +28,26 @@ Source-of-truth docs:
 
 ## Execution Default
 
+Primary goal:
+
+- maximize delivery speed
+- do not compromise output quality
+- use master/sub-agent splits only when they improve both or clearly improve one without harming the other
+
 Preferred default for broad or decomposable work:
 
 - one master agent coordinates
 - worker agents own disjoint files or tracks
 - master reviews and integrates sequentially
+
+Master responsibilities:
+
+- define the smallest useful outcome
+- freeze contracts before parallel work starts
+- assign the right model per subtask
+- review worker output before integration
+- run or coordinate final verification
+- own the final user-facing summary
 
 Single-agent is preferred when:
 
@@ -47,27 +62,48 @@ Use multi-agent only when it improves one or more of:
 - conflict isolation
 - verification coverage
 
+Do not use multi-agent if it creates merge churn, duplicated reasoning, or weaker review than a single strong pass.
+
 ## Model Routing Rule
 
-Use usage-aware model routing by default:
+Use task-aware model routing by default.
 
-- default model: `GPT-5.3-Codex-Spark`
-- upgrade to `Codex high` only for short, high-leverage slices:
-  - complex architecture decisions with high regression risk
-  - deeply coupled runtime/build/release failures where Spark stalls
-  - security/signing/notarization blockers that require maximal reasoning depth
-- after the blocking slice is resolved, return immediately to `GPT-5.3-Codex-Spark`
+Core rule:
+
+- choose the most appropriate model for the task
+- prefer the cheapest / fastest model that can complete the slice without quality loss
+- do not force `Spark` when the subtask clearly needs stronger reasoning
+- do not keep expensive models on trivial or bounded work
+
+Main session rule:
+
+- the main session uses the model already attached to the current conversation unless changed outside the repo
+- do not pretend the main session changed models when it did not
+- the master agent should treat the main session model as the integration and final-review lane by default
+
+Sub-agent routing rule:
+
+- assign models explicitly per worker when using sub-agents
+- examples:
+  - bounded read-only exploration, grep-heavy inspection, narrow UI nits, isolated mechanical edits:
+    - `GPT-5.3-Codex-Spark` or another lightweight worker
+  - coupled runtime issues, delicate architecture choices, regression-sensitive edits, final review on risky slices:
+    - `gpt-5.4` or the strongest available model that fits the risk
+  - tiny scoped tasks where a smaller worker is sufficient:
+    - use a smaller/faster model if available and safe
 
 Execution protocol:
 
-- before starting a substantial task, state recommended model in one line: `Model: Spark` or `Model: High`
-- if escalation is needed mid-task, state it explicitly: `Escalate to High for this slice only`
-- once resolved, state downgrade explicitly: `Back to Spark`
+- only mention model choice when it corresponds to a real assignment or escalation
+- if a worker is assigned a non-default model, state it explicitly and say why
+- if a blocker requires a stronger model, escalate for that slice only
+- after the blocker is resolved, move subsequent work back to the cheapest model that preserves quality
 
 Budget guardrail:
 
-- avoid running entire tasks in `Codex high`
-- keep `Codex high` time-boxed to blocker resolution, then continue implementation and verification on Spark
+- avoid running entire tasks on the most expensive model when only part of the work needs it
+- keep expensive-model usage time-boxed to the slices that genuinely benefit
+- if a stronger model is used for a worker slice, the master should still verify the result before landing it
 
 ## Planning Rules
 
