@@ -15,7 +15,7 @@ final class ScreenshotDirectoryObserverTests: XCTestCase {
 
     override func tearDownWithError() throws {
         if let tempDirectoryURL, FileManager.default.fileExists(atPath: tempDirectoryURL.path) {
-            try FileManager.default.removeItem(at: tempDirectoryURL)
+            try? FileManager.default.removeItem(at: tempDirectoryURL)
         }
 
         tempDirectoryURL = nil
@@ -73,5 +73,53 @@ final class ScreenshotDirectoryObserverTests: XCTestCase {
         XCTAssertNil(result.signalCandidate)
         XCTAssertNil(result.readableCandidate)
         XCTAssertNil(result.recentTemporaryContainerDate)
+    }
+
+    func testLocatorScansSystemScreenshotDirectoryWhenAuthorizedFolderDiffers() throws {
+        let authorizedDirectoryURL = tempDirectoryURL.appendingPathComponent("Downloads", isDirectory: true)
+        let systemDirectoryURL = tempDirectoryURL.appendingPathComponent("Desktop", isDirectory: true)
+        try FileManager.default.createDirectory(at: authorizedDirectoryURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: systemDirectoryURL, withIntermediateDirectories: true)
+
+        let screenshotURL = systemDirectoryURL.appendingPathComponent("Screenshot 2026-03-18 at 3.10.00 PM.png")
+        let screenshotData = Data("png".utf8)
+        try screenshotData.write(to: screenshotURL)
+
+        let locator = RecentScreenshotLocator(
+            fileManager: .default,
+            authorizedDirectoryProvider: { authorizedDirectoryURL },
+            systemDirectoryProvider: { systemDirectoryURL }
+        )
+
+        let result = locator.locateRecentScreenshot(now: Date(), maxAge: 30)
+
+        XCTAssertEqual(result.signalCandidate?.fileURL, screenshotURL.standardizedFileURL)
+        XCTAssertEqual(result.readableCandidate?.fileURL, screenshotURL.standardizedFileURL)
+    }
+
+    func testObserverEmitsContentChangeWhenSystemScreenshotFolderChanges() throws {
+        let authorizedDirectoryURL = tempDirectoryURL.appendingPathComponent("Downloads", isDirectory: true)
+        let systemDirectoryURL = tempDirectoryURL.appendingPathComponent("Desktop", isDirectory: true)
+        try FileManager.default.createDirectory(at: authorizedDirectoryURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: systemDirectoryURL, withIntermediateDirectories: true)
+
+        let observer = RecentScreenshotDirectoryObserver(
+            authorizedDirectoryProvider: { authorizedDirectoryURL },
+            systemDirectoryProvider: { systemDirectoryURL }
+        )
+
+        let contentsChanged = expectation(description: "system screenshot directory contents change")
+        observer.onChange = { event in
+            if event == .authorizedDirectoryContentsChanged {
+                contentsChanged.fulfill()
+            }
+        }
+
+        observer.start()
+        let screenshotURL = systemDirectoryURL.appendingPathComponent("Screenshot 2026-03-18 at 3.15.00 PM.png")
+        try Data("png".utf8).write(to: screenshotURL)
+
+        wait(for: [contentsChanged], timeout: 1)
+        observer.stop()
     }
 }

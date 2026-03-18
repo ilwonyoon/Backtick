@@ -18,7 +18,12 @@ settings:
   base:
     SWIFT_VERSION: 5.0
 fileGroups:
-  - Config
+  - Config/AppStore.xcconfig
+  - Config/Base.xcconfig
+  - Config/Debug.xcconfig
+  - Config/DevSigned.xcconfig
+  - Config/Local.xcconfig.example
+  - Config/Release.xcconfig
 schemes:
   PromptCue:
     build:

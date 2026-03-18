@@ -42,6 +42,7 @@ private enum SupportedSuggestedApps {
         SupportedSuggestedApp(appName: "iTerm2", bundleIdentifier: "com.googlecode.iterm2", sourceKind: .terminal),
         SupportedSuggestedApp(appName: "Cursor", bundleIdentifier: "com.todesktop.230313mzl4w4u92", sourceKind: .ide),
         SupportedSuggestedApp(appName: "Codex", bundleIdentifier: "com.openai.codex", sourceKind: .ide),
+        SupportedSuggestedApp(appName: "cmux", bundleIdentifier: "com.cmuxterm.app", sourceKind: .ide),
         SupportedSuggestedApp(appName: "Antigravity", bundleIdentifier: "com.google.antigravity", sourceKind: .ide),
         SupportedSuggestedApp(appName: "Xcode", bundleIdentifier: "com.apple.dt.Xcode", sourceKind: .ide),
         SupportedSuggestedApp(appName: "VS Code", bundleIdentifier: "com.microsoft.VSCode", sourceKind: .ide),

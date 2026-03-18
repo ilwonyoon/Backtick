@@ -20,7 +20,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
     override func tearDownWithError() throws {
         if let tempDirectoryURL, FileManager.default.fileExists(atPath: tempDirectoryURL.path) {
-            try FileManager.default.removeItem(at: tempDirectoryURL)
+            try? FileManager.default.removeItem(at: tempDirectoryURL)
         }
         tempDirectoryURL = nil
         try super.tearDownWithError()

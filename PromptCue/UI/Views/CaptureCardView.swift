@@ -174,14 +174,16 @@ struct CaptureCardView: View {
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
-                        InteractiveDetectedTextView(styledText: styledText)
-                        .frame(
-                            height: displayConfiguration.prefersSingleLine
-                                ? nil
-                                : visibleTextHeight(for: overflowMetrics),
-                            alignment: .top
-                        )
-                        .clipped()
+                        if !displayConfiguration.prefersSingleLine && overflowMetrics.overflowsAtRest {
+                            InteractiveDetectedTextView(styledText: styledText)
+                                .frame(
+                                    height: visibleTextHeight(for: overflowMetrics),
+                                    alignment: .top
+                                )
+                                .clipped()
+                        } else {
+                            InteractiveDetectedTextView(styledText: styledText)
+                        }
                     }
 
                     if !compactMode && !displayConfiguration.prefersSingleLine && overflowMetrics.overflowsAtRest {
