@@ -21,10 +21,16 @@ Brand note:
 
 Source-of-truth docs:
 
-- `docs/Execution-PRD.md`
-- `docs/Implementation-Plan.md`
-- `docs/Master-Board.md`
-- `docs/Engineering-Preflight.md`
+- `docs/Execution-PRD.md` — product requirements
+- `docs/Implementation-Plan.md` — Capture + Stack (Hot) build plan
+- `docs/Master-Board.md` — overall status board
+- `docs/Engineering-Preflight.md` — pre-launch checklist
+- `docs/MCP-Platform-Expansion-Research.md` — **MCP + Warm Memory execution plan** (tool descriptions, client behavioral design, project/topic classification, phasing)
+
+**Doc routing rule:** Before starting a task, check which doc applies:
+- Capture / Stack / UI / design system → `Implementation-Plan.md`
+- MCP tools / tool descriptions / Warm Memory / Memory panel / cross-platform AI behavior → `MCP-Platform-Expansion-Research.md` (start from the **Implementation Plan** section at the bottom)
+- Overall status / what's done / what's next → `Master-Board.md`
 
 ## Execution Default
 

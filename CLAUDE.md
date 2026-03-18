@@ -139,6 +139,16 @@ SQLite via GRDB at `~/Library/Application Support/PromptCue/PromptCue.sqlite`. D
 | `scripts/validate_ui_tokens.py` | Verify token system consistency |
 | `scripts/qa_capture_input.sh` | Simulate capture panel input for QA |
 
+## Doc Routing
+
+Before starting any task, read the right source-of-truth doc:
+
+| Task area | Read this first |
+|-----------|----------------|
+| Capture / Stack / UI / design system | `docs/Implementation-Plan.md` |
+| MCP tools, tool descriptions, Warm Memory, Memory panel, cross-platform AI behavior | `docs/MCP-Platform-Expansion-Research.md` → **Implementation Plan** section |
+| Overall status, what's done, what's next | `docs/Master-Board.md` |
+
 ## Critical Rules
 
 1. Run `xcodegen generate` after changing `project.yml` — never hand-edit `.pbxproj`
