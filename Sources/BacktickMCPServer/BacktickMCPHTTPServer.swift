@@ -8,6 +8,7 @@ struct BacktickMCPHTTPConfiguration {
     var apiKey: String?
     var publicBaseURL: URL?
     var oauthStateFileURL: URL?
+    var accessTokenLifetime: TimeInterval = 3600
 }
 
 struct BacktickMCPHTTPRequest {
@@ -115,15 +116,22 @@ final class BacktickMCPHTTPHandler {
     private let configuration: BacktickMCPHTTPConfiguration
     private let apiKey: String?
     private let oauthProvider: BacktickMCPOAuthProvider?
+    private let logger: (String) -> Void
 
-    init(session: BacktickMCPServerSession, configuration: BacktickMCPHTTPConfiguration) {
+    init(
+        session: BacktickMCPServerSession,
+        configuration: BacktickMCPHTTPConfiguration,
+        logger: @escaping (String) -> Void = { _ in }
+    ) {
         self.session = session
         self.configuration = configuration
         self.apiKey = configuration.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.logger = logger
         if configuration.authMode == .oauth, let publicBaseURL = configuration.publicBaseURL {
             self.oauthProvider = BacktickMCPOAuthProvider(
                 publicBaseURL: publicBaseURL,
-                stateFileURL: configuration.oauthStateFileURL
+                stateFileURL: configuration.oauthStateFileURL,
+                accessTokenLifetime: configuration.accessTokenLifetime
             )
         } else {
             self.oauthProvider = nil
@@ -279,6 +287,11 @@ final class BacktickMCPHTTPHandler {
                 headers: corsHeaders(),
                 body: Data()
             )
+        }
+
+        if configuration.authMode == .oauth {
+            let methodName = mcpMethodName(from: request.body) ?? "unknown"
+            logger("Backtick MCP HTTP served protected remote request method=\(methodName)")
         }
 
         return jsonResponse(
@@ -477,6 +490,14 @@ final class BacktickMCPHTTPHandler {
         }
     }
 
+    private func mcpMethodName(from body: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            return nil
+        }
+
+        return object["method"] as? String
+    }
+
     private func jsonResponse(
         statusCode: Int,
         reasonPhrase: String,
@@ -592,8 +613,12 @@ final class BacktickMCPHTTPServer: @unchecked Sendable {
         logger: @escaping (String) -> Void
     ) throws {
         self.configuration = configuration
-        self.handler = BacktickMCPHTTPHandler(session: session, configuration: configuration)
         self.logger = logger
+        self.handler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: configuration,
+            logger: logger
+        )
         self.listener = try NWListener(using: .tcp, on: NWEndpoint.Port(rawValue: configuration.port)!)
     }
 

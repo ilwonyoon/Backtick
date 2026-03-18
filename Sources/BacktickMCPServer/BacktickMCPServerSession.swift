@@ -146,6 +146,9 @@ final class BacktickMCPServerSession {
         case "tools/list":
             return successResponse(id: id, result: ["tools": toolDefinitions()])
 
+        case "resources/list":
+            return successResponse(id: id, result: ["resources": []])
+
         case "prompts/list":
             return successResponse(id: id, result: promptsList())
 
@@ -185,6 +188,9 @@ final class BacktickMCPServerSession {
             "protocolVersion": protocolVersion,
             "capabilities": [
                 "tools": [
+                    "listChanged": false,
+                ],
+                "resources": [
                     "listChanged": false,
                 ],
                 "prompts": [

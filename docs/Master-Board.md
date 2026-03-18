@@ -226,11 +226,36 @@ Current MCP platform queue:
 
 1. keep stdio connectors stable for `Claude Desktop`, `Claude Code`, and `Codex`
 2. keep ChatGPT remote MCP clearly marked `experimental self-hosted`
-3. improve stale-app reset, reconnect, and health UX for the ChatGPT path
-4. return main product priority to the remaining non-tag `Phase R7` follow-up plus grouped export and stack-refactor validation work
-5. lock the post-launch Warm memory contract so long AI discussions save into reviewed project documents with explicit `documentType` plus topic classification
-6. do not blur shipped Stack MCP, experimental ChatGPT remote MCP, and post-launch Warm memory into one roadmap bucket
-7. keep ChatGPT distribution on the advanced-user self-hosted track; hosted relay / managed distribution is not in the active plan
+3. improve stale-app reset, reconnect, and health UX for the ChatGPT path, but keep the visible UX limited to current state, one-line reason, and one next action; then lock the failure matrix behind repeatable stress coverage instead of one-off fixes
+4. upgrade the ChatGPT connector from merely `Running` to `Connected` only after Backtick sees a successful remote `/mcp` call from the current app setup
+5. add a short access-token TTL lane so expiry + refresh recovery is proven in minutes, not after a full real-time wait
+6. keep the minimal sleep/wake + tunnel-drift lane active now: recheck helper health on foreground / wake and collapse any local/public endpoint failure back to one recovery state without adding more UI chrome
+7. return main product priority to the remaining non-tag `Phase R7` follow-up plus grouped export and stack-refactor validation work
+8. lock the post-launch Warm memory contract so long AI discussions save into reviewed project documents with explicit `documentType` plus topic classification
+9. do not blur shipped Stack MCP, experimental ChatGPT remote MCP, and post-launch Warm memory into one roadmap bucket
+10. keep ChatGPT distribution on the advanced-user self-hosted track; hosted relay / managed distribution is not in the active plan
+
+ChatGPT remote MCP reliability floor:
+
+| Failure class | Expected behavior | Coverage |
+| --- | --- | --- |
+| stale ChatGPT OAuth grant / refresh token | Backtick should surface a single reset path, and the user should be told to recreate the ChatGPT app if the client is holding an older grant | Settings reconnect guidance + targeted regression |
+| helper or app restart while OAuth state persists | persisted dynamic client registration and refresh tokens should still work after helper restart | package regression + stress harness |
+| reused authorization code | token endpoint must reject the second exchange with `invalid_grant` | package regression + stress harness |
+| invalid or stale refresh token | token endpoint must reject with `invalid_grant` instead of silently degrading into an opaque tool failure | package regression + stress harness |
+| missing or invalid bearer token on `/mcp` | helper must return `401` consistently | existing package regression + stress harness |
+| missing or invalid public HTTPS base URL in OAuth mode | app should refuse to start the remote helper and Settings should explain why localhost cannot satisfy OAuth discovery | existing runtime guard + settings copy |
+| public URL or tunnel changes after app creation | treat as a user-facing stale-app problem; reset local state if needed, then recreate the ChatGPT app against the new URL | manual recovery path only; not hidden as a server bug |
+| no proven remote success yet | stay at `Running` instead of `Connected` until Backtick has observed a successful protected remote `/mcp` call | local runtime signal + regression |
+| access token expires during a healthy session | expired bearer should fail, refresh should recover, and the same app should keep working | short-TTL regression + stress harness |
+| Mac sleep / wake or tunnel suspension | reconnect path must be explicit instead of silently pretending the connector is still healthy | wake/foreground local recheck + public probe landed; long-duration dogfood and automation later |
+
+ChatGPT connector UX rule:
+
+- users should only need to understand the current state, why it is blocked in one sentence, and which single action to take next
+- the Settings surface should not expose raw OAuth jargon, helper internals, or debug telemetry by default
+- internal failure classes can stay detailed in code/tests, but the user-facing state vocabulary should remain intentionally small
+- if a diagnostic element does not change the user's next action, it should stay out of the default connector UI
 
 Landed MCP gates:
 

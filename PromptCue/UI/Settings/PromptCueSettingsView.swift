@@ -22,10 +22,12 @@ struct PromptCueSettingsView: View {
     @State private var experimentalRemotePortDraft = ""
     @State private var experimentalRemotePublicBaseURLDraft = ""
     @State private var experimentalRemoteAPIKeyDraft = ""
+    @State private var experimentalRemotePublicBaseURLValidationMessage: String?
     @State private var didCopyExperimentalRemoteEndpoint = false
     @State private var didCopyExperimentalRemotePublicEndpoint = false
     @State private var didCopyExperimentalRemoteAPIKey = false
     @State private var didCopyExperimentalRemoteTunnelCommand = false
+    @State private var isExperimentalRemoteAdvancedExpanded = false
 
     init(
         selectedTab: SettingsTab,
@@ -86,6 +88,9 @@ struct PromptCueSettingsView: View {
         }
         .onChange(of: mcpConnectorSettingsModel.experimentalRemoteSettings) { _, newValue in
             syncExperimentalRemoteDrafts(with: newValue)
+            if !newValue.isEnabled {
+                isExperimentalRemoteAdvancedExpanded = false
+            }
         }
         .onChange(of: mcpConnectorSettingsModel.connectionState) { _, newValue in
             if case .passed = newValue {
@@ -482,216 +487,322 @@ struct PromptCueSettingsView: View {
             }
 
             SettingsSection(
-                title: "Experimental Remote MCP",
-                footer: "Experimental. Backtick only hosts a local MCP endpoint on this Mac. Self-hosted ChatGPT use still needs your own public HTTPS URL or tunnel in front of it."
+                title: "ChatGPT (Experimental)",
+                footer: "Experimental self-hosted ChatGPT connection. Turn this on to let Backtick host a local MCP endpoint on this Mac while your public HTTPS tunnel exposes it.",
+                headerAccessory: {
+                    Toggle(
+                        "Enable ChatGPT connection",
+                        isOn: binding(
+                            get: { mcpConnectorSettingsModel.experimentalRemoteSettings.isEnabled },
+                            set: mcpConnectorSettingsModel.updateExperimentalRemoteEnabled
+                        )
+                    )
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                }
             ) {
                 SettingsRows {
-                    SettingsTwoColumnGroupRow("Remote Access", verticalAlignment: .top) {
-                        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                            Toggle(
-                                "Enable experimental remote MCP",
-                                isOn: binding(
-                                    get: { mcpConnectorSettingsModel.experimentalRemoteSettings.isEnabled },
-                                    set: mcpConnectorSettingsModel.updateExperimentalRemoteEnabled
-                                )
-                            )
-                            .toggleStyle(.checkbox)
-
-                            rowNote("Backtick must remain running while a remote MCP client is connected.")
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    SettingsTwoColumnGroupRow("Authentication") {
-                        Picker(
-                            "Authentication",
-                            selection: binding(
-                                get: { mcpConnectorSettingsModel.experimentalRemoteSettings.authMode },
-                                set: mcpConnectorSettingsModel.updateExperimentalRemoteAuthMode
-                            )
-                        ) {
-                            ForEach(ExperimentalMCPHTTPAuthMode.allCases, id: \.self) { authMode in
-                                Text(authMode.title).tag(authMode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: 260, alignment: .leading)
-                    }
-
-                    SettingsDetailGroupRow("Next Step") {
-                        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                            ForEach(experimentalRemoteSteps, id: \.self) { step in
-                                experimentalRemoteStep(step)
-                            }
-                        }
-                    }
-
-                    SettingsDetailGroupRow("Recommended Tunnel") {
-                        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                            Text(mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelCommand)
-                                .font(PrimitiveTokens.Typography.codeStrong)
-                                .foregroundStyle(SemanticTokens.Text.primary)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            rowNote(mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelSummary)
-                        }
-                    } actions: {
-                        HStack(spacing: PrimitiveTokens.Space.xs) {
-                            if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath != nil {
-                                Button("Launch ngrok") {
-                                    _ = mcpConnectorSettingsModel.launchExperimentalRemoteRecommendedTunnelInTerminal()
-                                }
-                                .controlSize(.small)
-                            }
-
-                            Button(didCopyExperimentalRemoteTunnelCommand ? "Copied" : "Copy Command") {
-                                mcpConnectorSettingsModel.copyExperimentalRemoteRecommendedTunnelCommand()
-                                showExperimentalRemoteTunnelCommandCopiedFeedback()
-                            }
-                            .controlSize(.small)
-
-                            if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath == nil {
-                                Button("Install ngrok") {
-                                    mcpConnectorSettingsModel.openExperimentalRemoteTunnelDocumentation()
-                                }
-                                .controlSize(.small)
-                            }
-                        }
-                    }
-
-                    SettingsTwoColumnGroupRow("Status") {
+                    SettingsDetailGroupRow(
+                        "Status",
+                        showsDivider: mcpConnectorSettingsModel.experimentalRemoteSettings.isEnabled
+                            || mcpConnectorSettingsModel.experimentalRemoteShouldShowInlinePublicBaseURL
+                            || mcpConnectorSettingsModel.experimentalRemoteShouldShowInlineChatGPTMCPURL
+                    ) {
                         VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                             SettingsStatusBadge(
-                                title: mcpConnectorSettingsModel.experimentalRemoteRuntimeState.title,
+                                title: mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.title,
                                 tone: experimentalRemoteStatusTone
                             )
                             .frame(maxWidth: .infinity, alignment: .leading)
 
-                            if let failureDetail = mcpConnectorSettingsModel.experimentalRemoteRuntimeState.failureDetail {
-                                rowNote(failureDetail)
-                            } else if mcpConnectorSettingsModel.experimentalRemoteSettings.authMode == .oauth,
-                                      mcpConnectorSettingsModel.experimentalRemotePublicBaseURL == nil {
-                                rowNote("Add a valid public HTTPS URL first. OAuth discovery cannot work with localhost.")
-                            } else if mcpConnectorSettingsModel.experimentalRemoteSettings.isEnabled {
-                                rowNote("Backtick is already serving a local MCP endpoint on this Mac.")
-                            } else {
-                                rowNote("Turn this on first. Backtick will start a local MCP endpoint that you can place behind your own HTTPS tunnel or reverse proxy.")
-                            }
-                        }
-                    }
-
-                    SettingsDetailGroupRow("Local Endpoint") {
-                        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                            Text(mcpConnectorSettingsModel.experimentalRemoteLocalEndpoint)
-                                .font(PrimitiveTokens.Typography.codeStrong)
-                                .foregroundStyle(SemanticTokens.Text.primary)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            rowNote("This is the localhost target that your tunnel or reverse proxy should forward to. ChatGPT should connect to your public HTTPS URL instead.")
+                            rowNote(mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.reason)
                         }
                     } actions: {
-                        Button(didCopyExperimentalRemoteEndpoint ? "Copied" : "Copy Endpoint") {
-                            mcpConnectorSettingsModel.copyExperimentalRemoteEndpoint()
-                            showExperimentalRemoteEndpointCopiedFeedback()
-                        }
-                        .controlSize(.small)
-                    }
-
-                    SettingsDetailGroupRow("Public HTTPS URL") {
-                        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                            TextField(
-                                "https://your-domain-or-tunnel.example",
-                                text: binding(
-                                    get: { experimentalRemotePublicBaseURLDraft },
-                                    set: { experimentalRemotePublicBaseURLDraft = $0 }
-                                )
-                            )
-                            .textFieldStyle(.roundedBorder)
-                            .font(PrimitiveTokens.Typography.code)
-                            .onSubmit {
-                                commitExperimentalRemotePublicBaseURLDraft()
-                            }
-
-                            rowNote("This is the public HTTPS base URL ChatGPT will discover. It should forward to the local endpoint above and should not include `/mcp` at the end.")
-                        }
-                    } actions: {
-                        HStack(spacing: PrimitiveTokens.Space.xs) {
-                            Button("Apply") {
-                                commitExperimentalRemotePublicBaseURLDraft()
-                            }
-                            .controlSize(.small)
-
-                            if mcpConnectorSettingsModel.experimentalRemotePublicEndpoint != nil {
-                                Button(didCopyExperimentalRemotePublicEndpoint ? "Copied" : "Copy Public MCP URL") {
-                                    mcpConnectorSettingsModel.copyExperimentalRemotePublicEndpoint()
+                        if shouldShowExperimentalRemoteStatusAction,
+                           let action = mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.action {
+                            Button(action.title) {
+                                mcpConnectorSettingsModel.performExperimentalRemoteStatusAction(action)
+                                if action == .copyPublicMCPURL {
                                     showExperimentalRemotePublicEndpointCopiedFeedback()
                                 }
-                                .controlSize(.small)
-                            }
-                        }
-                    }
-
-                    SettingsTwoColumnGroupRow("Port") {
-                        HStack(spacing: PrimitiveTokens.Space.xs) {
-                            TextField(
-                                "8321",
-                                text: binding(
-                                    get: { experimentalRemotePortDraft },
-                                    set: { experimentalRemotePortDraft = $0 }
-                                )
-                            )
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 92)
-                            .onSubmit {
-                                commitExperimentalRemotePortDraft()
-                            }
-
-                            Button("Apply") {
-                                commitExperimentalRemotePortDraft()
                             }
                             .controlSize(.small)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    if mcpConnectorSettingsModel.experimentalRemoteSettings.authMode == .apiKey {
-                        SettingsDetailGroupRow("Auth Token", showsDivider: false) {
+                    if mcpConnectorSettingsModel.experimentalRemoteShouldShowInlinePublicBaseURL {
+                        SettingsDetailGroupRow("Tunnel URL") {
                             VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                                 TextField(
-                                    "Required",
+                                    "https://your-ngrok-domain.ngrok-free.dev",
                                     text: binding(
-                                        get: { experimentalRemoteAPIKeyDraft },
-                                        set: { experimentalRemoteAPIKeyDraft = $0 }
+                                        get: { experimentalRemotePublicBaseURLDraft },
+                                        set: {
+                                            experimentalRemotePublicBaseURLDraft = $0
+                                            experimentalRemotePublicBaseURLValidationMessage = nil
+                                        }
                                     )
                                 )
                                 .textFieldStyle(.roundedBorder)
                                 .font(PrimitiveTokens.Typography.code)
                                 .onSubmit {
-                                    commitExperimentalRemoteAPIKeyDraft()
+                                    commitExperimentalRemotePublicBaseURLDraft()
                                 }
 
-                                rowNote("Use this as the Bearer token for your public connector. Keep auth enabled whenever this endpoint is reachable outside your Mac.")
+                                rowNote("Paste the `https://` base URL ngrok shows for this Mac. Leave off `/mcp`.")
+
+                                if let validationMessage = experimentalRemotePublicBaseURLValidationMessage {
+                                    rowNote(validationMessage)
+                                }
                             }
                         } actions: {
-                            HStack(spacing: PrimitiveTokens.Space.xs) {
-                                Button("Apply") {
-                                    commitExperimentalRemoteAPIKeyDraft()
-                                }
-                                .controlSize(.small)
+                            Button("Apply") {
+                                commitExperimentalRemotePublicBaseURLDraft()
+                            }
+                            .controlSize(.small)
+                        }
+                    }
 
-                                Button("Generate") {
-                                    mcpConnectorSettingsModel.generateExperimentalRemoteAPIKey()
-                                    didCopyExperimentalRemoteAPIKey = false
-                                }
-                                .controlSize(.small)
+                    if mcpConnectorSettingsModel.experimentalRemoteShouldShowInlineChatGPTMCPURL,
+                       let publicEndpoint = mcpConnectorSettingsModel.experimentalRemotePublicEndpoint {
+                        SettingsDetailGroupRow(
+                            "ChatGPT MCP URL",
+                            showsDivider: mcpConnectorSettingsModel.experimentalRemoteSettings.isEnabled
+                        ) {
+                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
+                                Text(publicEndpoint)
+                                    .font(PrimitiveTokens.Typography.codeStrong)
+                                    .foregroundStyle(SemanticTokens.Text.primary)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                                Button(didCopyExperimentalRemoteAPIKey ? "Copied" : "Copy Token") {
-                                    mcpConnectorSettingsModel.copyExperimentalRemoteAPIKey()
-                                    showExperimentalRemoteAPIKeyCopiedFeedback()
+                                rowNote("Paste this into ChatGPT when you create or recreate the Backtick app.")
+                            }
+                        } actions: {
+                            Button(didCopyExperimentalRemotePublicEndpoint ? "Copied" : "Copy ChatGPT MCP URL") {
+                                mcpConnectorSettingsModel.copyExperimentalRemotePublicEndpoint()
+                                showExperimentalRemotePublicEndpointCopiedFeedback()
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+
+                    if mcpConnectorSettingsModel.experimentalRemoteSettings.isEnabled {
+                        SettingsTwoColumnGroupRow(
+                            "Advanced",
+                            showsDivider: false
+                        ) {
+                            Button {
+                                isExperimentalRemoteAdvancedExpanded.toggle()
+                            } label: {
+                                HStack(spacing: PrimitiveTokens.Space.xs) {
+                                    Image(systemName: isExperimentalRemoteAdvancedExpanded ? "chevron.down" : "chevron.right")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(SemanticTokens.Text.secondary)
+
+                                    Text("Show technical details")
+                                        .font(SettingsTokens.Typography.rowLabel)
+                                        .foregroundStyle(SettingsSemanticTokens.Text.primary)
                                 }
-                                .controlSize(.small)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if isExperimentalRemoteAdvancedExpanded {
+                            SettingsTwoColumnGroupRow(
+                                "",
+                                verticalAlignment: .top,
+                                showsDivider: false
+                            ) {
+                                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.sm) {
+                                        advancedDetailPane(label: "Authentication") {
+                                            Picker(
+                                                "Authentication",
+                                                selection: binding(
+                                                    get: { mcpConnectorSettingsModel.experimentalRemoteSettings.authMode },
+                                                    set: mcpConnectorSettingsModel.updateExperimentalRemoteAuthMode
+                                                )
+                                            ) {
+                                                ForEach(ExperimentalMCPHTTPAuthMode.allCases, id: \.self) { authMode in
+                                                    Text(authMode.title).tag(authMode)
+                                                }
+                                            }
+                                            .pickerStyle(.segmented)
+                                            .frame(maxWidth: 260, alignment: .leading)
+                                        }
+
+                                        advancedDetailPane(label: "ngrok") {
+                                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                                                advancedValueBlock(
+                                                    mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelCommand,
+                                                    emphasized: true
+                                                )
+
+                                                advancedMessageBlock(
+                                                    mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelSummary
+                                                )
+
+                                                HStack(spacing: PrimitiveTokens.Space.xs) {
+                                                    if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath != nil {
+                                                        Button("Launch ngrok") {
+                                                            _ = mcpConnectorSettingsModel.launchExperimentalRemoteRecommendedTunnelInTerminal()
+                                                        }
+                                                        .controlSize(.small)
+                                                    }
+
+                                                    Button(didCopyExperimentalRemoteTunnelCommand ? "Copied" : "Copy Command") {
+                                                        mcpConnectorSettingsModel.copyExperimentalRemoteRecommendedTunnelCommand()
+                                                        showExperimentalRemoteTunnelCommandCopiedFeedback()
+                                                    }
+                                                    .controlSize(.small)
+
+                                                    if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath == nil {
+                                                        Button("Install ngrok") {
+                                                            mcpConnectorSettingsModel.openExperimentalRemoteTunnelDocumentation()
+                                                        }
+                                                        .controlSize(.small)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        if !mcpConnectorSettingsModel.experimentalRemoteShouldShowInlinePublicBaseURL {
+                                            advancedDetailPane(label: "Tunnel URL") {
+                                                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                                                    TextField(
+                                                        "https://your-ngrok-domain.ngrok-free.dev",
+                                                        text: binding(
+                                                            get: { experimentalRemotePublicBaseURLDraft },
+                                                            set: {
+                                                                experimentalRemotePublicBaseURLDraft = $0
+                                                                experimentalRemotePublicBaseURLValidationMessage = nil
+                                                            }
+                                                        )
+                                                    )
+                                                    .textFieldStyle(.roundedBorder)
+                                                    .font(PrimitiveTokens.Typography.code)
+                                                    .onSubmit {
+                                                        commitExperimentalRemotePublicBaseURLDraft()
+                                                    }
+
+                                                    advancedMessageBlock(
+                                                        "Paste the `https://` base URL ngrok shows for this Mac. Leave off `/mcp`."
+                                                    )
+
+                                                    if let validationMessage = experimentalRemotePublicBaseURLValidationMessage {
+                                                        advancedMessageBlock(validationMessage)
+                                                    }
+
+                                                    Button("Apply") {
+                                                        commitExperimentalRemotePublicBaseURLDraft()
+                                                    }
+                                                    .controlSize(.small)
+                                                }
+                                            }
+                                        }
+
+                                        if let publicEndpoint = mcpConnectorSettingsModel.experimentalRemotePublicEndpoint,
+                                           !mcpConnectorSettingsModel.experimentalRemoteShouldShowInlineChatGPTMCPURL {
+                                            advancedDetailPane(label: "ChatGPT MCP URL") {
+                                                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                                                    advancedValueBlock(publicEndpoint, emphasized: true)
+                                                    advancedMessageBlock(
+                                                        "Paste this into ChatGPT when you create or recreate the Backtick app."
+                                                    )
+                                                    Button(didCopyExperimentalRemotePublicEndpoint ? "Copied" : "Copy ChatGPT MCP URL") {
+                                                        mcpConnectorSettingsModel.copyExperimentalRemotePublicEndpoint()
+                                                        showExperimentalRemotePublicEndpointCopiedFeedback()
+                                                    }
+                                                    .controlSize(.small)
+                                                }
+                                            }
+                                        }
+
+                                        advancedDetailPane(label: "Local Endpoint") {
+                                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                                                advancedValueBlock(
+                                                    mcpConnectorSettingsModel.experimentalRemoteLocalEndpoint,
+                                                    emphasized: true
+                                                )
+                                                advancedMessageBlock(
+                                                    "Your tunnel or reverse proxy should forward to this local endpoint."
+                                                )
+                                                Button(didCopyExperimentalRemoteEndpoint ? "Copied" : "Copy Endpoint") {
+                                                    mcpConnectorSettingsModel.copyExperimentalRemoteEndpoint()
+                                                    showExperimentalRemoteEndpointCopiedFeedback()
+                                                }
+                                                .controlSize(.small)
+                                            }
+                                        }
+
+                                        advancedDetailPane(label: "Port") {
+                                            HStack(spacing: PrimitiveTokens.Space.xs) {
+                                                TextField(
+                                                    "8321",
+                                                    text: binding(
+                                                        get: { experimentalRemotePortDraft },
+                                                        set: { experimentalRemotePortDraft = $0 }
+                                                    )
+                                                )
+                                                .textFieldStyle(.roundedBorder)
+                                                .frame(width: 92)
+                                                .onSubmit {
+                                                    commitExperimentalRemotePortDraft()
+                                                }
+
+                                                Button("Apply") {
+                                                    commitExperimentalRemotePortDraft()
+                                                }
+                                                .controlSize(.small)
+                                            }
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                        }
+
+                                        if mcpConnectorSettingsModel.experimentalRemoteSettings.authMode == .apiKey {
+                                            advancedDetailPane(label: "Auth Token") {
+                                                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                                                    TextField(
+                                                        "Required",
+                                                        text: binding(
+                                                            get: { experimentalRemoteAPIKeyDraft },
+                                                            set: { experimentalRemoteAPIKeyDraft = $0 }
+                                                        )
+                                                    )
+                                                    .textFieldStyle(.roundedBorder)
+                                                    .font(PrimitiveTokens.Typography.code)
+                                                    .onSubmit {
+                                                        commitExperimentalRemoteAPIKeyDraft()
+                                                    }
+
+                                                    advancedMessageBlock(
+                                                        "Use this as the Bearer token for your public connector."
+                                                    )
+
+                                                    HStack(spacing: PrimitiveTokens.Space.xs) {
+                                                        Button("Apply") {
+                                                            commitExperimentalRemoteAPIKeyDraft()
+                                                        }
+                                                        .controlSize(.small)
+
+                                                        Button("Generate") {
+                                                            mcpConnectorSettingsModel.generateExperimentalRemoteAPIKey()
+                                                            didCopyExperimentalRemoteAPIKey = false
+                                                        }
+                                                        .controlSize(.small)
+
+                                                        Button(didCopyExperimentalRemoteAPIKey ? "Copied" : "Copy Token") {
+                                                            mcpConnectorSettingsModel.copyExperimentalRemoteAPIKey()
+                                                            showExperimentalRemoteAPIKeyCopiedFeedback()
+                                                        }
+                                                        .controlSize(.small)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                }
+                                .padding(.top, PrimitiveTokens.Space.xs)
                             }
                         }
                     }
@@ -1941,30 +2052,39 @@ struct PromptCueSettingsView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func experimentalRemoteStep(_ text: String) -> some View {
-        Text(text)
-            .font(SettingsTokens.Typography.supporting)
-            .foregroundStyle(SettingsSemanticTokens.Text.primary)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
     private var experimentalRemoteStatusTone: SettingsStatusBadge.Tone {
-        switch mcpConnectorSettingsModel.experimentalRemoteRuntimeState {
-        case .stopped:
+        switch mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.tone {
+        case .neutral:
             return .neutral
-        case .starting, .restarting:
+        case .accent:
             return .accent
-        case .running:
+        case .success:
             return .success
-        case .failed:
+        case .warning:
+            return .warning
+        case .danger:
             return .danger
         }
+    }
+
+    private var shouldShowExperimentalRemoteStatusAction: Bool {
+        guard let action = mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.action else {
+            return false
+        }
+
+        if action == .copyPublicMCPURL,
+           mcpConnectorSettingsModel.experimentalRemoteShouldShowInlineChatGPTMCPURL {
+            return false
+        }
+
+        return true
     }
 
     private func syncExperimentalRemoteDrafts(with settings: ExperimentalMCPHTTPSettings) {
         experimentalRemotePortDraft = "\(settings.port)"
         experimentalRemotePublicBaseURLDraft = settings.publicBaseURL
         experimentalRemoteAPIKeyDraft = settings.apiKey
+        experimentalRemotePublicBaseURLValidationMessage = nil
     }
 
     private func commitExperimentalRemotePortDraft() {
@@ -1978,10 +2098,11 @@ struct PromptCueSettingsView: View {
 
     private func commitExperimentalRemotePublicBaseURLDraft() {
         guard mcpConnectorSettingsModel.updateExperimentalRemotePublicBaseURL(experimentalRemotePublicBaseURLDraft) else {
-            syncExperimentalRemoteDrafts(with: mcpConnectorSettingsModel.experimentalRemoteSettings)
+            experimentalRemotePublicBaseURLValidationMessage = "Use an `https://` base URL only. Leave off `/mcp` and any extra path."
             return
         }
 
+        experimentalRemotePublicBaseURLValidationMessage = nil
         experimentalRemotePublicBaseURLDraft = mcpConnectorSettingsModel.experimentalRemoteSettings.publicBaseURL
     }
 
@@ -2028,23 +2149,6 @@ struct PromptCueSettingsView: View {
             try? await Task.sleep(nanoseconds: 1_100_000_000)
             didCopyExperimentalRemoteTunnelCommand = false
         }
-    }
-
-    private var experimentalRemoteSteps: [String] {
-        if mcpConnectorSettingsModel.experimentalRemoteSettings.authMode == .oauth {
-            return [
-                "1. Keep Backtick running, then start a public HTTPS tunnel. Recommended: run the ngrok command below.",
-                "2. Save that public HTTPS base URL below. ChatGPT will use it to discover Backtick's OAuth endpoints.",
-                "3. In ChatGPT web, add a custom connector using \(mcpConnectorSettingsModel.experimentalRemotePublicEndpoint ?? "your public HTTPS URL + /mcp") and choose OAuth.",
-                "4. When ChatGPT redirects back to Backtick, approve the OAuth page in your browser."
-            ]
-        }
-
-        return [
-            "1. Keep Backtick running, then start a public HTTPS tunnel. Recommended: run the ngrok command below.",
-            "2. Point that public URL at \(mcpConnectorSettingsModel.experimentalRemoteLocalEndpoint). Do not paste this localhost address directly into ChatGPT.",
-            "3. In ChatGPT web, add a custom connector using your public HTTPS URL and use the Auth Token below as Bearer auth."
-        ]
     }
 
     private func binding<Value>(

@@ -440,10 +440,51 @@ Current MCP platform queue:
 
 1. keep the shipped stdio connector surface stable for `Claude Desktop`, `Claude Code`, and `Codex`
 2. keep ChatGPT remote MCP clearly labeled as `experimental self-hosted`
-3. tighten reconnect/reset/health UX for stale ChatGPT apps and OAuth state
-4. do not let MCP work silently replace the remaining main product roadmap now that `R7C`, `R8`, and `R9` are already landed on `main`
-5. lock the post-launch Warm memory contract so long Claude Desktop / ChatGPT discussions save into reviewed project documents with explicit `documentType` plus topic classification
-6. keep ChatGPT on the advanced-user self-hosted track; do not open a hosted relay / managed distribution plan in the active roadmap
+3. tighten reconnect/reset/health UX for stale ChatGPT apps and OAuth state, but keep the user-visible surface limited to current state, one-line reason, and one next action; then freeze a named failure matrix with repeatable stress coverage
+4. treat `Connected` as a stronger state than `Running`: only show it after Backtick has observed at least one successful remote `/mcp` call from the current ChatGPT app setup
+5. add a short access-token TTL lane so expiry + refresh recovery can be verified deterministically instead of waiting an hour to discover the connector fell over
+6. keep the minimal sleep/wake and tunnel-drift lane in place now: recheck local helper health on foreground / wake, and surface a single recovery state if the local or public endpoint stops responding; leave deeper automation and long-duration dogfooding for follow-up
+7. do not let MCP work silently replace the remaining main product roadmap now that `R7C`, `R8`, and `R9` are already landed on `main`
+8. lock the post-launch Warm memory contract so long Claude Desktop / ChatGPT discussions save into reviewed project documents with explicit `documentType` plus topic classification
+9. keep ChatGPT on the advanced-user self-hosted track; do not open a hosted relay / managed distribution plan in the active roadmap
+
+ChatGPT remote MCP reliability matrix:
+
+| Failure class | Trigger | Required behavior | Coverage target |
+| --- | --- | --- | --- |
+| stale ChatGPT OAuth grant | ChatGPT keeps an older refresh token or dynamic client registration after Backtick state changes | Backtick exposes one reset path locally and tells the user to delete and recreate the ChatGPT app instead of implying a server outage | Settings reconnect UX + deterministic stale-grant regression |
+| helper restart with persisted OAuth state | Backtick app restarts, helper is relaunched, or helper is killed and restarted | persisted dynamic client registration plus refresh-token flow still work without requiring a brand new authorization roundtrip | package regression + local stress harness |
+| authorization code reuse | client retries a code exchange with a code that was already consumed | token endpoint rejects the second exchange with `invalid_grant` | package regression + local stress harness |
+| invalid refresh token | client presents a bogus or stale refresh token | token endpoint rejects with `invalid_grant`; logs and UI should point to stale-app recovery rather than generic MCP failure | package regression + local stress harness |
+| missing or invalid bearer token | client calls `/mcp` without a valid access token | helper returns `401` consistently | package regression + local stress harness |
+| bad OAuth discovery base URL | OAuth mode is enabled with no valid public HTTPS base URL | app refuses to start remote helper and Settings explains why localhost is insufficient for ChatGPT OAuth discovery | runtime guard + Settings copy |
+| public URL changed after app creation | ngrok domain / tunnel target changes while ChatGPT still holds the older connector URL | treat as a stale-app configuration problem and tell the user to recreate the ChatGPT app against the new URL | manual recovery flow, explicitly documented |
+| no proven remote success yet | local helper is healthy, but ChatGPT has not actually completed a protected `/mcp` call with the current app setup | keep the state at `Running`, not `Connected`, until Backtick sees a successful remote request | local runtime signal + targeted app/model regression |
+| access token expires during a healthy session | time passes after the first successful setup and the current access token is no longer valid | old bearer token should fail with `401`, refresh should issue a new access token, and `/mcp` should recover without recreating the ChatGPT app | short-TTL regression + stress harness lane |
+| Mac sleep / wake or tunnel suspension | app stays configured but the machine sleeps, wakes, or the tunnel briefly disappears | Backtick should re-evaluate helper/tunnel state and return to a single recovery path instead of silently pretending the connector is still healthy | wake/foreground local recheck + public probe landed; long-duration dogfood and deeper automation remain follow-up |
+
+Reliability rule for this slice:
+
+- do not treat ChatGPT remote MCP as "working" based only on one happy-path authorization
+- do not treat ChatGPT remote MCP as `Connected` until the current ChatGPT app has actually completed a protected remote `/mcp` request
+- every change in the experimental ChatGPT lane must be judged against the matrix above
+- deterministic local stress coverage should exist for every failure class that does not require a third-party UI or an actual tunnel swap
+- the local reliability lane for this matrix lives in `scripts/run_chatgpt_mcp_stress.sh`
+
+User-facing UX rule for this slice:
+
+- the connector surface should tell the user only three things: current state, one-line reason, and the next action
+- each failure state should collapse to one primary recovery action instead of exposing multiple competing choices
+- raw OAuth terms such as `invalid_grant`, refresh-token mismatch, discovery mismatch, or helper restart details belong to logs/tests, not the default Settings surface
+- always-visible diagnostic rows are only allowed if they directly change the user's next action
+- internal failure classes may expand in code and tests, but the visible state vocabulary should stay small and stable
+
+Over-engineering guardrail for this slice:
+
+- do not build a full diagnostics dashboard for an advanced-user connector
+- do not surface helper PIDs, token timestamps, raw error payloads, or multi-row health telemetry in the default UI
+- if a new status row does not shorten recovery time for a real failure, keep it out
+- solve most reliability complexity in the state machine, stress harness, and recovery mapping rather than in persistent UI chrome
 
 Why this rollout is required:
 

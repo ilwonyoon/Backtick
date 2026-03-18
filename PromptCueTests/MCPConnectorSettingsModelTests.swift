@@ -681,6 +681,245 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testExperimentalRemoteOAuthStateResetRemovesStateFileAndPostsNotification() throws {
+        let userDefaults = makeUserDefaults()
+        let notificationCenter = NotificationCenter()
+        let oauthStateURL = homeDirectoryURL
+            .appendingPathComponent("Library/Application Support/PromptCue/BacktickMCPOAuthState.json")
+        try FileManager.default.createDirectory(
+            at: oauthStateURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        {"dynamicClients":{},"refreshTokens":{},"accessTokens":{}}
+        """.write(to: oauthStateURL, atomically: true, encoding: .utf8)
+
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults,
+            notificationCenter: notificationCenter,
+            experimentalRemoteOAuthStateFileURL: oauthStateURL
+        )
+        let expectation = expectation(description: "oauth reset requested")
+        let observer = notificationCenter.addObserver(
+            forName: .experimentalMCPHTTPOAuthResetRequested,
+            object: model,
+            queue: nil
+        ) { _ in
+            expectation.fulfill()
+        }
+
+        XCTAssertTrue(model.experimentalRemoteOAuthStateExists)
+        XCTAssertTrue(model.resetExperimentalRemoteOAuthState())
+        XCTAssertFalse(FileManager.default.fileExists(atPath: oauthStateURL.path))
+
+        wait(for: [expectation], timeout: 1)
+        notificationCenter.removeObserver(observer)
+    }
+
+    @MainActor
+    func testExperimentalRemoteStatusPresentationRequiresPublicURLForOAuth() {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Public URL required")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)
+        XCTAssertTrue(
+            model.experimentalRemoteStatusPresentation.action == .launchTunnel
+                || model.experimentalRemoteStatusPresentation.action == .installTunnel
+        )
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("public HTTPS tunnel"))
+    }
+
+    @MainActor
+    func testExperimentalRemoteStatusPresentationShowsReconnectNeededAfterStaleGrantLog() {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
+        model.setExperimentalRemoteRuntimeState(.running)
+        model.recordExperimentalRemoteHelperLog(
+            "BacktickMCPOAuthProvider token exchange rejected: invalid_grant clientID=abc refreshToken=def"
+        )
+
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Reconnect needed")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .resetLocalState)
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("recreate the Backtick app"))
+    }
+
+    @MainActor
+    func testExperimentalRemoteAutoDetectsNgrokURLWhenConfiguredURLIsEmpty() async {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults,
+            experimentalRemoteTunnelDetector: TestExperimentalRemoteTunnelDetector(
+                url: URL(string: "https://example-tunnel.ngrok-free.dev")
+            )
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(
+            model.experimentalRemotePublicEndpoint,
+            "https://example-tunnel.ngrok-free.dev/mcp"
+        )
+        XCTAssertFalse(model.experimentalRemoteShouldShowInlinePublicBaseURL)
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Ready to connect")
+    }
+
+    @MainActor
+    func testExperimentalRemoteConfiguredURLWinsOverAutoDetectedNgrokURL() async {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults,
+            experimentalRemoteTunnelDetector: TestExperimentalRemoteTunnelDetector(
+                url: URL(string: "https://detected.ngrok-free.dev")
+            )
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        _ = model.updateExperimentalRemotePublicBaseURL("https://manual.example")
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(model.experimentalRemotePublicEndpoint, "https://manual.example/mcp")
+        XCTAssertEqual(model.experimentalRemoteConfiguredPublicBaseURL?.absoluteString, "https://manual.example")
+    }
+
+    @MainActor
+    func testExperimentalRemoteStatusPresentationReadyToConnectUsesCopyPublicURLAction() {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
+        model.setExperimentalRemoteRuntimeState(.running)
+
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Ready to connect")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .success)
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .copyPublicMCPURL)
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("ChatGPT MCP URL"))
+    }
+
+    @MainActor
+    func testExperimentalRemoteStatusPresentationShowsConnectedAfterSuccessfulRemoteLog() {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
+        model.setExperimentalRemoteRuntimeState(.running)
+        model.recordExperimentalRemoteHelperLog(
+            "Backtick MCP HTTP served protected remote request method=tools/call"
+        )
+
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Connected")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .success)
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .copyPublicMCPURL)
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("current app setup"))
+
+        _ = model.updateExperimentalRemotePublicBaseURL("https://new-backtick.test")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Ready to connect")
+    }
+
+    @MainActor
+    func testExperimentalRemoteStatusPresentationShowsNeedsAttentionWhenPublicProbeFails() async {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults,
+            experimentalRemoteProbe: TestExperimentalRemoteProbe(issue: .publicEndpointUnreachable)
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
+        model.setExperimentalRemoteRuntimeState(.running)
+        model.refreshExperimentalRemoteProbe()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Needs attention")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)
+        XCTAssertTrue(
+            model.experimentalRemoteStatusPresentation.action == .installTunnel
+                || model.experimentalRemoteStatusPresentation.action == .launchTunnel
+        )
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("public HTTPS URL"))
+    }
+
+    @MainActor
+    func testExperimentalRemoteStatusPresentationShowsNeedsAttentionWhenLocalProbeFails() async {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults,
+            experimentalRemoteProbe: TestExperimentalRemoteProbe(issue: .localEndpointUnreachable)
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
+        model.setExperimentalRemoteRuntimeState(.running)
+        model.refreshExperimentalRemoteProbe()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Needs attention")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .retry)
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("local MCP endpoint"))
+    }
+
+    @MainActor
+    func testExperimentalRemoteStatusPresentationGenericFailureMapsToRetry() {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.setExperimentalRemoteRuntimeState(.failed("boom"))
+
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Needs attention")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .danger)
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .retry)
+    }
+
+    @MainActor
     func testModelSurfacesBundledHelperSourceWhenAppBundleContainsHelper() throws {
         let appBundleURL = tempDirectoryURL
             .appendingPathComponent("Prompt Cue.app", isDirectory: true)
@@ -968,5 +1207,25 @@ private final class TestTerminalLauncher: MCPConnectorTerminalLaunching {
     func launchInTerminal(command: String) -> Bool {
         commands.append(command)
         return result
+    }
+}
+
+private struct TestExperimentalRemoteProbe: ExperimentalMCPHTTPProbing {
+    let issue: ExperimentalMCPHTTPProbeIssue?
+
+    func probe(
+        port: UInt16,
+        authMode: ExperimentalMCPHTTPAuthMode,
+        publicBaseURL: URL?
+    ) async -> ExperimentalMCPHTTPProbeIssue? {
+        issue
+    }
+}
+
+private struct TestExperimentalRemoteTunnelDetector: ExperimentalMCPHTTPTunnelDetecting {
+    let url: URL?
+
+    func detectedPublicBaseURL(for port: UInt16) async -> URL? {
+        url
     }
 }

@@ -38,9 +38,13 @@ final class AppCoordinator: AppLifecycleCoordinating {
     private var pendingStackToggleTask: Task<Void, Never>?
     private var systemThemeObserver: NSObjectProtocol?
     private var experimentalMCPHTTPSettingsObserver: NSObjectProtocol?
+    private var experimentalMCPHTTPOAuthResetObserver: NSObjectProtocol?
+    private var experimentalMCPHTTPDidBecomeActiveObserver: NSObjectProtocol?
+    private var experimentalMCPHTTPWakeObserver: NSObjectProtocol?
     private var experimentalMCPHTTPProcess: Process?
     private var experimentalMCPHTTPLogPipe: Pipe?
     private var experimentalMCPHTTPRestartWorkItem: DispatchWorkItem?
+    private var experimentalMCPHTTPHealthRefreshWorkItem: DispatchWorkItem?
     private var shouldKeepExperimentalMCPHTTPRunning = false
     private var currentExperimentalMCPHTTPLaunchConfiguration: ExperimentalMCPHTTPLaunchConfiguration?
 
@@ -91,6 +95,36 @@ final class AppCoordinator: AppLifecycleCoordinating {
                 self?.syncExperimentalMCPHTTPConfiguration()
             }
         }
+
+        experimentalMCPHTTPOAuthResetObserver = NotificationCenter.default.addObserver(
+            forName: .experimentalMCPHTTPOAuthResetRequested,
+            object: mcpConnectorSettingsModel,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.resetExperimentalMCPHTTPOAuthState()
+            }
+        }
+
+        experimentalMCPHTTPDidBecomeActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.recheckExperimentalMCPHTTPHealth()
+            }
+        }
+
+        experimentalMCPHTTPWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.recheckExperimentalMCPHTTPHealth()
+            }
+        }
     }
 
     deinit {
@@ -100,6 +134,16 @@ final class AppCoordinator: AppLifecycleCoordinating {
         if let experimentalMCPHTTPSettingsObserver {
             NotificationCenter.default.removeObserver(experimentalMCPHTTPSettingsObserver)
         }
+        if let experimentalMCPHTTPOAuthResetObserver {
+            NotificationCenter.default.removeObserver(experimentalMCPHTTPOAuthResetObserver)
+        }
+        if let experimentalMCPHTTPDidBecomeActiveObserver {
+            NotificationCenter.default.removeObserver(experimentalMCPHTTPDidBecomeActiveObserver)
+        }
+        if let experimentalMCPHTTPWakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(experimentalMCPHTTPWakeObserver)
+        }
+        experimentalMCPHTTPHealthRefreshWorkItem?.cancel()
     }
 
     func start() {
@@ -461,6 +505,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
             experimentalMCPHTTPProcess = process
             experimentalMCPHTTPLogPipe = logPipe
             mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(.running)
+            scheduleExperimentalMCPHTTPHealthRefresh()
             NSLog(
                 "Experimental MCP HTTP helper started on http://127.0.0.1:%d/mcp",
                 Int(launchConfiguration.port)
@@ -479,6 +524,8 @@ final class AppCoordinator: AppLifecycleCoordinating {
         shouldKeepExperimentalMCPHTTPRunning = false
         experimentalMCPHTTPRestartWorkItem?.cancel()
         experimentalMCPHTTPRestartWorkItem = nil
+        experimentalMCPHTTPHealthRefreshWorkItem?.cancel()
+        experimentalMCPHTTPHealthRefreshWorkItem = nil
 
         guard let process = experimentalMCPHTTPProcess else {
             return
@@ -548,7 +595,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
     }
 
     private func beginExperimentalMCPHTTPLogStreaming(from pipe: Pipe) {
-        pipe.fileHandleForReading.readabilityHandler = { handle in
+        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty,
                   let chunk = String(data: data, encoding: .utf8)?
@@ -558,6 +605,96 @@ final class AppCoordinator: AppLifecycleCoordinating {
             }
 
             NSLog("Experimental MCP HTTP helper: %@", chunk)
+            DispatchQueue.main.async {
+                self?.mcpConnectorSettingsModel.recordExperimentalRemoteHelperLog(chunk)
+            }
+        }
+    }
+
+    private func resetExperimentalMCPHTTPOAuthState() {
+        if experimentalMCPHTTPProcess != nil {
+            mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(.restarting)
+        }
+
+        stopExperimentalMCPHTTP()
+        syncExperimentalMCPHTTPConfiguration()
+    }
+
+    private func recheckExperimentalMCPHTTPHealth() {
+        guard let desiredConfiguration = desiredExperimentalMCPHTTPLaunchConfiguration() else {
+            return
+        }
+
+        guard let process = experimentalMCPHTTPProcess, process.isRunning else {
+            syncExperimentalMCPHTTPConfiguration()
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            let isHealthy = await self.isExperimentalMCPHTTPLocalEndpointHealthy(port: desiredConfiguration.port)
+            await MainActor.run {
+                guard self.shouldKeepExperimentalMCPHTTPRunning,
+                      self.currentExperimentalMCPHTTPLaunchConfiguration == desiredConfiguration,
+                      self.experimentalMCPHTTPProcess === process,
+                      process.isRunning else {
+                    return
+                }
+
+                if isHealthy {
+                    self.scheduleExperimentalMCPHTTPHealthRefresh(after: 0)
+                    return
+                }
+
+                self.mcpConnectorSettingsModel.setExperimentalRemoteRuntimeState(.restarting)
+                process.terminate()
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                    if process.isRunning {
+                        process.interrupt()
+                    }
+                }
+            }
+        }
+    }
+
+    private func scheduleExperimentalMCPHTTPHealthRefresh(after delay: TimeInterval = 0.6) {
+        experimentalMCPHTTPHealthRefreshWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else {
+                return
+            }
+
+            self.experimentalMCPHTTPHealthRefreshWorkItem = nil
+            self.mcpConnectorSettingsModel.refresh()
+            self.mcpConnectorSettingsModel.refreshExperimentalRemoteProbe()
+        }
+
+        experimentalMCPHTTPHealthRefreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    private func isExperimentalMCPHTTPLocalEndpointHealthy(port: UInt16) async -> Bool {
+        guard let url = URL(string: "http://127.0.0.1:\(port)/health") else {
+            return false
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 2
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return false
+            }
+
+            return (200...299).contains(httpResponse.statusCode)
+        } catch {
+            return false
         }
     }
 

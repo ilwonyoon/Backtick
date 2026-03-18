@@ -203,6 +203,9 @@ extension Notification.Name {
     static let experimentalMCPHTTPSettingsDidChange = Notification.Name(
         "MCPConnectorSettingsModel.experimentalMCPHTTPSettingsDidChange"
     )
+    static let experimentalMCPHTTPOAuthResetRequested = Notification.Name(
+        "MCPConnectorSettingsModel.experimentalMCPHTTPOAuthResetRequested"
+    )
 }
 
 enum ExperimentalMCPHTTPAuthMode: String, CaseIterable, Equatable {
@@ -258,6 +261,201 @@ enum ExperimentalMCPHTTPRuntimeState: Equatable {
 
         return detail
     }
+}
+
+enum ExperimentalMCPHTTPStatusTone: Equatable {
+    case neutral
+    case accent
+    case success
+    case warning
+    case danger
+}
+
+enum ExperimentalMCPHTTPStatusAction: Equatable {
+    case launchTunnel
+    case installTunnel
+    case copyPublicMCPURL
+    case resetLocalState
+    case retry
+
+    var title: String {
+        switch self {
+        case .launchTunnel:
+            return "Launch ngrok"
+        case .installTunnel:
+            return "Install ngrok"
+        case .copyPublicMCPURL:
+            return "Copy ChatGPT MCP URL"
+        case .resetLocalState:
+            return "Reset Local State"
+        case .retry:
+            return "Try Again"
+        }
+    }
+}
+
+struct ExperimentalMCPHTTPStatusPresentation: Equatable {
+    let title: String
+    let reason: String
+    let tone: ExperimentalMCPHTTPStatusTone
+    let action: ExperimentalMCPHTTPStatusAction?
+}
+
+enum ExperimentalMCPHTTPProbeIssue: Equatable {
+    case localEndpointUnreachable
+    case publicEndpointUnreachable
+}
+
+protocol ExperimentalMCPHTTPProbing {
+    func probe(
+        port: UInt16,
+        authMode: ExperimentalMCPHTTPAuthMode,
+        publicBaseURL: URL?
+    ) async -> ExperimentalMCPHTTPProbeIssue?
+}
+
+protocol ExperimentalMCPHTTPTunnelDetecting {
+    func detectedPublicBaseURL(for port: UInt16) async -> URL?
+}
+
+struct ExperimentalMCPHTTPURLProbe: ExperimentalMCPHTTPProbing {
+    private let session: URLSession
+
+    init(session: URLSession = ExperimentalMCPHTTPURLProbe.makeSession()) {
+        self.session = session
+    }
+
+    func probe(
+        port: UInt16,
+        authMode: ExperimentalMCPHTTPAuthMode,
+        publicBaseURL: URL?
+    ) async -> ExperimentalMCPHTTPProbeIssue? {
+        guard let localHealthURL = URL(string: "http://127.0.0.1:\(port)/health"),
+              await isSuccessfulGET(localHealthURL) else {
+            return .localEndpointUnreachable
+        }
+
+        guard let publicBaseURL else {
+            return nil
+        }
+
+        let publicProbeURL: URL
+        switch authMode {
+        case .oauth:
+            publicProbeURL = publicBaseURL.appending(path: ".well-known/oauth-protected-resource")
+        case .apiKey:
+            publicProbeURL = publicBaseURL.appending(path: "health")
+        }
+
+        guard await isSuccessfulGET(publicProbeURL) else {
+            return .publicEndpointUnreachable
+        }
+
+        return nil
+    }
+
+    private func isSuccessfulGET(_ url: URL) async -> Bool {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 2
+
+        do {
+            let (_, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return false
+            }
+
+            return (200...299).contains(httpResponse.statusCode)
+        } catch {
+            return false
+        }
+    }
+
+    private static func makeSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 2
+        configuration.timeoutIntervalForResource = 2
+        return URLSession(configuration: configuration)
+    }
+}
+
+struct ExperimentalMCPHTTPNgrokTunnelDetector: ExperimentalMCPHTTPTunnelDetecting {
+    private let session: URLSession
+
+    init(session: URLSession = ExperimentalMCPHTTPNgrokTunnelDetector.makeSession()) {
+        self.session = session
+    }
+
+    func detectedPublicBaseURL(for port: UInt16) async -> URL? {
+        guard let apiURL = URL(string: "http://127.0.0.1:4040/api/tunnels") else {
+            return nil
+        }
+
+        var request = URLRequest(url: apiURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 2
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode),
+                  let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let tunnels = object["tunnels"] as? [[String: Any]] else {
+                return nil
+            }
+
+            let expectedLocalTargets = [
+                "http://localhost:\(port)",
+                "http://127.0.0.1:\(port)",
+                "localhost:\(port)",
+                "127.0.0.1:\(port)"
+            ]
+
+            let matchingTunnel = tunnels.first { tunnel in
+                guard let publicURL = tunnel["public_url"] as? String,
+                      publicURL.lowercased().hasPrefix("https://") else {
+                    return false
+                }
+
+                if let config = tunnel["config"] as? [String: Any],
+                   let addr = config["addr"] as? String {
+                    return expectedLocalTargets.contains { addr.contains($0) }
+                }
+
+                return false
+            } ?? tunnels.first { tunnel in
+                guard let publicURL = tunnel["public_url"] as? String,
+                      publicURL.lowercased().hasPrefix("https://") else {
+                    return false
+                }
+
+                return tunnels.count == 1
+            }
+
+            guard let publicURLString = matchingTunnel?["public_url"] as? String,
+                  let url = URL(string: publicURLString),
+                  let scheme = url.scheme?.lowercased(),
+                  scheme == "https",
+                  url.host != nil else {
+                return nil
+            }
+
+            return url
+        } catch {
+            return nil
+        }
+    }
+
+    private static func makeSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 2
+        configuration.timeoutIntervalForResource = 2
+        return URLSession(configuration: configuration)
+    }
+}
+
+private enum ExperimentalMCPHTTPRecoveryIssue: Equatable {
+    case staleChatGPTGrant
 }
 
 enum MCPConnectorPrimaryAction: Equatable {
@@ -680,19 +878,29 @@ final class MCPConnectorSettingsModel: ObservableObject {
     @Published private(set) var experimentalRemoteSettings: ExperimentalMCPHTTPSettings
     @Published private(set) var experimentalRemoteRuntimeState: ExperimentalMCPHTTPRuntimeState = .stopped
     @Published var directConfigSuccessClient: MCPConnectorClient?
+    private var experimentalRemoteRecoveryIssue: ExperimentalMCPHTTPRecoveryIssue?
+    private var experimentalRemoteHasSeenRemoteSuccess = false
 
     private let inspector: MCPConnectorInspector
     private let connectionTester: MCPServerConnectionTesting
     private let terminalLauncher: MCPConnectorTerminalLaunching
     private let workspace: NSWorkspace
     private let pasteboard: NSPasteboard
+    private let fileManager: FileManager
     private let userDefaults: UserDefaults
     private let notificationCenter: NotificationCenter
+    private let experimentalRemoteProbe: ExperimentalMCPHTTPProbing
+    private let experimentalRemoteTunnelDetector: ExperimentalMCPHTTPTunnelDetecting
+    private let experimentalRemoteOAuthStateFileURL: URL?
     private let setupRefreshPollIntervalNanoseconds: UInt64
     private let setupRefreshMaxAttempts: Int
     private var connectionTask: Task<Void, Never>?
     private var connectionTaskClient: MCPConnectorClient?
     private var setupRefreshTask: Task<Void, Never>?
+    private var experimentalRemoteProbeTask: Task<Void, Never>?
+    private var experimentalRemoteTunnelDetectionTask: Task<Void, Never>?
+    private var experimentalRemoteProbeIssue: ExperimentalMCPHTTPProbeIssue?
+    private var experimentalRemoteDetectedPublicBaseURL: URL?
 
     init(
         inspector: MCPConnectorInspector = MCPConnectorInspector(),
@@ -700,8 +908,12 @@ final class MCPConnectorSettingsModel: ObservableObject {
         terminalLauncher: MCPConnectorTerminalLaunching = MCPConnectorTerminalLauncher(),
         workspace: NSWorkspace = .shared,
         pasteboard: NSPasteboard = .general,
+        fileManager: FileManager = .default,
         userDefaults: UserDefaults = .standard,
         notificationCenter: NotificationCenter = .default,
+        experimentalRemoteProbe: ExperimentalMCPHTTPProbing = ExperimentalMCPHTTPURLProbe(),
+        experimentalRemoteTunnelDetector: ExperimentalMCPHTTPTunnelDetecting = ExperimentalMCPHTTPNgrokTunnelDetector(),
+        experimentalRemoteOAuthStateFileURL: URL? = nil,
         setupRefreshPollIntervalNanoseconds: UInt64 = 350_000_000,
         setupRefreshMaxAttempts: Int = 18
     ) {
@@ -710,13 +922,19 @@ final class MCPConnectorSettingsModel: ObservableObject {
         self.terminalLauncher = terminalLauncher
         self.workspace = workspace
         self.pasteboard = pasteboard
+        self.fileManager = fileManager
         self.userDefaults = userDefaults
         self.notificationCenter = notificationCenter
+        self.experimentalRemoteProbe = experimentalRemoteProbe
+        self.experimentalRemoteTunnelDetector = experimentalRemoteTunnelDetector
+        self.experimentalRemoteOAuthStateFileURL = experimentalRemoteOAuthStateFileURL
+            ?? Self.defaultExperimentalRemoteOAuthStateFileURL(fileManager: fileManager)
         self.setupRefreshPollIntervalNanoseconds = setupRefreshPollIntervalNanoseconds
         self.setupRefreshMaxAttempts = setupRefreshMaxAttempts
         self.inspection = inspector.inspect()
         self.experimentalRemoteSettings = Self.loadExperimentalRemoteSettings(from: userDefaults)
         ensureExperimentalRemoteAPIKeyIfNeeded()
+        refreshExperimentalRemoteTunnelDetection()
     }
 
     var repositoryRootPath: String {
@@ -837,6 +1055,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         inspection = updatedInspection
         experimentalRemoteSettings = Self.loadExperimentalRemoteSettings(from: userDefaults)
         ensureExperimentalRemoteAPIKeyIfNeeded()
+        refreshExperimentalRemoteTunnelDetection()
         let configuredClients = Set(
             updatedInspection.clients
                 .filter(\.hasConfiguredScope)
@@ -853,7 +1072,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         experimentalRemotePublicBaseURL?.appending(path: "mcp").absoluteString
     }
 
-    var experimentalRemotePublicBaseURL: URL? {
+    var experimentalRemoteConfiguredPublicBaseURL: URL? {
         let trimmedValue = experimentalRemoteSettings.publicBaseURL
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedValue.isEmpty,
@@ -866,6 +1085,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         return url
+    }
+
+    var experimentalRemotePublicBaseURL: URL? {
+        experimentalRemoteConfiguredPublicBaseURL ?? experimentalRemoteDetectedPublicBaseURL
     }
 
     var experimentalRemoteRecommendedTunnelPath: String? {
@@ -887,6 +1110,112 @@ final class MCPConnectorSettingsModel: ObservableObject {
         return "Recommended for advanced users. Install ngrok, sign in, then run `ngrok http \(experimentalRemoteSettings.port)` to get a public HTTPS URL for this Mac."
     }
 
+    var experimentalRemoteOAuthStateExists: Bool {
+        guard let experimentalRemoteOAuthStateFileURL else {
+            return false
+        }
+
+        return fileManager.fileExists(atPath: experimentalRemoteOAuthStateFileURL.path)
+    }
+
+    var experimentalRemoteIsConnected: Bool {
+        experimentalRemoteRecoveryIssue == nil
+            && experimentalRemoteHasSeenRemoteSuccess
+            && experimentalRemoteRuntimeState == .running
+    }
+
+    var experimentalRemoteShouldShowInlinePublicBaseURL: Bool {
+        guard experimentalRemoteSettings.isEnabled else {
+            return false
+        }
+
+        if experimentalRemoteRecoveryIssue == .staleChatGPTGrant {
+            return false
+        }
+
+        return experimentalRemotePublicBaseURL == nil
+    }
+
+    var experimentalRemoteShouldShowInlineChatGPTMCPURL: Bool {
+        guard experimentalRemoteSettings.isEnabled,
+              experimentalRemotePublicEndpoint != nil else {
+            return false
+        }
+
+        return !experimentalRemoteIsConnected
+    }
+
+    var experimentalRemoteStatusPresentation: ExperimentalMCPHTTPStatusPresentation {
+        if !experimentalRemoteSettings.isEnabled {
+            return ExperimentalMCPHTTPStatusPresentation(
+                title: "Off",
+                reason: "Turn this on when you want Backtick to host a local MCP endpoint on this Mac.",
+                tone: .neutral,
+                action: nil
+            )
+        }
+
+        if experimentalRemoteRecoveryIssue == .staleChatGPTGrant {
+            return ExperimentalMCPHTTPStatusPresentation(
+                title: "Reconnect needed",
+                reason: "ChatGPT is still holding an older Backtick grant. Reset local state here, then recreate the Backtick app in ChatGPT.",
+                tone: .warning,
+                action: .resetLocalState
+            )
+        }
+
+        if experimentalRemoteIsConnected {
+            return ExperimentalMCPHTTPStatusPresentation(
+                title: "Connected",
+                reason: "ChatGPT has already reached this Backtick endpoint with your current app setup.",
+                tone: .success,
+                action: .copyPublicMCPURL
+            )
+        }
+
+        switch experimentalRemoteRuntimeState {
+        case .starting:
+            return ExperimentalMCPHTTPStatusPresentation(
+                title: "Starting",
+                reason: "Backtick is starting the local MCP endpoint now.",
+                tone: .accent,
+                action: nil
+            )
+        case .restarting:
+            return ExperimentalMCPHTTPStatusPresentation(
+                title: "Restarting",
+                reason: "Backtick is restarting the local MCP endpoint with your latest settings.",
+                tone: .accent,
+                action: nil
+            )
+        case .failed(let detail):
+            return statusPresentationForRuntimeFailure(detail: detail)
+        case .running, .stopped:
+            break
+        }
+
+        if experimentalRemotePublicBaseURL == nil {
+            return ExperimentalMCPHTTPStatusPresentation(
+                title: "Public URL required",
+                reason: "Start a public HTTPS tunnel, then paste its base URL below before you connect ChatGPT.",
+                tone: .warning,
+                action: experimentalRemoteRecommendedTunnelPath == nil ? .installTunnel : .launchTunnel
+            )
+        }
+
+        if let experimentalRemoteProbeIssue,
+           experimentalRemoteRuntimeState == .running {
+            return statusPresentationForProbeIssue(experimentalRemoteProbeIssue)
+        }
+
+        return ExperimentalMCPHTTPStatusPresentation(
+            title: "Ready to connect",
+            reason: runningStatusReason,
+            tone: experimentalRemoteRuntimeState == .running ? .success : .accent,
+            action: .copyPublicMCPURL
+        )
+    }
+
     func updateExperimentalRemoteEnabled(_ isEnabled: Bool) {
         var updatedSettings = experimentalRemoteSettings
         updatedSettings.isEnabled = isEnabled
@@ -894,6 +1223,11 @@ final class MCPConnectorSettingsModel: ObservableObject {
            updatedSettings.authMode == .apiKey,
            updatedSettings.apiKey.isEmpty {
             updatedSettings.apiKey = Self.generateExperimentalRemoteAPIKey()
+        }
+        if !isEnabled {
+            experimentalRemoteRecoveryIssue = nil
+            experimentalRemoteHasSeenRemoteSuccess = false
+            experimentalRemoteProbeIssue = nil
         }
         saveExperimentalRemoteSettings(updatedSettings)
     }
@@ -904,6 +1238,11 @@ final class MCPConnectorSettingsModel: ObservableObject {
         if authMode == .apiKey, updatedSettings.apiKey.isEmpty {
             updatedSettings.apiKey = Self.generateExperimentalRemoteAPIKey()
         }
+        if authMode != .oauth {
+            experimentalRemoteRecoveryIssue = nil
+            experimentalRemoteHasSeenRemoteSuccess = false
+        }
+        experimentalRemoteProbeIssue = nil
         saveExperimentalRemoteSettings(updatedSettings)
     }
 
@@ -916,6 +1255,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         var updatedSettings = experimentalRemoteSettings
         updatedSettings.port = parsedPort
+        experimentalRemoteHasSeenRemoteSuccess = false
+        experimentalRemoteProbeIssue = nil
         saveExperimentalRemoteSettings(updatedSettings)
         return true
     }
@@ -929,6 +1270,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         var updatedSettings = experimentalRemoteSettings
         updatedSettings.apiKey = trimmedValue
+        experimentalRemoteProbeIssue = nil
         saveExperimentalRemoteSettings(updatedSettings)
         return true
     }
@@ -936,6 +1278,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func generateExperimentalRemoteAPIKey() {
         var updatedSettings = experimentalRemoteSettings
         updatedSettings.apiKey = Self.generateExperimentalRemoteAPIKey()
+        experimentalRemoteProbeIssue = nil
         saveExperimentalRemoteSettings(updatedSettings)
     }
 
@@ -953,6 +1296,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         var updatedSettings = experimentalRemoteSettings
         updatedSettings.publicBaseURL = Self.normalizedExperimentalRemotePublicBaseURL(url)
+        experimentalRemoteHasSeenRemoteSuccess = false
+        experimentalRemoteProbeIssue = nil
         saveExperimentalRemoteSettings(updatedSettings)
         return true
     }
@@ -982,8 +1327,143 @@ final class MCPConnectorSettingsModel: ObservableObject {
         workspace.open(Self.experimentalRemoteTunnelDocumentationURL)
     }
 
+    @discardableResult
+    func resetExperimentalRemoteOAuthState() -> Bool {
+        guard let experimentalRemoteOAuthStateFileURL else {
+            notificationCenter.post(name: .experimentalMCPHTTPOAuthResetRequested, object: self)
+            return false
+        }
+
+        let didRemoveExistingState: Bool
+        if fileManager.fileExists(atPath: experimentalRemoteOAuthStateFileURL.path) {
+            do {
+                try fileManager.removeItem(at: experimentalRemoteOAuthStateFileURL)
+                didRemoveExistingState = true
+            } catch {
+                NSLog(
+                    "MCPConnectorSettingsModel failed to remove OAuth state at %@: %@",
+                    experimentalRemoteOAuthStateFileURL.path,
+                    error.localizedDescription
+                )
+                didRemoveExistingState = false
+            }
+        } else {
+            didRemoveExistingState = false
+        }
+
+        notificationCenter.post(name: .experimentalMCPHTTPOAuthResetRequested, object: self)
+        experimentalRemoteRecoveryIssue = nil
+        experimentalRemoteHasSeenRemoteSuccess = false
+        experimentalRemoteProbeIssue = nil
+        return didRemoveExistingState
+    }
+
     func setExperimentalRemoteRuntimeState(_ state: ExperimentalMCPHTTPRuntimeState) {
         experimentalRemoteRuntimeState = state
+        experimentalRemoteProbeIssue = nil
+    }
+
+    func refreshExperimentalRemoteProbe() {
+        experimentalRemoteProbeTask?.cancel()
+        experimentalRemoteProbeTask = nil
+
+        guard experimentalRemoteSettings.isEnabled,
+              experimentalRemoteRuntimeState == .running else {
+            experimentalRemoteProbeIssue = nil
+            return
+        }
+
+        let port = experimentalRemoteSettings.port
+        let authMode = experimentalRemoteSettings.authMode
+        let publicBaseURL = experimentalRemotePublicBaseURL
+        experimentalRemoteProbeIssue = nil
+
+        experimentalRemoteProbeTask = Task { [experimentalRemoteProbe] in
+            let issue = await experimentalRemoteProbe.probe(
+                port: port,
+                authMode: authMode,
+                publicBaseURL: publicBaseURL
+            )
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                self.experimentalRemoteProbeTask = nil
+                guard self.experimentalRemoteSettings.isEnabled,
+                      self.experimentalRemoteRuntimeState == .running,
+                      self.experimentalRemoteSettings.port == port,
+                      self.experimentalRemoteSettings.authMode == authMode,
+                      self.experimentalRemotePublicBaseURL == publicBaseURL else {
+                    return
+                }
+
+                self.experimentalRemoteProbeIssue = issue
+            }
+        }
+    }
+
+    func refreshExperimentalRemoteTunnelDetection() {
+        experimentalRemoteTunnelDetectionTask?.cancel()
+        experimentalRemoteTunnelDetectionTask = nil
+
+        guard experimentalRemoteSettings.isEnabled,
+              experimentalRemoteConfiguredPublicBaseURL == nil else {
+            experimentalRemoteDetectedPublicBaseURL = nil
+            return
+        }
+
+        let port = experimentalRemoteSettings.port
+        experimentalRemoteTunnelDetectionTask = Task { [experimentalRemoteTunnelDetector] in
+            let detectedURL = await experimentalRemoteTunnelDetector.detectedPublicBaseURL(for: port)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                self.experimentalRemoteTunnelDetectionTask = nil
+                guard self.experimentalRemoteSettings.isEnabled,
+                      self.experimentalRemoteSettings.port == port,
+                      self.experimentalRemoteConfiguredPublicBaseURL == nil else {
+                    return
+                }
+
+                self.experimentalRemoteDetectedPublicBaseURL = detectedURL
+            }
+        }
+    }
+
+    func retryExperimentalRemote() {
+        notificationCenter.post(name: .experimentalMCPHTTPSettingsDidChange, object: self)
+    }
+
+    func performExperimentalRemoteStatusAction(_ action: ExperimentalMCPHTTPStatusAction) {
+        switch action {
+        case .launchTunnel:
+            _ = launchExperimentalRemoteRecommendedTunnelInTerminal()
+        case .installTunnel:
+            openExperimentalRemoteTunnelDocumentation()
+        case .copyPublicMCPURL:
+            copyExperimentalRemotePublicEndpoint()
+        case .resetLocalState:
+            _ = resetExperimentalRemoteOAuthState()
+        case .retry:
+            retryExperimentalRemote()
+        }
+    }
+
+    func recordExperimentalRemoteHelperLog(_ chunk: String) {
+        let lowercasedChunk = chunk.lowercased()
+        if lowercasedChunk.contains("token exchange rejected: invalid_client")
+            || lowercasedChunk.contains("token exchange rejected: invalid_grant") {
+            experimentalRemoteRecoveryIssue = .staleChatGPTGrant
+            experimentalRemoteHasSeenRemoteSuccess = false
+            experimentalRemoteProbeIssue = nil
+        }
+
+        if lowercasedChunk.contains("served protected remote request method=") {
+            experimentalRemoteHasSeenRemoteSuccess = true
+        }
     }
 
     func verificationState(for client: MCPConnectorClientStatus) -> MCPServerConnectionState {
@@ -1612,7 +2092,68 @@ final class MCPConnectorSettingsModel: ObservableObject {
         userDefaults.set(settings.apiKey, forKey: ExperimentalRemoteDefaultsKey.apiKey)
         userDefaults.set(settings.publicBaseURL, forKey: ExperimentalRemoteDefaultsKey.publicBaseURL)
         experimentalRemoteSettings = settings
+        refreshExperimentalRemoteTunnelDetection()
         notificationCenter.post(name: .experimentalMCPHTTPSettingsDidChange, object: self)
+    }
+
+    private var runningStatusReason: String {
+        if experimentalRemoteSettings.authMode == .oauth {
+            return "Backtick is running and ready. Copy the ChatGPT MCP URL below when you create or recreate the Backtick app in ChatGPT."
+        }
+
+        return "Backtick is running and ready. Copy the public MCP URL below and pair it with your Auth Token in the remote client."
+    }
+
+    private func statusPresentationForProbeIssue(
+        _ issue: ExperimentalMCPHTTPProbeIssue
+    ) -> ExperimentalMCPHTTPStatusPresentation {
+        switch issue {
+        case .localEndpointUnreachable:
+            return ExperimentalMCPHTTPStatusPresentation(
+                title: "Needs attention",
+                reason: "Backtick couldn't confirm that its local MCP endpoint is still responding. Try again, then restart Backtick if this keeps happening.",
+                tone: .warning,
+                action: .retry
+            )
+        case .publicEndpointUnreachable:
+            return ExperimentalMCPHTTPStatusPresentation(
+                title: "Needs attention",
+                reason: "Backtick is running locally, but the public HTTPS URL is not responding. Restart ngrok or update the public URL below.",
+                tone: .warning,
+                action: experimentalRemoteRecommendedTunnelPath == nil ? .installTunnel : .launchTunnel
+            )
+        }
+    }
+
+    private func statusPresentationForRuntimeFailure(
+        detail: String
+    ) -> ExperimentalMCPHTTPStatusPresentation {
+        let lowercasedDetail = detail.lowercased()
+
+        if lowercasedDetail.contains("valid public https url") {
+            return ExperimentalMCPHTTPStatusPresentation(
+                title: "Public URL required",
+                reason: "Add a public HTTPS URL before ChatGPT can discover Backtick over OAuth.",
+                tone: .warning,
+                action: experimentalRemoteRecommendedTunnelPath == nil ? .installTunnel : .launchTunnel
+            )
+        }
+
+        if lowercasedDetail.contains("launch spec is unavailable") {
+            return ExperimentalMCPHTTPStatusPresentation(
+                title: "Backtick unavailable",
+                reason: "This Backtick build can't launch its local MCP helper right now. Restart Backtick, then try again.",
+                tone: .danger,
+                action: .retry
+            )
+        }
+
+        return ExperimentalMCPHTTPStatusPresentation(
+            title: "Needs attention",
+            reason: "Backtick couldn't keep the local MCP endpoint running. Try again.",
+            tone: .danger,
+            action: .retry
+        )
     }
 
     private static func loadExperimentalRemoteSettings(from userDefaults: UserDefaults) -> ExperimentalMCPHTTPSettings {
@@ -1651,6 +2192,13 @@ final class MCPConnectorSettingsModel: ObservableObject {
             normalizedURL.removeLast()
         }
         return normalizedURL
+    }
+
+    private static func defaultExperimentalRemoteOAuthStateFileURL(fileManager: FileManager) -> URL? {
+        fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first?
+            .appendingPathComponent("PromptCue", isDirectory: true)
+            .appendingPathComponent("BacktickMCPOAuthState.json", isDirectory: false)
     }
 }
 

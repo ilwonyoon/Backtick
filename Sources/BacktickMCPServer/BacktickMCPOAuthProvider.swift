@@ -134,6 +134,7 @@ actor BacktickMCPOAuthProvider {
     private let publicBaseURL: URL
     private let fileManager: FileManager
     private let stateFileURL: URL?
+    private let accessTokenLifetime: TimeInterval
     private var dynamicClients: [String: DynamicClientRegistration] = [:]
     private var authorizationCodes: [String: AuthorizationCodeGrant] = [:]
     private var refreshTokens: [String: RefreshGrant] = [:]
@@ -142,17 +143,26 @@ actor BacktickMCPOAuthProvider {
     init(
         publicBaseURL: URL,
         fileManager: FileManager = .default,
-        stateFileURL: URL? = nil
+        stateFileURL: URL? = nil,
+        accessTokenLifetime: TimeInterval = 3600
     ) {
         self.publicBaseURL = publicBaseURL
         self.fileManager = fileManager
         self.stateFileURL = stateFileURL ?? Self.defaultStateFileURL(fileManager: fileManager)
+        self.accessTokenLifetime = max(1, accessTokenLifetime)
         if let persistedState = Self.loadPersistedState(from: self.stateFileURL) {
             let cleanedState = Self.cleanedPersistedState(persistedState)
             dynamicClients = cleanedState.dynamicClients
             refreshTokens = cleanedState.refreshTokens
             accessTokens = cleanedState.accessTokens
         }
+        NSLog(
+            "BacktickMCPOAuthProvider state loaded: clients=%d refreshTokens=%d accessTokens=%d path=%@",
+            dynamicClients.count,
+            refreshTokens.count,
+            accessTokens.count,
+            self.stateFileURL?.path ?? "nil"
+        )
     }
 
     var protectedResourceMetadataURL: URL {
@@ -343,6 +353,10 @@ actor BacktickMCPOAuthProvider {
         }
 
         guard let registration = dynamicClients[clientID] else {
+            NSLog(
+                "BacktickMCPOAuthProvider token exchange rejected: invalid_client clientID=%@",
+                Self.redactedToken(clientID)
+            )
             throw OAuthError.invalidClient
         }
 
@@ -380,7 +394,7 @@ actor BacktickMCPOAuthProvider {
         let accessGrant = AccessGrant(
             clientID: clientID,
             scope: grant.scope,
-            expiresAt: Date().addingTimeInterval(3600)
+            expiresAt: Date().addingTimeInterval(accessTokenLifetime)
         )
         accessTokens[accessToken] = accessGrant
         refreshTokens[refreshToken] = RefreshGrant(
@@ -393,7 +407,7 @@ actor BacktickMCPOAuthProvider {
         return TokenResponse(
             accessToken: accessToken,
             tokenType: "Bearer",
-            expiresIn: 3600,
+            expiresIn: max(1, Int(accessTokenLifetime.rounded())),
             refreshToken: refreshToken,
             scope: grant.scope
         )
@@ -413,6 +427,11 @@ actor BacktickMCPOAuthProvider {
 
         guard let refreshGrant = refreshTokens[refreshToken],
               refreshGrant.clientID == clientID else {
+            NSLog(
+                "BacktickMCPOAuthProvider token exchange rejected: invalid_grant clientID=%@ refreshToken=%@",
+                Self.redactedToken(clientID),
+                Self.redactedToken(refreshToken)
+            )
             throw OAuthError.invalidGrant("refresh token is invalid")
         }
 
@@ -420,14 +439,14 @@ actor BacktickMCPOAuthProvider {
         accessTokens[accessToken] = AccessGrant(
             clientID: clientID,
             scope: refreshGrant.scope,
-            expiresAt: Date().addingTimeInterval(3600)
+            expiresAt: Date().addingTimeInterval(accessTokenLifetime)
         )
         persistState()
 
         return TokenResponse(
             accessToken: accessToken,
             tokenType: "Bearer",
-            expiresIn: 3600,
+            expiresIn: max(1, Int(accessTokenLifetime.rounded())),
             refreshToken: refreshToken,
             scope: refreshGrant.scope
         )
@@ -554,6 +573,11 @@ actor BacktickMCPOAuthProvider {
             refreshTokens: persistedState.refreshTokens,
             accessTokens: persistedState.accessTokens.filter { $0.value.expiresAt > now }
         )
+    }
+
+    private static func redactedToken(_ value: String) -> String {
+        let prefix = value.prefix(6)
+        return "\(prefix)…"
     }
 
     private struct AuthorizationRequest {

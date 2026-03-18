@@ -56,6 +56,12 @@ final class BacktickMCPServerTests: XCTestCase {
 
         let capabilities = try XCTUnwrap(result["capabilities"] as? [String: Any])
         XCTAssertNotNil(capabilities["prompts"])
+        XCTAssertNotNil(capabilities["resources"])
+
+        let resourcesResponse = try await sendRequest(session: session, id: 3, method: "resources/list")
+        let resourcesResult = try XCTUnwrap(resourcesResponse["result"] as? [String: Any])
+        let resources = try XCTUnwrap(resourcesResult["resources"] as? [Any])
+        XCTAssertTrue(resources.isEmpty)
     }
 
     func testCreateReadUpdateExecuteAndDeleteNotesThroughJsonRPC() async throws {
@@ -686,6 +692,7 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(tokenResponse.statusCode, 200)
         let tokenPayload = try jsonObject(from: tokenResponse.body)
         let accessToken = try XCTUnwrap(tokenPayload["access_token"] as? String)
+        let refreshToken = try XCTUnwrap(tokenPayload["refresh_token"] as? String)
 
         let body = try requestBody(id: 1, method: "initialize")
         let protectedResponse = await handler.response(
@@ -735,6 +742,466 @@ final class BacktickMCPServerTests: XCTestCase {
             )
         )
         XCTAssertEqual(persistedTokenResponse.statusCode, 200)
+
+        let refreshForm = Data(
+            "grant_type=refresh_token&refresh_token=\(refreshToken)&client_id=\(clientID)".utf8
+        )
+        let refreshResponse = await restartedHandler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/token",
+                headers: [
+                    "content-length": "\(refreshForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: refreshForm
+            )
+        )
+        XCTAssertEqual(refreshResponse.statusCode, 200)
+        let refreshPayload = try jsonObject(from: refreshResponse.body)
+        XCTAssertNotNil(refreshPayload["access_token"] as? String)
+        XCTAssertEqual(refreshPayload["refresh_token"] as? String, refreshToken)
+    }
+
+    func testOAuthTokenEndpointRejectsCodeReuseAndInvalidRefreshToken() async throws {
+        let session = await makeSession()
+        let oauthStateFileURL = tempDirectoryURL.appendingPathComponent("oauth-state-rejections.json", isDirectory: false)
+        let handler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration(
+                authMode: .oauth,
+                apiKey: nil,
+                publicBaseURL: URL(string: "https://backtick.test")!,
+                oauthStateFileURL: oauthStateFileURL
+            )
+        )
+
+        let registrationBody = try JSONSerialization.data(withJSONObject: [
+            "client_name": "ChatGPT",
+            "redirect_uris": ["https://chat.openai.com/aip/callback"],
+            "token_endpoint_auth_method": "none",
+        ], options: [.sortedKeys])
+        let registrationResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/register",
+                headers: [
+                    "content-length": "\(registrationBody.count)",
+                    "content-type": "application/json",
+                ],
+                body: registrationBody
+            )
+        )
+        XCTAssertEqual(registrationResponse.statusCode, 201)
+        let registrationPayload = try jsonObject(from: registrationResponse.body)
+        let clientID = try XCTUnwrap(registrationPayload["client_id"] as? String)
+
+        let authorizeForm = Data(
+            "client_id=\(clientID)&redirect_uri=https%3A%2F%2Fchat.openai.com%2Faip%2Fcallback&response_type=code&scope=backtick.mcp&state=reuse123&code_challenge=C4o_XQvR65ONsuHQv0djlsMDYgPVB63jJiXd_a4GETw&code_challenge_method=S256&decision=approve".utf8
+        )
+        let authorizeResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/authorize",
+                headers: [
+                    "content-length": "\(authorizeForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: authorizeForm
+            )
+        )
+        XCTAssertEqual(authorizeResponse.statusCode, 302)
+        let redirectLocation = try XCTUnwrap(authorizeResponse.headers["Location"])
+        let redirectComponents = try XCTUnwrap(URLComponents(string: redirectLocation))
+        let authorizationCode = try XCTUnwrap(
+            redirectComponents.queryItems?.first(where: { $0.name == "code" })?.value
+        )
+
+        let tokenForm = Data(
+            "grant_type=authorization_code&code=\(authorizationCode)&client_id=\(clientID)&redirect_uri=https%3A%2F%2Fchat.openai.com%2Faip%2Fcallback&code_verifier=backtick-verifier".utf8
+        )
+        let firstTokenResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/token",
+                headers: [
+                    "content-length": "\(tokenForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: tokenForm
+            )
+        )
+        XCTAssertEqual(firstTokenResponse.statusCode, 200)
+
+        let reusedCodeResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/token",
+                headers: [
+                    "content-length": "\(tokenForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: tokenForm
+            )
+        )
+        XCTAssertEqual(reusedCodeResponse.statusCode, 400)
+        let reusedCodePayload = try jsonObject(from: reusedCodeResponse.body)
+        XCTAssertEqual(reusedCodePayload["error"] as? String, "invalid_grant")
+
+        let invalidRefreshForm = Data(
+            "grant_type=refresh_token&refresh_token=stale-refresh-token&client_id=\(clientID)".utf8
+        )
+        let invalidRefreshResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/token",
+                headers: [
+                    "content-length": "\(invalidRefreshForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: invalidRefreshForm
+            )
+        )
+        XCTAssertEqual(invalidRefreshResponse.statusCode, 400)
+        let invalidRefreshPayload = try jsonObject(from: invalidRefreshResponse.body)
+        XCTAssertEqual(invalidRefreshPayload["error"] as? String, "invalid_grant")
+    }
+
+    func testOAuthTokenEndpointRejectsStaleClientIDAfterLocalStateReset() async throws {
+        let session = await makeSession()
+        let oauthStateFileURL = tempDirectoryURL.appendingPathComponent("oauth-state-invalid-client.json", isDirectory: false)
+        let handler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration(
+                authMode: .oauth,
+                apiKey: nil,
+                publicBaseURL: URL(string: "https://backtick.test")!,
+                oauthStateFileURL: oauthStateFileURL
+            )
+        )
+
+        let registrationBody = try JSONSerialization.data(withJSONObject: [
+            "client_name": "ChatGPT",
+            "redirect_uris": ["https://chat.openai.com/aip/callback"],
+            "token_endpoint_auth_method": "none",
+        ], options: [.sortedKeys])
+        let registrationResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/register",
+                headers: [
+                    "content-length": "\(registrationBody.count)",
+                    "content-type": "application/json",
+                ],
+                body: registrationBody
+            )
+        )
+        XCTAssertEqual(registrationResponse.statusCode, 201)
+        let registrationPayload = try jsonObject(from: registrationResponse.body)
+        let clientID = try XCTUnwrap(registrationPayload["client_id"] as? String)
+
+        try FileManager.default.removeItem(at: oauthStateFileURL)
+
+        let restartedHandler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration(
+                authMode: .oauth,
+                apiKey: nil,
+                publicBaseURL: URL(string: "https://backtick.test")!,
+                oauthStateFileURL: oauthStateFileURL
+            )
+        )
+
+        let staleClientTokenForm = Data(
+            "grant_type=refresh_token&refresh_token=does-not-matter&client_id=\(clientID)".utf8
+        )
+        let staleClientResponse = await restartedHandler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/token",
+                headers: [
+                    "content-length": "\(staleClientTokenForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: staleClientTokenForm
+            )
+        )
+        XCTAssertEqual(staleClientResponse.statusCode, 400)
+        let staleClientPayload = try jsonObject(from: staleClientResponse.body)
+        XCTAssertEqual(staleClientPayload["error"] as? String, "invalid_client")
+    }
+
+    func testExpiredPersistedAccessTokenCanRecoverViaRefreshTokenAfterRestart() async throws {
+        let session = await makeSession()
+        let oauthStateFileURL = tempDirectoryURL.appendingPathComponent("oauth-state-expired-access.json", isDirectory: false)
+        let handler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration(
+                authMode: .oauth,
+                apiKey: nil,
+                publicBaseURL: URL(string: "https://backtick.test")!,
+                oauthStateFileURL: oauthStateFileURL
+            )
+        )
+
+        let registrationBody = try JSONSerialization.data(withJSONObject: [
+            "client_name": "ChatGPT",
+            "redirect_uris": ["https://chat.openai.com/aip/callback"],
+            "token_endpoint_auth_method": "none",
+        ], options: [.sortedKeys])
+        let registrationResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/register",
+                headers: [
+                    "content-length": "\(registrationBody.count)",
+                    "content-type": "application/json",
+                ],
+                body: registrationBody
+            )
+        )
+        XCTAssertEqual(registrationResponse.statusCode, 201)
+        let registrationPayload = try jsonObject(from: registrationResponse.body)
+        let clientID = try XCTUnwrap(registrationPayload["client_id"] as? String)
+
+        let authorizeForm = Data(
+            "client_id=\(clientID)&redirect_uri=https%3A%2F%2Fchat.openai.com%2Faip%2Fcallback&response_type=code&scope=backtick.mcp&state=expired123&code_challenge=C4o_XQvR65ONsuHQv0djlsMDYgPVB63jJiXd_a4GETw&code_challenge_method=S256&decision=approve".utf8
+        )
+        let authorizeResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/authorize",
+                headers: [
+                    "content-length": "\(authorizeForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: authorizeForm
+            )
+        )
+        XCTAssertEqual(authorizeResponse.statusCode, 302)
+        let redirectLocation = try XCTUnwrap(authorizeResponse.headers["Location"])
+        let redirectComponents = try XCTUnwrap(URLComponents(string: redirectLocation))
+        let authorizationCode = try XCTUnwrap(
+            redirectComponents.queryItems?.first(where: { $0.name == "code" })?.value
+        )
+
+        let tokenForm = Data(
+            "grant_type=authorization_code&code=\(authorizationCode)&client_id=\(clientID)&redirect_uri=https%3A%2F%2Fchat.openai.com%2Faip%2Fcallback&code_verifier=backtick-verifier".utf8
+        )
+        let tokenResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/token",
+                headers: [
+                    "content-length": "\(tokenForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: tokenForm
+            )
+        )
+        XCTAssertEqual(tokenResponse.statusCode, 200)
+        let tokenPayload = try jsonObject(from: tokenResponse.body)
+        let accessToken = try XCTUnwrap(tokenPayload["access_token"] as? String)
+        let refreshToken = try XCTUnwrap(tokenPayload["refresh_token"] as? String)
+
+        try expirePersistedAccessToken(accessToken, in: oauthStateFileURL)
+
+        let restartedHandler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration(
+                authMode: .oauth,
+                apiKey: nil,
+                publicBaseURL: URL(string: "https://backtick.test")!,
+                oauthStateFileURL: oauthStateFileURL
+            )
+        )
+
+        let body = try requestBody(id: 1, method: "initialize")
+        let expiredAccessResponse = await restartedHandler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/mcp",
+                headers: [
+                    "authorization": "Bearer \(accessToken)",
+                    "content-length": "\(body.count)",
+                    "content-type": "application/json",
+                ],
+                body: body
+            )
+        )
+        XCTAssertEqual(expiredAccessResponse.statusCode, 401)
+
+        let refreshForm = Data(
+            "grant_type=refresh_token&refresh_token=\(refreshToken)&client_id=\(clientID)".utf8
+        )
+        let refreshResponse = await restartedHandler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/token",
+                headers: [
+                    "content-length": "\(refreshForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: refreshForm
+            )
+        )
+        XCTAssertEqual(refreshResponse.statusCode, 200)
+        let refreshPayload = try jsonObject(from: refreshResponse.body)
+        let refreshedAccessToken = try XCTUnwrap(refreshPayload["access_token"] as? String)
+        XCTAssertEqual(refreshPayload["refresh_token"] as? String, refreshToken)
+
+        let recoveredResponse = await restartedHandler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/mcp",
+                headers: [
+                    "authorization": "Bearer \(refreshedAccessToken)",
+                    "content-length": "\(body.count)",
+                    "content-type": "application/json",
+                ],
+                body: body
+            )
+        )
+        XCTAssertEqual(recoveredResponse.statusCode, 200)
+    }
+
+    func testShortLivedAccessTokenExpiresThenRefreshRecovers() async throws {
+        let session = await makeSession()
+        let oauthStateFileURL = tempDirectoryURL.appendingPathComponent("oauth-state-short-ttl.json", isDirectory: false)
+        let handler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration(
+                authMode: .oauth,
+                apiKey: nil,
+                publicBaseURL: URL(string: "https://backtick.test")!,
+                oauthStateFileURL: oauthStateFileURL,
+                accessTokenLifetime: 1
+            )
+        )
+
+        let registrationBody = try JSONSerialization.data(withJSONObject: [
+            "client_name": "ChatGPT",
+            "redirect_uris": ["https://chat.openai.com/aip/callback"],
+            "token_endpoint_auth_method": "none",
+        ], options: [.sortedKeys])
+        let registrationResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/register",
+                headers: [
+                    "content-length": "\(registrationBody.count)",
+                    "content-type": "application/json",
+                ],
+                body: registrationBody
+            )
+        )
+        XCTAssertEqual(registrationResponse.statusCode, 201)
+        let registrationPayload = try jsonObject(from: registrationResponse.body)
+        let clientID = try XCTUnwrap(registrationPayload["client_id"] as? String)
+
+        let authorizeForm = Data(
+            "client_id=\(clientID)&redirect_uri=https%3A%2F%2Fchat.openai.com%2Faip%2Fcallback&response_type=code&scope=backtick.mcp&state=ttl123&code_challenge=C4o_XQvR65ONsuHQv0djlsMDYgPVB63jJiXd_a4GETw&code_challenge_method=S256&decision=approve".utf8
+        )
+        let authorizeResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/authorize",
+                headers: [
+                    "content-length": "\(authorizeForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: authorizeForm
+            )
+        )
+        XCTAssertEqual(authorizeResponse.statusCode, 302)
+        let redirectLocation = try XCTUnwrap(authorizeResponse.headers["Location"])
+        let redirectComponents = try XCTUnwrap(URLComponents(string: redirectLocation))
+        let authorizationCode = try XCTUnwrap(
+            redirectComponents.queryItems?.first(where: { $0.name == "code" })?.value
+        )
+
+        let tokenForm = Data(
+            "grant_type=authorization_code&code=\(authorizationCode)&client_id=\(clientID)&redirect_uri=https%3A%2F%2Fchat.openai.com%2Faip%2Fcallback&code_verifier=backtick-verifier".utf8
+        )
+        let tokenResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/token",
+                headers: [
+                    "content-length": "\(tokenForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: tokenForm
+            )
+        )
+        XCTAssertEqual(tokenResponse.statusCode, 200)
+        let tokenPayload = try jsonObject(from: tokenResponse.body)
+        let accessToken = try XCTUnwrap(tokenPayload["access_token"] as? String)
+        let refreshToken = try XCTUnwrap(tokenPayload["refresh_token"] as? String)
+
+        let body = try requestBody(id: 1, method: "initialize")
+        let initialProtectedResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/mcp",
+                headers: [
+                    "authorization": "Bearer \(accessToken)",
+                    "content-length": "\(body.count)",
+                    "content-type": "application/json",
+                ],
+                body: body
+            )
+        )
+        XCTAssertEqual(initialProtectedResponse.statusCode, 200)
+
+        try await Task.sleep(nanoseconds: 1_300_000_000)
+
+        let expiredProtectedResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/mcp",
+                headers: [
+                    "authorization": "Bearer \(accessToken)",
+                    "content-length": "\(body.count)",
+                    "content-type": "application/json",
+                ],
+                body: body
+            )
+        )
+        XCTAssertEqual(expiredProtectedResponse.statusCode, 401)
+
+        let refreshForm = Data(
+            "grant_type=refresh_token&refresh_token=\(refreshToken)&client_id=\(clientID)".utf8
+        )
+        let refreshResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/token",
+                headers: [
+                    "content-length": "\(refreshForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: refreshForm
+            )
+        )
+        XCTAssertEqual(refreshResponse.statusCode, 200)
+        let refreshPayload = try jsonObject(from: refreshResponse.body)
+        let refreshedAccessToken = try XCTUnwrap(refreshPayload["access_token"] as? String)
+        XCTAssertEqual(refreshPayload["refresh_token"] as? String, refreshToken)
+
+        let recoveredResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/mcp",
+                headers: [
+                    "authorization": "Bearer \(refreshedAccessToken)",
+                    "content-length": "\(body.count)",
+                    "content-type": "application/json",
+                ],
+                body: body
+            )
+        )
+        XCTAssertEqual(recoveredResponse.statusCode, 200)
     }
 
     func testHTTPRequestParserReturnsIncompleteUntilBodyArrives() {
@@ -819,6 +1286,21 @@ final class BacktickMCPServerTests: XCTestCase {
     private func jsonObject(from data: Data) throws -> [String: Any] {
         let object = try JSONSerialization.jsonObject(with: data)
         return try XCTUnwrap(object as? [String: Any])
+    }
+
+    private func expirePersistedAccessToken(_ token: String, in stateFileURL: URL) throws {
+        let data = try Data(contentsOf: stateFileURL)
+        var payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        var accessTokens = try XCTUnwrap(payload["accessTokens"] as? [String: Any])
+        var accessGrant = try XCTUnwrap(accessTokens[token] as? [String: Any])
+        accessGrant["expiresAt"] = 0
+        accessTokens[token] = accessGrant
+        payload["accessTokens"] = accessTokens
+
+        let updatedData = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+        try updatedData.write(to: stateFileURL, options: .atomic)
     }
 
     private func toolPayload(from response: [String: Any]) throws -> [String: Any] {

@@ -108,12 +108,7 @@ resolve_scratch_path() {
     return
   fi
 
-  if [[ -n "${DERIVED_FILE_DIR:-}" ]]; then
-    SCRATCH_ROOT="${DERIVED_FILE_DIR}/BacktickMCPScratch"
-    return
-  fi
-
-  SCRATCH_ROOT="${PROJECT_ROOT}/.build/BacktickMCPScratch"
+  SCRATCH_ROOT="${PROJECT_ROOT}/build/BacktickMCPScratch"
 }
 
 resolve_deployment_target() {
@@ -121,14 +116,27 @@ resolve_deployment_target() {
 }
 
 resolve_swiftpm_state_paths() {
-  SWIFTPM_CACHE_PATH="${SCRATCH_ROOT}/swiftpm-cache"
-  SWIFTPM_CONFIG_PATH="${SCRATCH_ROOT}/swiftpm-config"
-  SWIFTPM_SECURITY_PATH="${SCRATCH_ROOT}/swiftpm-security"
+  SWIFTPM_BUILD_ARGS=()
+  SWIFTPM_STATE_MODE="shared"
 
-  mkdir -p \
-    "${SWIFTPM_CACHE_PATH}" \
-    "${SWIFTPM_CONFIG_PATH}" \
-    "${SWIFTPM_SECURITY_PATH}"
+  if [[ -n "${BACKTICK_MCP_HELPER_SCRATCH_PATH:-}" ]] \
+    || [[ "${BACKTICK_MCP_HELPER_ISOLATED_SWIFTPM_STATE:-0}" == "1" ]]; then
+    SWIFTPM_STATE_MODE="isolated"
+    SWIFTPM_CACHE_PATH="${SCRATCH_ROOT}/swiftpm-cache"
+    SWIFTPM_CONFIG_PATH="${SCRATCH_ROOT}/swiftpm-config"
+    SWIFTPM_SECURITY_PATH="${SCRATCH_ROOT}/swiftpm-security"
+
+    mkdir -p \
+      "${SWIFTPM_CACHE_PATH}" \
+      "${SWIFTPM_CONFIG_PATH}" \
+      "${SWIFTPM_SECURITY_PATH}"
+
+    SWIFTPM_BUILD_ARGS+=(
+      "--cache-path" "${SWIFTPM_CACHE_PATH}"
+      "--config-path" "${SWIFTPM_CONFIG_PATH}"
+      "--security-path" "${SWIFTPM_SECURITY_PATH}"
+    )
+  fi
 }
 
 resolve_codesign_strategy() {
@@ -208,21 +216,54 @@ build_for_architecture() {
   local bin_path=""
   local build_log="${SCRATCH_ROOT}/swift-build-${arch}.log"
   local fallback_path=""
+  local attempt=1
+  local -a scratch_args=()
+  local -a build_args=(
+    --disable-sandbox
+    --package-path "${PROJECT_ROOT}"
+    --manifest-cache local
+    --only-use-versions-from-resolved-file
+    --configuration "${SWIFT_BUILD_CONFIGURATION}"
+    --triple "${triple}"
+  )
+  local -a show_bin_args=(
+    --disable-sandbox
+    --package-path "${PROJECT_ROOT}"
+    --manifest-cache local
+    --only-use-versions-from-resolved-file
+    --configuration "${SWIFT_BUILD_CONFIGURATION}"
+    --triple "${triple}"
+    --show-bin-path
+  )
 
-  mkdir -p "${arch_scratch}"
+  if [[ "${SWIFTPM_STATE_MODE}" == "isolated" ]]; then
+    mkdir -p "${arch_scratch}"
+    scratch_args=("--scratch-path" "${arch_scratch}")
+    build_args+=("${SWIFTPM_BUILD_ARGS[@]}" "${scratch_args[@]}")
+    show_bin_args+=("${SWIFTPM_BUILD_ARGS[@]}" "${scratch_args[@]}")
+  fi
 
-  if ! "${SWIFT_BIN}" build \
-    --disable-sandbox \
-    --package-path "${PROJECT_ROOT}" \
-    --cache-path "${SWIFTPM_CACHE_PATH}" \
-    --config-path "${SWIFTPM_CONFIG_PATH}" \
-    --security-path "${SWIFTPM_SECURITY_PATH}" \
-    --scratch-path "${arch_scratch}" \
-    --manifest-cache local \
-    --only-use-versions-from-resolved-file \
-    --configuration "${SWIFT_BUILD_CONFIGURATION}" \
-    --triple "${triple}" \
-    --product "${HELPER_NAME}" > /dev/null 2> "${build_log}"; then
+  while (( attempt <= 2 )); do
+    if "${SWIFT_BIN}" build \
+      "${build_args[@]}" \
+      --product "${HELPER_NAME}" > /dev/null 2> "${build_log}"; then
+      break
+    fi
+
+    if (( attempt == 1 )) && [[ "${SWIFTPM_STATE_MODE}" == "isolated" ]]; then
+      echo "build_backtick_mcp_helper: retrying clean helper build for ${arch} after isolated scratch failure"
+      rm -rf "${arch_scratch}"
+      mkdir -p "${arch_scratch}"
+      attempt=$((attempt + 1))
+      continue
+    fi
+
+    if (( attempt == 1 )); then
+      echo "build_backtick_mcp_helper: retrying shared helper build for ${arch}"
+      attempt=$((attempt + 1))
+      continue
+    fi
+
     fallback_path="$(fallback_helper_path_for_architecture "${arch}" || true)"
     if [[ -n "${fallback_path}" ]]; then
       echo "build_backtick_mcp_helper: falling back to existing helper artifact for ${arch}: ${fallback_path}"
@@ -232,20 +273,9 @@ build_for_architecture() {
 
     cat "${build_log}" >&2
     fail "swift build failed for ${arch}"
-  fi
+  done
 
-  bin_path="$("${SWIFT_BIN}" build \
-    --disable-sandbox \
-    --package-path "${PROJECT_ROOT}" \
-    --cache-path "${SWIFTPM_CACHE_PATH}" \
-    --config-path "${SWIFTPM_CONFIG_PATH}" \
-    --security-path "${SWIFTPM_SECURITY_PATH}" \
-    --scratch-path "${arch_scratch}" \
-    --manifest-cache local \
-    --only-use-versions-from-resolved-file \
-    --configuration "${SWIFT_BUILD_CONFIGURATION}" \
-    --triple "${triple}" \
-    --show-bin-path)/${HELPER_NAME}"
+  bin_path="$("${SWIFT_BIN}" build "${show_bin_args[@]}")/${HELPER_NAME}"
 
   if [[ ! -x "${bin_path}" ]]; then
     fallback_path="$(fallback_helper_path_for_architecture "${arch}" || true)"
@@ -321,6 +351,8 @@ SWIFT_BIN="$(xcrun --find swift)"
 
 declare -a ARCHITECTURES=()
 declare -a BUILT_HELPER_PATHS=()
+declare -a SWIFTPM_BUILD_ARGS=()
+SWIFTPM_STATE_MODE="shared"
 
 resolve_architectures
 resolve_destination
@@ -329,7 +361,7 @@ resolve_deployment_target
 resolve_swiftpm_state_paths
 resolve_codesign_strategy
 
-echo "build_backtick_mcp_helper: packaging ${HELPER_NAME} for ${ARCHITECTURES[*]} -> ${HELPER_DESTINATION}"
+echo "build_backtick_mcp_helper: packaging ${HELPER_NAME} for ${ARCHITECTURES[*]} -> ${HELPER_DESTINATION} (${SWIFTPM_STATE_MODE} SwiftPM state)"
 
 for architecture in "${ARCHITECTURES[@]}"; do
   build_for_architecture "${architecture}"
