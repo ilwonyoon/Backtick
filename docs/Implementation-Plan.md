@@ -253,6 +253,7 @@ Why:
 - the actual product need is cross-client `Stack` read/write through MCP from `Claude Desktop`, `Claude Code`, `Codex`, and the experimental self-hosted ChatGPT path
 - the intended AI workflow is: read the current Stack, summarize or classify what matters, then write condensed notes back into Backtick through MCP
 - repo `docs/` authoring is not the Backtick MCP surface itself; that remains a separate code-agent or manual follow-up after the AI has written the important memory back into `Stack`
+- the next memory layer after this Stack-first rollout is reviewed project documents: hours-long Claude Desktop / ChatGPT discussions should be distilled into typed docs with flat topic classification, not stored as raw transcripts
 - an AI execution step should update copied state on the source Stack notes directly
 - intermediate board and work-item layers add complexity without helping the MCP bridge
 
@@ -270,6 +271,13 @@ Primary cross-client outcome:
 - `Claude Desktop` and ChatGPT should be able to pull the current note context, summarize key decisions, and save the important result back into Backtick
 - `Claude Code` and `Codex` should be able to do the same while also using repo context in the coding environment
 - the MCP bridge is therefore a memory and context surface over `Stack`, not a direct repository-document writer
+
+Post-Stack Warm memory follow-on:
+
+- long strategy or research discussions from `Claude Desktop` and ChatGPT should be promoted into reviewed project documents rather than left only in ephemeral Stack notes
+- those documents should carry explicit `documentType` metadata plus flat `topic` classification
+- initial `documentType` buckets should distinguish durable discussion summaries from decision docs, plans, and reference/context docs
+- topic classification stays flat and reusable across sessions; fit into existing topics first, create new topics only when clearly distinct
 
 Implementation rules for the next MCP lane:
 
@@ -414,18 +422,37 @@ Current rollout status:
    - `Claude Code` in `--permission-mode dontAsk` still requires Backtick tools in `--allowedTools`
    - keep treating `tool permission denied` as client setup friction instead of a Backtick MCP launch failure
 
+Current MCP scope split:
+
+1. shipped on `main`
+   - Stack note read/write/execute
+   - connector settings for `Claude Desktop`, `Claude Code`, and `Codex`
+   - pinned cards as the shipped prompt/context reuse surface
+2. experimental on `main`
+   - self-hosted ChatGPT remote MCP over HTTP + OAuth
+   - requires Backtick to stay running plus a user-provided public HTTPS URL/tunnel
+3. not started
+   - Warm memory / project documents
+   - typed long-form docs with `documentType` + flat topic classification
+   - Memory panel and Warm MCP tools
+
 Current MCP platform queue:
 
 1. keep the shipped stdio connector surface stable for `Claude Desktop`, `Claude Code`, and `Codex`
 2. keep ChatGPT remote MCP clearly labeled as `experimental self-hosted`
 3. tighten reconnect/reset/health UX for stale ChatGPT apps and OAuth state
 4. do not let MCP work silently replace the remaining main product roadmap now that `R7C`, `R8`, and `R9` are already landed on `main`
+5. lock the post-launch Warm memory contract so long Claude Desktop / ChatGPT discussions save into reviewed project documents with explicit `documentType` plus topic classification
+6. keep ChatGPT on the advanced-user self-hosted track; do not open a hosted relay / managed distribution plan in the active roadmap
 
 Why this rollout is required:
 
 - transport alone is not enough user value if the user does not know how to attach `Claude Code` or `Codex`
 - MCP is a connector feature from the user point of view, not just a local executable
 - user-facing value is not just connection status; it is letting `Claude Desktop` or ChatGPT pull the important notes, summarize what matters, and write the distilled result back into Backtick
+- the same surface should later support promoting multi-hour AI discussions into durable typed project documents, not just short-lived Stack notes
+- prompt reuse is already partially solved in the shipped product through pinned cards; do not mix that shipped surface up with the not-yet-started Warm document model
+- ChatGPT distribution remains intentionally narrow: advanced-user self-hosted only
 - sensitive integration behavior should be visible in Settings rather than hidden in docs or shell commands
 - connector setup is incomplete for release users until Backtick ships a helper binary or equivalent launchable surface
 - successful interactive connection is not enough if common automation modes still fail on client-side tool permissions

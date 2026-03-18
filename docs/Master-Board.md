@@ -43,6 +43,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Design polish lane | In progress | `DP0` review lock is complete; `DP1` capture elevation and `DP2` stack brightness are now in implementation and awaiting visual review packets |
 | Settings surface | In progress | Shortcut recorders and screenshot folder controls are now implemented |
 | MCP platform expansion | In progress | stdio connector rollout is shipped for `Claude Desktop`, `Claude Code`, and `Codex`; ChatGPT remote MCP is now an experimental self-hosted OAuth path on `main` |
+| Warm memory / project documents | Planned | post-launch MCP follow-on: save long Claude Desktop / ChatGPT discussions as reviewed project documents with explicit `documentType` plus flat topic classification |
 | Stack sync and light-mode readability | In progress | `Phase R6` now uses tracked capture submission plus a stronger light-mode veil; real-device QA is still the gate |
 | Capture input system hardening | In progress | `Phase R7A` contract lock and QA harness are complete; `Phase R7B` now rewrites the live capture panel around an AppKit-owned sizing host, and the suggested-target selector is fully fixed with the v2 replacement contract locked in `docs/Capture-Suggested-Target-Selector-Repair-Plan.md` |
 | Inline tag contract hardening | Completed | canonical slug tag parsing, polluted-tag rejection, legacy tag cleanup, inline reconstruction, and MCP-safe tag payloads are landed on `main`; remaining `Phase R7` work is broader input-system hardening, not tag contract work |
@@ -153,6 +154,7 @@ Reason:
 - the real requirement is cross-client `Stack` DB `read/write` from `Claude Desktop`, `Claude Code`, `Codex`, and the experimental ChatGPT path
 - the intended user value is: let an AI pull the important notes, summarize or classify what matters, and write the distilled result back into Backtick
 - direct repository `docs/` editing is not the Backtick MCP surface itself; that remains a separate code-agent or manual follow-up after the key memory is written back into `Stack`
+- after the current Stack-first MCP rollout, the next memory layer is reviewed project documents: long ChatGPT / Claude Desktop discussions should be distilled into typed docs, not left as raw chat logs or ephemeral Stack notes
 - copied state should update when an AI actually executes a note
 - derived planning surfaces add merge surface and conceptual debt without helping that path
 
@@ -207,12 +209,28 @@ Current landed slices:
 - execution-map style UI remains out of scope while post-MCP rollout work is prioritized
 - Settings-based connector UI is now the user-facing MCP rollout surface, including setup and local validation
 
+Current MCP scope split:
+
+1. shipped on `main`
+   - Stack note read/write/execute over MCP for `Claude Desktop`, `Claude Code`, and `Codex`
+   - permanent prompt reuse via pinned cards is already part of the shipped Stack surface
+2. experimental on `main`
+   - ChatGPT remote MCP through a self-hosted OAuth + public HTTPS path
+   - advanced-user only; not default onboarding
+3. research-backed but not started
+   - Warm memory / project documents
+   - reviewed long-form docs with `documentType` + flat topic classification
+   - dedicated Memory panel and Warm MCP tools
+
 Current MCP platform queue:
 
 1. keep stdio connectors stable for `Claude Desktop`, `Claude Code`, and `Codex`
 2. keep ChatGPT remote MCP clearly marked `experimental self-hosted`
 3. improve stale-app reset, reconnect, and health UX for the ChatGPT path
 4. return main product priority to the remaining non-tag `Phase R7` follow-up plus grouped export and stack-refactor validation work
+5. lock the post-launch Warm memory contract so long AI discussions save into reviewed project documents with explicit `documentType` plus topic classification
+6. do not blur shipped Stack MCP, experimental ChatGPT remote MCP, and post-launch Warm memory into one roadmap bucket
+7. keep ChatGPT distribution on the advanced-user self-hosted track; hosted relay / managed distribution is not in the active plan
 
 Landed MCP gates:
 

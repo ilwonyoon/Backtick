@@ -324,9 +324,9 @@ No one else is building: **intentional capture → structured execution queue �
 
 #### 6.1 Cross-Platform MCP Delivery ✅ Partially Done
 **Source**: Vibe-coder pain point #2, Pluro's existence, 70% multi-tool usage
-**What**: Backtick's MCP server should work with Claude Desktop, Cursor, ChatGPT (when MCP support lands), Codex
+**What**: Backtick's MCP server should work with Claude Desktop, ChatGPT, and Codex
 **Why**: This is the #1 reason someone would use Backtick over platform-native memory. "Capture once, use everywhere"
-**Status**: Claude Code + Codex connectors shipped. **Claude Desktop connector added 2026-03-17** (PR #58, one-click config write). ChatGPT HTTP connector not yet started.
+**Status**: Claude Code + Codex connectors shipped. **Claude Desktop connector added 2026-03-17** (PR #58, one-click config write). ChatGPT remote HTTP connector is now on `main` as an **experimental self-hosted OAuth path**, not a hosted or default-consumer flow.
 
 #### 6.2 Prompt/Context Reuse ✅ Done (Pin Feature)
 **Source**: Vibe-coder pain point #3, no existing solution

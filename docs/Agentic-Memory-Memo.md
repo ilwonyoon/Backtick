@@ -210,7 +210,7 @@ That's the gap. That's Backtick.
 
 ### Phase 1: Ship Memory (Q2 2026)
 
-- `Project × Topic` document model in PromptCueCore
+- `Project × Topic + documentType` document model in PromptCueCore
 - 7 new MCP tools (save/recall/update/list/delete/search/manage)
 - Memory panel (Cmd+3) with project list → topic chips → document viewer
 - Proactive AI behavior via tool descriptions ("recall when user mentions project")
@@ -219,10 +219,10 @@ That's the gap. That's Backtick.
 
 ### Phase 2: Cross-Platform Reach (Q3 2026)
 
-- Remote HTTP transport for ChatGPT web-first connector flow
-- One-click setup for Claude Desktop, Claude Code, Codex
-- Bearer token auth for HTTP connections
-- Connection status in Settings
+- Keep shipped `Claude Desktop`, `Claude Code`, and `Codex` connector setup stable
+- Promote the existing experimental ChatGPT remote HTTP MCP path into a safer guided setup
+- Keep remote auth and connection state understandable in Settings
+- Extend Warm tools over the same cross-platform MCP surface once Memory ships
 
 ### Phase 3: Intelligence Layer (Q4 2026)
 
@@ -251,4 +251,4 @@ Every AI platform will have its own memory. None of them will share it. The laye
 
 ---
 
-*Backtick is built by a solo founder in Seoul. The app is a native macOS utility (SwiftUI + AppKit), with MCP transport already verified across Claude Code, Codex, and Claude Desktop. Stack is shipped. Memory is next.*
+*Backtick is built by a solo founder in Seoul. The app is a native macOS utility (SwiftUI + AppKit), with shipped MCP transport across Claude Code, Codex, and Claude Desktop plus an experimental self-hosted ChatGPT remote path on `main`. Stack is shipped. Memory is next.*

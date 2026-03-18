@@ -214,12 +214,13 @@ public struct Project: Codable, Sendable, Identifiable {
 public struct ProjectDocument: Codable, Sendable, Identifiable {
     public let id: UUID
     public var project: String           // FK → Project.name
+    public var documentType: DocumentType // discussion, decision, plan, reference
     public var topic: String             // "branding" — slug
     public var content: String           // markdown body
     public var createdAt: Date
     public var updatedAt: Date
 }
-// DB unique constraint: (project, topic)
+// Locked Warm-document key: `(project, topic, documentType)`.
 
 public enum ProjectStatus: String, Codable, Sendable {
     case active
@@ -274,11 +275,11 @@ update_document(project: "backtick", topic: "architecture", action: "delete_sect
   section: "Resolved Questions")
 ```
 
-#### Document structure: project × topic
+#### Document structure: project × topic, with explicit document type
 
 Muninn collapsed everything into one document per project. In practice this breaks — a project like Backtick has discussions about logo, pricing, website, architecture, launch that don't belong in one file.
 
-**Solution: `project × topic` as the document unit.**
+**Solution: typed project documents, classified by flat topic.**
 
 ```
 Project: backtick
@@ -290,16 +291,18 @@ Project: backtick
 ```
 
 - **AI can classify by topic** — it knows a logo conversation is "branding". This is the right granularity for AI to handle.
+- **Doc type separates shape, topic separates subject** — a long discussion summary, a durable decision doc, and a reusable reference doc should not be forced into one bucket just because they share a topic.
 - **Same topic updates across sessions** — discuss logo Monday, revisit Wednesday → branding doc gets updated, not duplicated.
 - **Each doc stays bounded** — no single doc grows to unmanageable size.
 - **Topic explosion prevention** — AI instruction: "fit into existing topics first, only create new topic if clearly distinct". If a project gets >10 topics, suggest consolidation.
 
-**Addressing scheme:** `(project, topic)` is the unique key. Simple, flat, no nesting.
+**Addressing scheme:** keep it flat. The Warm-document key is locked as `(project, topic, documentType)`.
 
 ```swift
 public struct ProjectDocument: Codable, Sendable, Identifiable {
     public let id: UUID
     public var project: String       // "backtick"
+    public var documentType: DocumentType // discussion, decision, plan, reference
     public var topic: String         // "branding" — slug, kebab-case
     public var content: String       // markdown body
     public var status: DocumentStatus
@@ -323,6 +326,7 @@ Lesson from Muninn: Claude proactively asks "이거 저장할까요?" because th
 | Proactive save | "At session end, offer to save key decisions and context" | User doesn't have to remember to save |
 | Recall before save | "Always recall_document first, merge new info, then save back" | Prevents overwriting existing content |
 | Fit existing topics | "Check list_documents first. Fit into existing topic if possible. Only create new topic if clearly distinct" | Prevents topic explosion |
+| Pick the smallest durable doc type | "Save long discussion summaries as `discussion`, settled conclusions as `decision`, execution breakdowns as `plan`, and reusable background as `reference`" | Prevents one-topic documents from becoming incoherent catch-alls |
 | Structured content | "Content MUST be markdown with ## headers. Never save a single-line summary. Minimum 200 characters" | Ensures readable documents |
 | Exclude noise | "Do NOT save: code snippets, test results, function names, raw conversation logs. Save: decisions, reasoning, status, open questions" | Keeps documents useful |
 
@@ -975,5 +979,13 @@ Claude Desktop connector: one-click config write to `claude_desktop_config.json`
 
 → This now unlocks an experimental self-hosted ChatGPT connector on `main`. The current path is advanced-user only: Backtick must stay running, the user brings a public HTTPS URL/tunnel, and ChatGPT web completes OAuth approval. Do not assume localhost registration or app/mobile parity.
 
-**Post-launch Phase 3 (distribution + stability):**
-Hosted relay or BYO tunnel flow for Claude Web / ChatGPT Web, plus reconnect and health UX. `BYO tunnel` is now started through `ngrok`-guided self-hosted setup in Settings, but reconnect/reset/health UX remains incomplete and hosted relay work is still not started.
+**Post-launch Phase 3 (stability only):**
+Keep the current self-hosted ChatGPT / Claude Web path usable for advanced users. `BYO tunnel` is now started through `ngrok`-guided self-hosted setup in Settings, but reconnect/reset/health UX remains incomplete. Hosted relay / managed distribution is not part of the current roadmap.
+
+**Read-this-first scope split:**
+
+- **Shipped on `main` today:** Stack note MCP for `Claude Desktop`, `Claude Code`, and `Codex`, plus pinned prompt cards in Stack
+- **Experimental on `main` today:** self-hosted ChatGPT remote MCP over HTTP + OAuth
+- **Research / post-launch only:** Warm memory documents, `documentType` contract, Memory panel, and Warm MCP tools
+
+This matters because the broader research below includes both shipped Stack MCP work and future Warm-memory ideas. Do not read every section as current implementation scope.
