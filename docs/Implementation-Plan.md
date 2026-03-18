@@ -50,21 +50,26 @@
 
 The immediate implementation slice is:
 
-- `safe-main merge candidate: preserve the currently approved functionality while merging performance core, approved capture/stack visuals, and long-note overflow behavior`
-- `Phase R7: capture input system hardening`
-- queued next: `Phase R8: AI Export Tail / Prompt Suffix`
-- queued after that: `Phase R9: stack card overflow and click expansion`
+- `MCP platform track: stabilize shipped stdio connectors and the experimental self-hosted ChatGPT remote-MCP path`
+- main-product follow-up: close the remaining non-tag `Phase R7` input-system hardening work
+- `Phase R7C`, `Phase R8`, and `Phase R9` are already landed on `main`
 - in parallel planning/visual lane: `Phase DP0 -> DP4` from `docs/Design-Polish-Execution-Plan.md`
 
-This slice exists because the performance lane is complete, but the merge target is now constrained by preserving current `main` behavior and current UI style while still landing the large service/state/runtime wins.
+This slice exists because the performance lane is complete, the major Capture/Stack follow-up slices (`R7C`, `R8`, `R9`) are now landed, and the active work has shifted to MCP-platform stabilization plus the remaining `Phase R7` input-system cleanup.
 
 That means current work is prioritized in this order:
 
-1. keep the merge-safe scope on `feat/performance-main-safe` green with `scripts/verify_main_merge_safety.sh --profile safe-main`
-2. finish `Phase R7` without reintroducing layout churn or capture latency regressions
-3. add `AI Export Tail / Prompt Suffix` as an export-time-only setting and formatter slice
-4. then land `Phase R9` overflow/click expansion intentionally, not piggybacked on performance work
-5. then return to grouped export validation and broader release verification
+1. keep shipped MCP connectors stable for `Claude Desktop`, `Claude Code`, and `Codex`
+2. tighten stale-app reset, reconnect, and health UX for the experimental ChatGPT path
+3. close the remaining non-tag `Phase R7` input-system follow-up without reopening layout churn
+4. keep grouped export validation and broader regression coverage green
+5. continue bounded visual/design follow-up without reopening landed overflow/export/tag contracts
+
+Important planning split:
+
+- `Phase R7C`, `Phase R8`, and `Phase R9` are the main product roadmap for Capture and Stack
+- MCP platform work is a separate track and should not be described as replacing the main product hot slice
+- when the team is actively working on MCP connectors, say so explicitly as `MCP platform track`, not as the product-wide hot slice
 
 Public launch hardening positioning for this same queue:
 
@@ -99,10 +104,20 @@ Progress on this slice:
 - `feat/performance-main-safe` now exists as a clean candidate branch in `../PromptCue-main-safe` and passes `scripts/verify_main_merge_safety.sh --profile safe-main`
 - the final merge-safe screenshot risk is closed: `beginCaptureSession()` restores the recent-screenshot slot immediately from the synchronous signal probe, and `submitCapture()` now waits for async readable promotion without rearming repeated scans on every poll
 - `safe-main` was rerun after the hidden stack-panel prewarm landed and remains green, with live trace reruns at `21.35 ms`, `18.74 ms`, and `22.22 ms`
+- `Phase R7C` inline tag hardening is landed on `main`
+  - canonical slug parsing is enforced in `CaptureTag`
+  - polluted mixed-script tags stay in body text instead of structured `tags`
+  - legacy polluted tags are scrubbed before stack display, autocomplete, sync, or MCP output reuse
+- `Phase R8` AI Export Tail / Prompt Suffix is landed on `main`
+  - Settings persistence, multiline suffix text, export-only append behavior, and clipboard integration are all active
+  - stored cards and stack rendering remain suffix-free
+- `Phase R9` stack card overflow and click expansion is landed on `main`
+  - long cards now rest at a capped height with a `+N lines` affordance
+  - click-to-expand works for active stack cards, and copied-stack collapsed summaries stay bounded
 
-### `Phase R7C`: Inline Tag Contract Hardening
+### `Phase R7C`: Inline Tag Contract Hardening `Landed On Main`
 
-Inline tags are now an active sub-slice under `Phase R7` because they touch capture input, stack rendering, persistence, and MCP payload quality at the same time.
+Inline tags were carved out as a focused sub-slice under `Phase R7` because they touch capture input, stack rendering, persistence, and MCP payload quality at the same time. That hardening work is now landed on `main` and should be treated as the accepted contract for future capture, stack, sync, and MCP changes.
 
 Reason for this slice:
 
@@ -179,68 +194,26 @@ Design-system rule for all future polish work:
 
 ## Queued Next Slice
 
-The next planned remediation slice after `Phase R7` is:
+The next main-product remediation work after the current MCP stabilization slice is:
+
+- close the remaining non-tag `Phase R7` input-system follow-up
+- keep grouped export validation green across target apps with different text/image paste behavior
+- continue the broader stack follow-up under `docs/Stack-Refactor-Execution-Plan.md`
+
+Recently landed reference slices:
 
 - `Phase R8: AI Export Tail / Prompt Suffix`
-
-This slice exists to add a user-controlled export suffix without polluting stored cue content or capture UI.
-
-Backtick rule for this slice:
-
-- the suffix is export-time compression/output polish
-- it must not turn Capture into a templated note surface
-
-Planned scope:
-
-1. add Settings controls for:
-   - enable/disable toggle
-   - multiline suffix text
-2. append the suffix only at export time
-3. keep stored cards unchanged in persistence and stack rendering
-4. add formatter and app-level regression coverage before UI polish
-
-Planned integration order:
-
-1. freeze the export-tail contract and settings storage shape
-2. update export formatter / clipboard composition path
-3. wire Settings UI and state
-4. add regression tests for enabled, disabled, empty, and multiline behavior
-
-After `Phase R8`, the next planned slice is:
-
+  - shipped as an export-only formatter and Settings feature
+  - multiline suffix text is persisted, clipboard/export paths append it only when enabled, and stored cards remain unchanged
 - `Phase R9: stack card overflow and click expansion`
+  - shipped as a capped resting card height plus `+N lines` affordance
+  - clicking the overflow affordance expands active stack cards without introducing inner text scrollers
+  - copied-stack collapsed summaries remain bounded and do not expand inline
 
-A broader execution plan now governs the next full stack refactor:
+Planning note:
 
-- `docs/Stack-Refactor-Execution-Plan.md`
-
-This slice exists because very long cue content currently turns Stack into a layout outlier instead of a stable execution queue.
-
-Backtick rule for this slice:
-
-- Stack should reveal that a card is long without letting one card dominate the queue by default
-- expansion should feel temporary and lightweight, not like opening a document
-
-Planned scope:
-
-1. define one default max resting card height for active and copied-stack cards
-   - current target: resting preview cap should be more generous and may extend to `2x` the capture max height when needed
-2. define one overflow affordance that communicates remaining hidden text
-   - explicit affordance: `+N lines`
-   - hover highlights affordance only
-3. add click-to-expand behavior that reveals more text without destabilizing surrounding layout
-   - clicking `+N lines` should reveal the full card text
-   - cards may not introduce an inner text scroller
-4. keep copied-stack collapsed summaries visually stable even when the first card is very long
-   - collapsed copied summaries do not expand inline
-5. add QA fixtures for short, medium, very long, and screenshot-plus-text cards
-
-Planned integration order:
-
-1. freeze card overflow metrics and interaction rules
-2. update active stack cards
-3. update collapsed copied-stack summaries
-4. add automated visual/behavior verification for long-card fixtures
+- do not reopen `R8` or `R9` as open roadmap slices unless a regression or new scoped follow-up is explicitly approved
+- the next new Stack-wide execution plan is the broader refactor track in `docs/Stack-Refactor-Execution-Plan.md`, not a re-do of the landed overflow slice
 
 A bounded follow-up plan for the next stack UX slice now exists in:
 
@@ -277,7 +250,9 @@ Remove:
 
 Why:
 
-- the actual product need is `Claude Code CLI` and `Codex CLI` reading and writing Stack data through MCP
+- the actual product need is cross-client `Stack` read/write through MCP from `Claude Desktop`, `Claude Code`, `Codex`, and the experimental self-hosted ChatGPT path
+- the intended AI workflow is: read the current Stack, summarize or classify what matters, then write condensed notes back into Backtick through MCP
+- repo `docs/` authoring is not the Backtick MCP surface itself; that remains a separate code-agent or manual follow-up after the AI has written the important memory back into `Stack`
 - an AI execution step should update copied state on the source Stack notes directly
 - intermediate board and work-item layers add complexity without helping the MCP bridge
 
@@ -289,6 +264,12 @@ Execution semantics:
   create, update, and delete Stack notes directly
 - MCP execute:
   when an agent actually executes a note, mark the source note as copied and record a `CopyEvent`
+
+Primary cross-client outcome:
+
+- `Claude Desktop` and ChatGPT should be able to pull the current note context, summarize key decisions, and save the important result back into Backtick
+- `Claude Code` and `Codex` should be able to do the same while also using repo context in the coding environment
+- the MCP bridge is therefore a memory and context surface over `Stack`, not a direct repository-document writer
 
 Implementation rules for the next MCP lane:
 
@@ -339,6 +320,8 @@ ChatGPT note:
 - treat ChatGPT as a separate remote-MCP track
 - do not assume localhost registration from the Backtick app into ChatGPT
 - do not promise write-capable ChatGPT support on `Plus` / `Pro` until OpenAI plan support is verified at implementation time
+- the current ChatGPT path on `main` is `experimental self-hosted remote MCP`, not a shipped default connector
+- advanced-user assumptions are required: Backtick stays running, the user provides a public HTTPS URL/tunnel, and ChatGPT web completes OAuth approval
 
 Current landed slices:
 
@@ -394,6 +377,20 @@ Current landed slices:
    - `Codex` successfully called `mcp__backtick__list_notes` through the bundled helper
    - `Claude Code` successfully called `mcp__backtick__list_notes` through the bundled helper in `--permission-mode dontAsk` when `--allowedTools` included the Backtick tools
    - `Claude Code` without `--allowedTools` failed with the expected non-interactive permission denial, which remains client setup friction rather than an MCP server failure
+- `MCP9` experimental remote ChatGPT connector is on `main`
+   - `Sources/BacktickMCPServer/BacktickMCPHTTPServer.swift`
+   - `Sources/BacktickMCPServer/BacktickMCPOAuthProvider.swift`
+   - `Sources/BacktickMCPServer/BacktickMCPApp.swift`
+   - `PromptCue/App/AppCoordinator.swift`
+   - `PromptCue/UI/Settings/MCPConnectorSettingsModel.swift`
+   - `PromptCue/UI/Settings/PromptCueSettingsView.swift`
+   - `Tests/BacktickMCPServerTests/BacktickMCPServerTests.swift`
+   - Backtick can now expose a local HTTP MCP endpoint while the app is running
+   - Settings now supports experimental remote MCP with OAuth mode, public HTTPS URL input, and `ngrok`-guided self-hosted setup
+   - OAuth discovery now serves both `/.well-known/oauth-authorization-server` and `/.well-known/openid-configuration`
+   - OAuth client/token state now persists across helper restarts so reconnect does not immediately fail with `invalid_client`
+   - ChatGPT web connection has been verified through a self-hosted public HTTPS URL with OAuth approval
+   - this remains an experimental advanced-user path, not the default shipped connector onboarding
 
 Verification gates run for landed MCP slices:
 
@@ -417,10 +414,18 @@ Current rollout status:
    - `Claude Code` in `--permission-mode dontAsk` still requires Backtick tools in `--allowedTools`
    - keep treating `tool permission denied` as client setup friction instead of a Backtick MCP launch failure
 
+Current MCP platform queue:
+
+1. keep the shipped stdio connector surface stable for `Claude Desktop`, `Claude Code`, and `Codex`
+2. keep ChatGPT remote MCP clearly labeled as `experimental self-hosted`
+3. tighten reconnect/reset/health UX for stale ChatGPT apps and OAuth state
+4. do not let MCP work silently replace the remaining main product roadmap now that `R7C`, `R8`, and `R9` are already landed on `main`
+
 Why this rollout is required:
 
 - transport alone is not enough user value if the user does not know how to attach `Claude Code` or `Codex`
 - MCP is a connector feature from the user point of view, not just a local executable
+- user-facing value is not just connection status; it is letting `Claude Desktop` or ChatGPT pull the important notes, summarize what matters, and write the distilled result back into Backtick
 - sensitive integration behavior should be visible in Settings rather than hidden in docs or shell commands
 - connector setup is incomplete for release users until Backtick ships a helper binary or equivalent launchable surface
 - successful interactive connection is not enough if common automation modes still fail on client-side tool permissions

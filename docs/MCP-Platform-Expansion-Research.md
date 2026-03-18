@@ -970,10 +970,10 @@ Claude Desktop connector: one-click config write to `claude_desktop_config.json`
 
 | # | Task | Effort | Status | What it unlocks |
 |---|------|--------|--------|-----------------|
-| 5 | HTTP server in Backtick app process | L | Not started | Remote MCP foundation for ChatGPT / Claude web |
-| 6 | Auth (OAuth or Bearer) + Settings UI for HTTP | M | Not started | Secure remote MCP connections |
+| 5 | HTTP server in Backtick app process | L | **✅ DONE (experimental, 2026-03-18)** | Remote MCP foundation for ChatGPT / Claude web |
+| 6 | Auth (OAuth or Bearer) + Settings UI for HTTP | M | **✅ DONE (experimental, 2026-03-18)** | Secure remote MCP connections |
 
-→ This unlocks an experimental remote ChatGPT connector. Do not assume localhost registration or app/mobile parity.
+→ This now unlocks an experimental self-hosted ChatGPT connector on `main`. The current path is advanced-user only: Backtick must stay running, the user brings a public HTTPS URL/tunnel, and ChatGPT web completes OAuth approval. Do not assume localhost registration or app/mobile parity.
 
 **Post-launch Phase 3 (distribution + stability):**
-Hosted relay or BYO tunnel flow for Claude Web / ChatGPT Web, plus reconnect and health UX. Only if demand exists. Not started.
+Hosted relay or BYO tunnel flow for Claude Web / ChatGPT Web, plus reconnect and health UX. `BYO tunnel` is now started through `ngrok`-guided self-hosted setup in Settings, but reconnect/reset/health UX remains incomplete and hosted relay work is still not started.

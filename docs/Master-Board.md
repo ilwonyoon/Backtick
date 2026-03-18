@@ -42,12 +42,13 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Performance remediation lane | Completed | `P1-P4`, the approved capture/stack visuals, the long-note overflow path, and the live stack-open trace harness are active in the merge-safe landing candidate; the historical `P5` compositor benchmark remains documented in `docs/Performance-Remediation-Plan.md` |
 | Design polish lane | In progress | `DP0` review lock is complete; `DP1` capture elevation and `DP2` stack brightness are now in implementation and awaiting visual review packets |
 | Settings surface | In progress | Shortcut recorders and screenshot folder controls are now implemented |
+| MCP platform expansion | In progress | stdio connector rollout is shipped for `Claude Desktop`, `Claude Code`, and `Codex`; ChatGPT remote MCP is now an experimental self-hosted OAuth path on `main` |
 | Stack sync and light-mode readability | In progress | `Phase R6` now uses tracked capture submission plus a stronger light-mode veil; real-device QA is still the gate |
 | Capture input system hardening | In progress | `Phase R7A` contract lock and QA harness are complete; `Phase R7B` now rewrites the live capture panel around an AppKit-owned sizing host, and the suggested-target selector is fully fixed with the v2 replacement contract locked in `docs/Capture-Suggested-Target-Selector-Repair-Plan.md` |
-| Inline tag contract hardening | In progress | prototype interaction is landed, but live diagnosis confirmed polluted structured tags from mixed-script input; `Phase R7C` now locks canonical slug tags before broader MCP-facing rollout |
+| Inline tag contract hardening | Completed | canonical slug tag parsing, polluted-tag rejection, legacy tag cleanup, inline reconstruction, and MCP-safe tag payloads are landed on `main`; remaining `Phase R7` work is broader input-system hardening, not tag contract work |
 | Inline tag integration | In progress | PR `#50` is now governed by `docs/PR50-Inline-Tag-Integration-Runbook.md`; merge work must preserve selector stability, keyboard safety, and theme-sync behavior on current `main` |
-| AI Export Tail / Prompt Suffix | Planned | export-time-only suffix append with Settings toggle, multiline text, and regression coverage |
-| Stack card overflow and click expansion | In progress | long cards need capped resting height, `+N lines` affordance, click-to-expand, and stable copied-stack behavior |
+| AI Export Tail / Prompt Suffix | Completed | export-time-only suffix append, Settings toggle, multiline text, clipboard integration, and regression coverage are landed on `main` |
+| Stack card overflow and click expansion | Completed | capped resting height, `+N lines` affordance, click-to-expand, and stable collapsed copied-stack summaries are landed on `main` |
 | Stack refactor execution plan | Planned | the next Stack-wide slice is now locked in `docs/Stack-Refactor-Execution-Plan.md`, covering render containment, clipping repair, and the staged rollout for the new header rail/filter/TTL/logo UX |
 | Stack header rail, filter, and TTL ring | Planned | the next stack UX follow-up is locked in `docs/Stack-Header-Rail-Plan.md`, including a persistent header rail, launch-facing queue terminology, stack filtering, per-card TTL rings, and theme-adaptive Backtick logo rules |
 | Design-system architecture alignment | In progress in strategy branch | `docs/Design-System-Architecture-Proposal.md` defines a five-layer model that preserves runtime and pattern ownership |
@@ -99,8 +100,8 @@ This `Phase H` map supersedes the older Track A-E naming below for the public la
 3. Hotkeys and panel shell
 4. Capture UI and stack UI
 5. Launch-at-login, settings, and polish
-6. AI Export Tail / Prompt Suffix integration
-7. Stack card overflow and click expansion
+6. Keep `AI Export Tail / Prompt Suffix` regression coverage green
+7. Keep stack-card overflow and click-to-expand regression coverage green
 8. DMG packaging, Gumroad release prep, and MAS compatibility review
 9. Continue design-system strategy execution in the strategy branch: finish DS3, expand DS4 conservatively, then run DS5 native-alignment pass
 10. Run the bounded capture/stack polish lane: `DP0 -> DP4`, with review packets per slice
@@ -112,8 +113,8 @@ This `Phase H` map supersedes the older Track A-E naming below for the public la
 3. Track C, screenshot access and settings
 4. Track B, selection and clipboard export
 5. Track D, design-system reconciliation
-6. Phase R8 AI Export Tail / Prompt Suffix
-7. Phase R9 stack card overflow and click expansion
+6. Remaining `Phase R7` input-system follow-up
+7. MCP platform stabilization and ChatGPT experimental UX cleanup
 8. Full verification pass
 
 ## MCP Direction
@@ -149,7 +150,9 @@ Remove from active planning:
 
 Reason:
 
-- the real requirement is Stack DB `read/write` from `Claude Code CLI` and `Codex CLI`
+- the real requirement is cross-client `Stack` DB `read/write` from `Claude Desktop`, `Claude Code`, `Codex`, and the experimental ChatGPT path
+- the intended user value is: let an AI pull the important notes, summarize or classify what matters, and write the distilled result back into Backtick
+- direct repository `docs/` editing is not the Backtick MCP surface itself; that remains a separate code-agent or manual follow-up after the key memory is written back into `Stack`
 - copied state should update when an AI actually executes a note
 - derived planning surfaces add merge surface and conceptual debt without helping that path
 
@@ -185,8 +188,11 @@ Active MCP rollout:
 ChatGPT track note:
 
 - current shipped connector surface is `Claude Desktop`, `Claude Code`, and `Codex`
-- ChatGPT remains a separate remote-MCP track, not part of the landed stdio connector scope
+- ChatGPT remains a separate remote-MCP track, not part of the shipped stdio connector scope
+- ChatGPT now has an experimental self-hosted remote OAuth path on `main`
+- advanced-user assumptions apply: Backtick must remain running, the user must provide a public HTTPS URL/tunnel, and OAuth approval happens in ChatGPT web
 - do not plan against localhost ChatGPT registration
+- do not treat this track as a replacement for the remaining core product roadmap work now that `Phase R7C`, `Phase R8`, and `Phase R9` are landed on `main`
 
 Current landed slices:
 
@@ -197,8 +203,16 @@ Current landed slices:
 - `MCP6` connector settings surface landed on `main`
 - `MCP7` guided setup and local server validation landed on `main`
 - `MCP8` bundled helper packaging landed on `main`
+- `MCP9` experimental self-hosted ChatGPT remote MCP landed on `main`
 - execution-map style UI remains out of scope while post-MCP rollout work is prioritized
 - Settings-based connector UI is now the user-facing MCP rollout surface, including setup and local validation
+
+Current MCP platform queue:
+
+1. keep stdio connectors stable for `Claude Desktop`, `Claude Code`, and `Codex`
+2. keep ChatGPT remote MCP clearly marked `experimental self-hosted`
+3. improve stale-app reset, reconnect, and health UX for the ChatGPT path
+4. return main product priority to the remaining non-tag `Phase R7` follow-up plus grouped export and stack-refactor validation work
 
 Landed MCP gates:
 
@@ -500,8 +514,8 @@ Latest safe-main rerun:
 3. Close the remaining `Phase R7` follow-up on IME-safe command routing and placeholder ownership
 4. Keep deterministic capture QA and input metrics coverage green
 5. Keep regression coverage for `submit -> immediate stack open` green
-6. Land `AI Export Tail / Prompt Suffix` as an export-only formatter + Settings slice
-7. Land long-card overflow handling so Stack remains scannable under extreme text length
+6. Keep `AI Export Tail / Prompt Suffix` regression coverage green and documented as landed
+7. Keep long-card overflow and click-to-expand regression coverage green and documented as landed
 8. Resume grouped export validation against target paste destinations
 9. Run `DP1` capture elevation and `DP2` stack brightness in bounded parallel tracks
 10. Keep semantic token changes master-owned while capture/stack recipe changes land through review packets
