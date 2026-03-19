@@ -364,7 +364,9 @@ final class AppCoordinator: AppLifecycleCoordinating {
     private func toggleMemoryWindow() {
         capturePanelController.close()
         stackPanelController.close()
-        memoryWindowController.toggle()
+        DispatchQueue.main.async { [weak self] in
+            self?.memoryWindowController.toggle()
+        }
     }
 
     private func showSettingsWindow() {

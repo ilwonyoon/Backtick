@@ -23,11 +23,11 @@ final class MemoryWindowController: NSObject, NSWindowDelegate {
     func show() {
         model.refresh()
         let window = window ?? makeWindow()
+        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        NSApp.activate(ignoringOtherApps: true)
         window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
         window.makeMain()
-        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     func refreshForInheritedAppearanceChange() {
