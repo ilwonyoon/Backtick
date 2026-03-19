@@ -66,7 +66,7 @@ public struct ProjectDocument: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-public struct ProjectDocumentSummary: Codable, Sendable, Equatable {
+public struct ProjectDocumentSummary: Codable, Sendable, Equatable, Identifiable {
     public var id: UUID
     public var project: String
     public var topic: String
@@ -85,5 +85,13 @@ public struct ProjectDocumentSummary: Codable, Sendable, Equatable {
         self.topic = topic
         self.documentType = documentType
         self.updatedAt = updatedAt
+    }
+
+    public var key: ProjectDocumentKey {
+        ProjectDocumentKey(
+            project: project,
+            topic: topic,
+            documentType: documentType
+        )
     }
 }
