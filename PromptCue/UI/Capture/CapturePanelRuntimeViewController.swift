@@ -75,7 +75,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private let contentStack = NSStackView()
     private let screenshotContainer = NSView()
     private let screenshotSurface = CaptureScreenshotSurfaceView()
-    private let screenshotImageView = NSImageView()
+    private let screenshotImageView = CaptureScreenshotPreviewView()
     private let screenshotSpinner = NSProgressIndicator()
     private let removeScreenshotButton = HoverTintButton()
     private let suggestedTargetAccessoryView: NSHostingView<CaptureSuggestedTargetAccessoryView>
@@ -254,10 +254,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         ])
 
         screenshotImageView.translatesAutoresizingMaskIntoConstraints = false
-        screenshotImageView.imageScaling = .scaleAxesIndependently
-        screenshotImageView.wantsLayer = true
-        screenshotImageView.layer?.cornerRadius = PrimitiveTokens.Radius.md
-        screenshotImageView.layer?.masksToBounds = true
         screenshotSurface.addSubview(screenshotImageView)
         NSLayoutConstraint.activate([
             screenshotImageView.leadingAnchor.constraint(equalTo: screenshotSurface.leadingAnchor),
@@ -1285,6 +1281,59 @@ private final class CaptureScreenshotSurfaceView: NSView {
         loadingOverlay.layer?.backgroundColor = (isDark
             ? NSColor.white.withAlphaComponent(0.06)
             : NSColor.white.withAlphaComponent(0.44)).cgColor
+    }
+}
+
+private final class CaptureScreenshotPreviewView: NSView {
+    var image: NSImage? {
+        didSet {
+            imageLayer.contents = image.flatMap(Self.cgImage(from:))
+            imageLayer.isHidden = image == nil
+        }
+    }
+
+    private let imageLayer = CALayer()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+        imageLayer.contentsGravity = .resizeAspectFill
+        imageLayer.masksToBounds = true
+        imageLayer.isHidden = true
+        layer?.addSublayer(imageLayer)
+        updateContentsScale()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layout() {
+        super.layout()
+        imageLayer.frame = bounds
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateContentsScale()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        updateContentsScale()
+    }
+
+    private func updateContentsScale() {
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        layer?.contentsScale = scale
+        imageLayer.contentsScale = scale
+    }
+
+    private static func cgImage(from image: NSImage) -> CGImage? {
+        var proposedRect = NSRect(origin: .zero, size: image.size)
+        return image.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil)
     }
 }
 
