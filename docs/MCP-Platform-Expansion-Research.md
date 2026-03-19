@@ -247,17 +247,16 @@ Full CRUD + project management. Referencing Muninn's tool set but adapted for Ba
 | `muninn_manage` | Lifecycle: set_status, create_project, delete_project, set_github_repo |
 | `muninn_sync` | Pull GitHub data (commits, issues, PRs) into memory |
 
-#### Backtick Warm tools (proposed)
+#### Backtick Warm tools (phase 1)
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| `save_document` | Create or **replace** a document | Upsert by `(project, topic)`. Full content swap. |
-| `update_document` | **Partial update** — append, replace section, or remove section | Avoids rewriting entire doc. Key gap in Muninn. |
-| `recall_document` | Read one document by `(project, topic)` | Returns full content for AI context |
-| `list_documents` | List all topics in a project, or all projects | Lightweight: titles + status + updatedAt, no content |
-| `delete_document` | Remove a specific topic document | Clean deletion |
-| `search_documents` | Full-text search across all documents | FTS5 keyword search |
-| `manage_project` | Create project, set status, rename, delete project (and all its docs) | Project lifecycle |
+| `save_document` | Create or **supersede** one document version | Addressed by `(project, topic, documentType)`. Full content save. |
+| `update_document` | **Partial update** — append, replace section, or remove section | Avoids rewriting the whole document. Key gap in Muninn. |
+| `recall_document` | Read one document by `(project, topic, documentType)` | Returns full content for AI context |
+| `list_documents` | List active documents in a project, or all projects | Lightweight: summaries only, no full content |
+
+**Later consideration, not phase 1:** `delete_document`, `search_documents`, and project-management helpers. The immediate lane stays small: list, recall, save, and update.
 
 **Why `update_document` matters:** In Muninn, the only way to update was `muninn_save` which replaces the entire document. For a 2-page doc, AI has to recall the full text, modify it, and save it all back — expensive and error-prone. A partial update tool (append a section, replace a section by header, delete a section) makes incremental updates cheap.
 
@@ -309,24 +308,49 @@ public struct ProjectDocument: Codable, Sendable, Identifiable {
     public var createdAt: Date
     public var updatedAt: Date
 }
-// DB unique constraint: (project, topic)
+// DB unique constraint for active docs: (project, topic, documentType)
 ```
 
 **Excluded from scope:** Coding session logs (git history already covers this). Warm is for **discussions and decisions** from ChatGPT/Claude conversations, not development progress from Codex/Claude Code.
 
+#### User-language patterns → document shape
+
+People usually do not say "save a reviewed `decision` document." They say things like:
+
+- "Turn this conversation into a PRD"
+- "Write down the latest decisions only"
+- "Make a project brief from what we just decided"
+- "Save an architecture summary for later"
+
+Backtick should **not** add a separate tool for each phrase. The cross-client contract stays tool-first, and those user asks map into the existing Warm document types:
+
+| User ask | Preferred `documentType` | Preferred tool flow | Why |
+|----------|---------------------------|---------------------|-----|
+| "Turn this conversation into a PRD" / "Write an implementation brief" | `plan` | `list_documents` → `recall_document` if a matching plan exists → `save_document` or `update_document` | PRD is a shape of durable execution planning, not a new type |
+| "Summarize the latest decisions only" / "Document what we decided" | `decision` | `list_documents` → `recall_document` if a matching decision doc exists → usually `update_document` | "Latest decisions" is usually a delta against an existing durable decision doc |
+| "Save a recap of this discussion" / "Capture what we explored" | `discussion` | `save_document` or `update_document` | Discussion docs should preserve options, rationale, and open questions |
+| "Save a project brief / architecture summary / constraints" | `reference` or `plan` depending on execution intent | `save_document` | Durable context/constraints are reference; actionable execution framing is plan |
+
+**PRD is not a document type.** It is usually a `plan`-shaped output. "Latest decisions" is usually a `decision` update, not a new doc type.
+
+**Cross-client rule:** keep the core contract tool-first. Claude-side MCP prompts may later expose explicit workflows like `/save-prd` or `/save-latest-decisions`, but ChatGPT Developer Mode currently relies more directly on tool descriptions and argument schemas. Prompt-style shortcuts should be an additive Claude optimization, not the baseline Warm-memory contract.
+
+For manual dogfooding and prompt-based evaluation, use `docs/Warm-MCP-Eval-Plan.md`.
+
 #### Tool description design — making AI proactive
 
-Lesson from Muninn: Claude proactively asks "이거 저장할까요?" because the tool descriptions tell it to. The tool description IS the AI's behavioral instruction. This is the single most important design decision for Warm tools.
+Lesson from Muninn: tool descriptions strongly shape when models recall and save durable context. This is one of the most important design decisions for Warm tools.
 
 **Principles (learned from Muninn):**
 
 | Principle | Tool description pattern | Why |
 |-----------|------------------------|-----|
-| Proactive recall | "When user mentions a project, recall immediately — do not wait to be asked" | Prevents re-explaining context |
-| Proactive save | "At session end, offer to save key decisions and context" | User doesn't have to remember to save |
+| Context-first recall | "When the current discussion clearly depends on prior saved project context, recall it first" | Prevents re-explaining context |
+| Explicit save intent | "Use save only when the user asks to save, preserve, turn into a document, or summarize into durable project context" | Prevents over-eager writes |
 | Recall before save | "Always recall_document first, merge new info, then save back" | Prevents overwriting existing content |
 | Fit existing topics | "Check list_documents first. Fit into existing topic if possible. Only create new topic if clearly distinct" | Prevents topic explosion |
 | Pick the smallest durable doc type | "Save long discussion summaries as `discussion`, settled conclusions as `decision`, execution breakdowns as `plan`, and reusable background as `reference`" | Prevents one-topic documents from becoming incoherent catch-alls |
+| Translate user language into the right doc shape | "PRD / implementation brief → `plan`; latest decisions → `decision`; discussion recap → `discussion`; architecture summary / durable background → `reference` unless it is clearly an execution plan" | Lets natural user asks map into a stable storage contract |
 | Structured content | "Content MUST be markdown with ## headers. Never save a single-line summary. Minimum 200 characters" | Ensures readable documents |
 | Exclude noise | "Do NOT save: code snippets, test results, function names, raw conversation logs. Save: decisions, reasoning, status, open questions" | Keeps documents useful |
 
@@ -334,26 +358,34 @@ Lesson from Muninn: Claude proactively asks "이거 저장할까요?" because th
 
 ```
 recall_document:
-  "Load a project topic document. Call proactively when user
-   mentions a project — do not wait to be asked. Proactive
-   recall prevents context re-explanation."
+  "Load a project topic document when the current discussion
+   clearly depends on prior saved project context. Recall
+   before answering when durable context is likely to matter."
 
 save_document:
-  "Save or replace a project topic document. At session end,
-   proactively offer to save key decisions and context. ALWAYS
-   call recall_document first to avoid overwriting existing
-   content. Content must be full markdown with ## section
-   headers — never a single-line summary."
+  "Save or replace a project topic document. Use this only
+   when the user asks to save, preserve, turn a conversation
+   into a document, or summarize it into durable project
+   context. PRD / implementation brief usually maps to `plan`;
+   latest settled choices usually map to `decision`; discussion
+   recap maps to `discussion`; durable background or
+   constraints map to `reference`. ALWAYS list or recall first
+   so you do not overwrite the wrong document. Content must be
+   full markdown with ## section headers — never a single-line
+   summary."
 
 list_documents:
   "List all topics in a project, or all projects. Call before
    save_document to check if a matching topic already exists.
-   Fit new content into existing topics when possible."
+   Use this first when the project is known but the right
+   topic or documentType is unclear."
 
 update_document:
   "Partially update a document — append, replace, or remove
-   a section. Prefer this over save_document for small changes.
-   Always specify section header for replace/delete actions."
+   a section. Prefer this over save_document for small changes,
+   such as latest-decision deltas or one section of an existing
+   plan/reference/doc. Always specify section header for
+   replace/delete actions."
 ```
 
 #### Content quality rules
