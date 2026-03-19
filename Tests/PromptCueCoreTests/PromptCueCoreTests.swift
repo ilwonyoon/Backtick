@@ -123,6 +123,37 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func clearCopiedRevertsCopiedCardToActive() {
+        let card = CaptureCard(text: "revert me", createdAt: .now)
+        let copied = card.markCopied(at: Date(timeIntervalSince1970: 2_000))
+
+        #expect(copied.isCopied)
+
+        let reverted = copied.clearCopied()
+
+        #expect(reverted.isCopied == false)
+        #expect(reverted.lastCopiedAt == nil)
+        #expect(reverted.id == card.id)
+        #expect(reverted.text == card.text)
+        #expect(reverted.sortOrder == card.sortOrder)
+        #expect(reverted.isPinned == card.isPinned)
+    }
+
+    @Test
+    func clearCopiedOnNonCopiedCardIsNoOp() {
+        let card = CaptureCard(text: "already active", createdAt: .now)
+
+        #expect(card.isCopied == false)
+
+        let result = card.clearCopied()
+
+        #expect(result.isCopied == false)
+        #expect(result.lastCopiedAt == nil)
+        #expect(result.id == card.id)
+        #expect(result.text == card.text)
+    }
+
+    @Test
     func togglePinnedReturnsFlippedState() {
         let card = CaptureCard(text: "toggle me", createdAt: .now)
 

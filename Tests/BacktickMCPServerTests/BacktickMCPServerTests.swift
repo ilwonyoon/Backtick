@@ -1277,6 +1277,126 @@ final class BacktickMCPServerTests: XCTestCase {
         }
     }
 
+    func testUpdateNoteWithLastCopiedAtNullRevertsToActive() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let createResponse = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "create_note",
+                "arguments": [
+                    "text": "Revert me to active",
+                ],
+            ]
+        )
+        let createdNote = try notePayload(from: createResponse)
+        let createdID = try XCTUnwrap(createdNote["id"] as? String)
+
+        _ = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "mark_notes_executed",
+                "arguments": [
+                    "noteIDs": [createdID],
+                ],
+            ]
+        )
+
+        let copiedList = try await sendRequest(
+            session: session,
+            id: 4,
+            method: "tools/call",
+            params: [
+                "name": "list_notes",
+                "arguments": ["scope": "copied"],
+            ]
+        )
+        let copiedNotes = try notesPayload(from: copiedList)
+        XCTAssertEqual(copiedNotes.count, 1)
+        XCTAssertEqual(copiedNotes.first?["isCopied"] as? Bool, true)
+
+        let revertResponse = try await sendRequest(
+            session: session,
+            id: 5,
+            method: "tools/call",
+            params: [
+                "name": "update_note",
+                "arguments": [
+                    "id": createdID,
+                    "lastCopiedAt": NSNull(),
+                ],
+            ]
+        )
+        let revertedNote = try notePayload(from: revertResponse)
+        XCTAssertEqual(revertedNote["isCopied"] as? Bool, false)
+        XCTAssertTrue(revertedNote["lastCopiedAt"] is NSNull)
+
+        let activeList = try await sendRequest(
+            session: session,
+            id: 6,
+            method: "tools/call",
+            params: [
+                "name": "list_notes",
+                "arguments": ["scope": "active"],
+            ]
+        )
+        let activeNotes = try notesPayload(from: activeList)
+        XCTAssertEqual(activeNotes.count, 1)
+        XCTAssertEqual(activeNotes.first?["id"] as? String, createdID)
+    }
+
+    func testUpdateNoteWithoutLastCopiedAtKeepsExistingState() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let createResponse = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "create_note",
+                "arguments": [
+                    "text": "Keep my state",
+                ],
+            ]
+        )
+        let createdNote = try notePayload(from: createResponse)
+        let createdID = try XCTUnwrap(createdNote["id"] as? String)
+
+        _ = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "mark_notes_executed",
+                "arguments": [
+                    "noteIDs": [createdID],
+                ],
+            ]
+        )
+
+        let updateResponse = try await sendRequest(
+            session: session,
+            id: 4,
+            method: "tools/call",
+            params: [
+                "name": "update_note",
+                "arguments": [
+                    "id": createdID,
+                    "text": "Updated text only",
+                ],
+            ]
+        )
+        let updatedNote = try notePayload(from: updateResponse)
+        XCTAssertEqual(updatedNote["text"] as? String, "Updated text only")
+        XCTAssertEqual(updatedNote["isCopied"] as? Bool, true)
+    }
+
     private func makeSession() async -> BacktickMCPServerSession {
         let databaseURL = self.databaseURL
         let attachmentsURL = self.attachmentsURL

@@ -134,6 +134,20 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         return CaptureTagText.inlineDisplayTagRanges(tags: tags, bodyText: parseResult.bodyText)
     }
 
+    public func clearCopied() -> CaptureCard {
+        CaptureCard(
+            id: id,
+            text: text,
+            tags: tags,
+            suggestedTarget: suggestedTarget,
+            createdAt: createdAt,
+            screenshotPath: screenshotPath,
+            lastCopiedAt: nil,
+            sortOrder: sortOrder,
+            isPinned: isPinned
+        )
+    }
+
     public func markCopied(at date: Date = Date()) -> CaptureCard {
         CaptureCard(
             id: id,

@@ -51,6 +51,7 @@ struct CaptureCardView: View {
     let onToggleExpansion: () -> Void
     let onDelete: () -> Void
     var onTogglePin: (() -> Void)?
+    var onRevertCopied: (() -> Void)?
     var compactMode: Bool = false
     let onRefreshSuggestedTargets: () -> Void
     let onAssignSuggestedTarget: (CaptureSuggestedTarget) -> Void
@@ -95,6 +96,7 @@ struct CaptureCardView: View {
         onToggleExpansion: @escaping () -> Void,
         onDelete: @escaping () -> Void,
         onTogglePin: (() -> Void)? = nil,
+        onRevertCopied: (() -> Void)? = nil,
         compactMode: Bool = false,
         onRefreshSuggestedTargets: @escaping () -> Void = {},
         onAssignSuggestedTarget: @escaping (CaptureSuggestedTarget) -> Void = { _ in }
@@ -116,6 +118,7 @@ struct CaptureCardView: View {
         self.onToggleExpansion = onToggleExpansion
         self.onDelete = onDelete
         self.onTogglePin = onTogglePin
+        self.onRevertCopied = onRevertCopied
         self.compactMode = compactMode
         self.onRefreshSuggestedTargets = onRefreshSuggestedTargets
         self.onAssignSuggestedTarget = onAssignSuggestedTarget
@@ -266,6 +269,15 @@ struct CaptureCardView: View {
                         systemImage: card.isPinned ? "pin.slash" : "pin"
                     )
                 }
+            }
+            if let onRevertCopied {
+                Button {
+                    onRevertCopied()
+                } label: {
+                    Label("Move to Active", systemImage: "arrow.uturn.backward")
+                }
+            }
+            if onTogglePin != nil || onRevertCopied != nil {
                 Divider()
             }
             Button("Edit", action: onEdit)

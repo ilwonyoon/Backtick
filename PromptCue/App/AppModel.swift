@@ -347,6 +347,22 @@ final class AppModel: ObservableObject {
         cards = sortedCards(cards.map { $0.id == toggled.id ? toggled : $0 })
     }
 
+    func revertCopied(card: CaptureCard) {
+        let topSortOrder = nextTopSortOrder(in: .active)
+        let reverted = card.clearCopied().updatingSortOrder(topSortOrder)
+
+        do {
+            try cardStore.upsert([reverted])
+            storageErrorMessage = nil
+        } catch {
+            logStorageFailure("Card revert to active failed", error: error)
+            return
+        }
+
+        cards = sortedCards(cards.map { $0.id == reverted.id ? reverted : $0 })
+        cloudSyncEngine?.pushLocalChange(card: reverted)
+    }
+
     func delete(card: CaptureCard) {
         let updatedCards = cards.filter { $0.id != card.id }
 

@@ -272,6 +272,11 @@ final class BacktickMCPServerSession {
                         "suggestedTarget": suggestedTargetSchema(),
                         "screenshotPath": ["type": ["string", "null"]],
                         "isPinned": ["type": ["boolean", "null"], "description": "Pin or unpin this note. Pinned notes never expire and sort to top."],
+                        "lastCopiedAt": [
+                            "type": ["string", "null"],
+                            "format": "date-time",
+                            "description": "Set null to move note back to Active, or ISO-8601 date to mark as copied.",
+                        ],
                     ],
                     "required": ["id"],
                     "additionalProperties": false,
@@ -529,7 +534,8 @@ final class BacktickMCPServerSession {
             tags: try parseTagsUpdate(arguments, key: "tags"),
             suggestedTarget: try parseSuggestedTargetUpdate(arguments, key: "suggestedTarget"),
             screenshotPath: try parseStringUpdate(arguments, key: "screenshotPath"),
-            isPinned: try parseBoolUpdate(arguments, key: "isPinned")
+            isPinned: try parseBoolUpdate(arguments, key: "isPinned"),
+            lastCopiedAt: try parseDateUpdate(arguments, key: "lastCopiedAt")
         )
         let note = try writeService.updateNote(id: id, changes: changes)
 
@@ -986,6 +992,22 @@ final class BacktickMCPServerSession {
             throw BacktickMCPToolError(message: "\(key) must be a boolean or null")
         }
         return .set(boolValue)
+    }
+
+    private func parseDateUpdate(
+        _ arguments: [String: Any],
+        key: String
+    ) throws -> StackOptionalUpdate<Date> {
+        guard arguments.keys.contains(key) else {
+            return .keep
+        }
+        if arguments[key] is NSNull {
+            return .clear
+        }
+        guard let dateValue = try parseDate(arguments[key]) else {
+            throw BacktickMCPToolError(message: "\(key) must be an ISO-8601 date string or null")
+        }
+        return .set(dateValue)
     }
 
     private func parseTagsUpdate(

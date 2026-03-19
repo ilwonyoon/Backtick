@@ -265,6 +265,9 @@ struct CardStackView: View {
                 onTogglePin: {
                     model.togglePin(card: card)
                 },
+                onRevertCopied: card.isCopied ? {
+                    model.revertCopied(card: card)
+                } : nil,
                 onRefreshSuggestedTargets: {
                     model.refreshAvailableSuggestedTargets()
                 },

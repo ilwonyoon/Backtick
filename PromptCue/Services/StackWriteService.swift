@@ -45,19 +45,22 @@ struct StackNoteUpdate: Equatable, Sendable {
     let suggestedTarget: StackOptionalUpdate<CaptureSuggestedTarget>
     let screenshotPath: StackOptionalUpdate<String>
     let isPinned: StackOptionalUpdate<Bool>
+    let lastCopiedAt: StackOptionalUpdate<Date>
 
     init(
         text: String? = nil,
         tags: StackOptionalUpdate<[CaptureTag]> = .keep,
         suggestedTarget: StackOptionalUpdate<CaptureSuggestedTarget> = .keep,
         screenshotPath: StackOptionalUpdate<String> = .keep,
-        isPinned: StackOptionalUpdate<Bool> = .keep
+        isPinned: StackOptionalUpdate<Bool> = .keep,
+        lastCopiedAt: StackOptionalUpdate<Date> = .keep
     ) {
         self.text = text
         self.tags = tags
         self.suggestedTarget = suggestedTarget
         self.screenshotPath = screenshotPath
         self.isPinned = isPinned
+        self.lastCopiedAt = lastCopiedAt
     }
 }
 
@@ -146,7 +149,7 @@ final class StackWriteService {
             ),
             createdAt: existingNote.createdAt,
             screenshotPath: preparedScreenshotPath.path,
-            lastCopiedAt: existingNote.lastCopiedAt,
+            lastCopiedAt: resolvedValue(current: existingNote.lastCopiedAt, update: changes.lastCopiedAt),
             sortOrder: existingNote.sortOrder,
             isPinned: resolvedValue(current: existingNote.isPinned, update: changes.isPinned)
         )
