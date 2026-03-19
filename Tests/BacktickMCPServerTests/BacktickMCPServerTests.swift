@@ -46,6 +46,10 @@ final class BacktickMCPServerTests: XCTestCase {
         )
         let result = try XCTUnwrap(initializeResponse["result"] as? [String: Any])
         XCTAssertEqual(result["protocolVersion"] as? String, "2025-03-26")
+        let instructions = try XCTUnwrap(result["instructions"] as? String)
+        XCTAssertTrue(instructions.contains("Backtick"))
+        XCTAssertTrue(instructions.contains("백틱"))
+        XCTAssertTrue(instructions.contains("Do not save silently"))
 
         let toolsResponse = try await sendRequest(session: session, id: 2, method: "tools/list")
         let toolsResult = try XCTUnwrap(toolsResponse["result"] as? [String: Any])

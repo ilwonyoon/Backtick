@@ -9,6 +9,10 @@ Scope for this phase:
 - `save_document`
 - `update_document`
 
+Near-term follow-on for the next Warm slice:
+
+- `propose_document_saves` (read-only)
+
 The goal is **not** "did a tool run?" The goal is:
 
 - did the model choose the right `documentType`
@@ -51,6 +55,14 @@ These rules belong in the shared Warm MCP tool behavior regardless of client:
 
 The point of Warm Memory is to help a future AI session resume project context, not to duplicate `git log`, terminal history, or a coding activity feed.
 
+Additional guardrails after dogfooding:
+
+- do **not** directly split a very long mixed thread into multiple final docs by default
+- first propose what should be saved, then let the user confirm
+- if the thread mixes exploration, decisions, and next steps, prefer one reviewed `discussion` doc unless the boundaries are clearly separable
+- when talking to the user, refer to the destination as `Backtick` or `백틱`, not generic memory
+- when a meaningful decision or wrap-up appears, proactive behavior should sound like "이 내용을 Backtick/백틱에 저장할까요?" and still wait for confirmation before writing
+
 ## Claude Code Handoff
 
 If the fastest next step is a repo-local eval in `Claude Code`, use this repo itself as the source corpus instead of inventing a blank project.
@@ -85,6 +97,7 @@ Claude Code should evaluate behavior against these rules:
 - prefer `list_documents` when topic or doc fit is ambiguous
 - prefer `recall_document` before answering or before amending an existing durable doc
 - prefer `update_document` over `save_document` for narrow deltas
+- before any large end-of-thread save, first propose what should be stored and why
 - do not save coding-session logs, file-by-file change logs, shell transcripts, test-command transcripts, or git-like execution history
 - keep topics tight and reusable
 - after each write or recall step, report which MCP tools were called and which `(project, topic, documentType)` was used
