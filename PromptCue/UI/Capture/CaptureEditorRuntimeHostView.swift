@@ -14,7 +14,7 @@ final class CaptureEditorRuntimeHostView: NSView {
                 return
             }
 
-            applyTextStorageAttributes()
+            refreshInlineTagHighlightPresentation()
         }
     }
 
@@ -42,6 +42,7 @@ final class CaptureEditorRuntimeHostView: NSView {
     private var pendingMeasurementWantsScroll = false
     private var scrollBoundsObserver: NSObjectProtocol?
     private var scrollIndicatorHideWorkItem: DispatchWorkItem?
+    private var appliedInlineTagHighlightRanges: [NSRange] = []
     private let shouldLogMetrics = ProcessInfo.processInfo.environment["PROMPTCUE_LOG_EDITOR_METRICS"] == "1"
     private var inlineCompletionState: InlineCompletionState?
 
@@ -109,7 +110,7 @@ final class CaptureEditorRuntimeHostView: NSView {
     ) {
         if textView.string != text {
             textView.string = text
-            applyTextStorageAttributes()
+            normalizeTextStorageAttributes()
             textView.setSelectedRange(selectedRange ?? NSRange(location: text.utf16.count, length: 0))
             updatePlaceholderVisibility()
         } else if let selectedRange, textView.selectedRange() != selectedRange {
@@ -173,7 +174,7 @@ final class CaptureEditorRuntimeHostView: NSView {
         textView.textColor = resolvedPrimaryTextColor
         textView.insertionPointColor = resolvedAccentColor
         textView.typingAttributes = typingAttributes(for: appliedAppearance)
-        applyTextStorageAttributes(for: appliedAppearance)
+        normalizeTextStorageAttributes(for: appliedAppearance)
         textView.needsDisplay = true
         placeholderField.needsDisplay = true
         updateInlineCompletionPresentation()
@@ -471,25 +472,75 @@ final class CaptureEditorRuntimeHostView: NSView {
         return max(minimumBodyVisibleHeight, usedHeight + insetHeight)
     }
 
-    private func applyTextStorageAttributes(for appearance: NSAppearance? = nil) {
-        guard let textStorage = textView.textStorage, textStorage.length > 0 else {
+    private func normalizeTextStorageAttributes(for appearance: NSAppearance? = nil) {
+        guard !textView.isHandlingMarkedTextComposition,
+              let textStorage = textView.textStorage else {
+            refreshInlineTagHighlightPresentation()
             return
         }
 
-        let fullRange = NSRange(location: 0, length: textStorage.length)
-        textStorage.beginEditing()
-        textStorage.removeAttribute(.backgroundColor, range: fullRange)
-        textStorage.addAttributes(
-            typingAttributes(for: appearance ?? effectiveAppearance),
-            range: NSRange(location: 0, length: textStorage.length)
+        let selectedRange = textView.selectedRange()
+        let typingAttributes = typingAttributes(for: appearance ?? effectiveAppearance)
+        if textStorage.length > 0 {
+            textStorage.beginEditing()
+            textStorage.setAttributes(
+                typingAttributes,
+                range: NSRange(location: 0, length: textStorage.length)
+            )
+            textStorage.endEditing()
+        }
+        textView.typingAttributes = typingAttributes
+        textView.setSelectedRange(
+            NSRange(
+                location: max(0, min(selectedRange.location, textStorage.length)),
+                length: min(selectedRange.length, max(textStorage.length - selectedRange.location, 0))
+            )
         )
-        for range in highlightedInlineTagRanges where NSMaxRange(range) <= textStorage.length {
-            textStorage.addAttributes(
+        refreshInlineTagHighlightPresentation()
+    }
+
+    private func refreshInlineTagHighlightPresentation() {
+        guard let layoutManager = textView.layoutManager else {
+            return
+        }
+
+        clearInlineTagTemporaryAttributes(from: layoutManager)
+
+        guard !textView.isHandlingMarkedTextComposition,
+              let textStorage = textView.textStorage,
+              textStorage.length > 0 else {
+            textView.needsDisplay = true
+            return
+        }
+
+        let validRanges = highlightedInlineTagRanges.filter { range in
+            range.location != NSNotFound && NSMaxRange(range) <= textStorage.length
+        }
+
+        for range in validRanges {
+            layoutManager.addTemporaryAttributes(
                 tagHighlightAttributes(),
-                range: range
+                forCharacterRange: range
             )
         }
-        textStorage.endEditing()
+
+        appliedInlineTagHighlightRanges = validRanges
+        textView.needsDisplay = true
+    }
+
+    private func clearInlineTagTemporaryAttributes(from layoutManager: NSLayoutManager) {
+        guard !appliedInlineTagHighlightRanges.isEmpty else {
+            return
+        }
+
+        let keys: [NSAttributedString.Key] = [.font, .foregroundColor, .paragraphStyle]
+        for range in appliedInlineTagHighlightRanges {
+            for key in keys {
+                layoutManager.removeTemporaryAttribute(key, forCharacterRange: range)
+            }
+        }
+
+        appliedInlineTagHighlightRanges = []
     }
 
     private func updatePlaceholderVisibility() {
@@ -497,6 +548,11 @@ final class CaptureEditorRuntimeHostView: NSView {
     }
 
     private func updateInlineCompletionPresentation() {
+        guard !textView.isHandlingMarkedTextComposition else {
+            textView.inlineCompletionPresentation = nil
+            return
+        }
+
         if let inlineCompletionState {
             textView.inlineCompletionPresentation = CueInlineCompletionPresentation(
                 suffix: inlineCompletionState.suffix,

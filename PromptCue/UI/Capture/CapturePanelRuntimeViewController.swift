@@ -69,6 +69,8 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private static let captureSurfaceVerticalInset = AppUIConstants.captureSurfaceInnerPadding
 
     private let model: AppModel
+    private let buildStampContainer = NSVisualEffectView()
+    private let buildStampLabel = NSTextField(labelWithString: "")
     private let shadowHostView = CapturePanelShadowHostView()
     private let shadowCasterView = CapturePanelShadowCasterView()
     private let shellView = CapturePanelShellView()
@@ -185,6 +187,31 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     private func buildViewHierarchy() {
+        buildStampContainer.translatesAutoresizingMaskIntoConstraints = false
+        buildStampContainer.blendingMode = .withinWindow
+        buildStampContainer.material = .hudWindow
+        buildStampContainer.state = .active
+        buildStampContainer.wantsLayer = true
+        buildStampContainer.layer?.cornerRadius = 9
+        buildStampContainer.layer?.masksToBounds = true
+        buildStampContainer.toolTip = Self.buildStampTooltip()
+        view.addSubview(buildStampContainer)
+
+        buildStampLabel.translatesAutoresizingMaskIntoConstraints = false
+        buildStampLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        buildStampLabel.textColor = NSColor.secondaryLabelColor
+        buildStampLabel.stringValue = Self.buildStampText()
+        buildStampContainer.addSubview(buildStampLabel)
+
+        NSLayoutConstraint.activate([
+            buildStampContainer.topAnchor.constraint(equalTo: view.topAnchor, constant: 2),
+            buildStampContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -PanelMetrics.capturePanelOuterPadding),
+            buildStampLabel.leadingAnchor.constraint(equalTo: buildStampContainer.leadingAnchor, constant: 8),
+            buildStampLabel.trailingAnchor.constraint(equalTo: buildStampContainer.trailingAnchor, constant: -8),
+            buildStampLabel.topAnchor.constraint(equalTo: buildStampContainer.topAnchor, constant: 4),
+            buildStampLabel.bottomAnchor.constraint(equalTo: buildStampContainer.bottomAnchor, constant: -4),
+        ])
+
         shadowHostView.translatesAutoresizingMaskIntoConstraints = false
         shadowCasterView.translatesAutoresizingMaskIntoConstraints = false
         shellView.translatesAutoresizingMaskIntoConstraints = false
@@ -274,6 +301,18 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
         editorHost.translatesAutoresizingMaskIntoConstraints = false
         editorHost.textView.delegate = self
+        editorHost.textView.onMarkedTextStateChange = { [weak self] isActive in
+            guard let self else {
+                return
+            }
+
+            if isActive {
+                self.discardPendingDraftSync()
+                self.suspendInlineTagPresentationForMarkedText()
+            } else {
+                self.refreshInlineTagState(resetSuggestionSelection: true)
+            }
+        }
         contentStack.addArrangedSubview(editorHost)
         editorHeightConstraint = editorHost.heightAnchor.constraint(equalToConstant: CaptureRuntimeMetrics.editorMinimumVisibleHeight)
         editorHeightConstraint.isActive = true
@@ -305,6 +344,56 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         recomputePreferredPanelHeight()
     }
 
+    private static func buildStampDate() -> Date? {
+        let candidateURLs = [Bundle.main.executableURL, Bundle.main.bundleURL].compactMap { $0 }
+
+        for url in candidateURLs {
+            guard let resourceValues = try? url.resourceValues(forKeys: [
+                .contentModificationDateKey,
+                .creationDateKey,
+            ]) else {
+                continue
+            }
+
+            if let date = resourceValues.contentModificationDate ?? resourceValues.creationDate {
+                return date
+            }
+        }
+
+        return nil
+    }
+
+    private static func buildStampText(referenceDate: Date = Date()) -> String {
+        guard let buildDate = buildStampDate() else {
+            return "Build unknown"
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.doesRelativeDateFormatting = false
+        if Calendar.autoupdatingCurrent.isDate(buildDate, inSameDayAs: referenceDate) {
+            formatter.dateStyle = .none
+            formatter.timeStyle = .medium
+        } else {
+            formatter.dateStyle = .short
+            formatter.timeStyle = .medium
+        }
+
+        return "Built \(formatter.string(from: buildDate))"
+    }
+
+    private static func buildStampTooltip() -> String? {
+        guard let buildDate = buildStampDate() else {
+            return nil
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.dateStyle = .full
+        formatter.timeStyle = .full
+        return "Latest local build: \(formatter.string(from: buildDate))"
+    }
+
     private func bindModel() {
         model.$recentScreenshotState
             .receive(on: RunLoop.main)
@@ -314,6 +403,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             .store(in: &cancellables)
 
         model.$draftText
+            .dropFirst()
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] draftText in
@@ -342,7 +432,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         }
 
         // IME composition owns the live editor contents until the marked text commits.
-        guard !editorHost.textView.hasMarkedText() else {
+        guard !editorHost.textView.isHandlingMarkedTextComposition else {
             return
         }
 
@@ -557,7 +647,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     private func refreshInlineTagState(resetSuggestionSelection: Bool = false) {
-        guard !editorHost.textView.hasMarkedText() else {
+        guard !editorHost.textView.isHandlingMarkedTextComposition else {
             suspendInlineTagPresentationForMarkedText()
             return
         }
@@ -598,6 +688,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         lastInlineTagQueryValue = nil
         inlineTagSuggestions = []
         selectedInlineTagSuggestionIndex = 0
+        editorHost.highlightedInlineTagRanges = []
         editorHost.setInlineCompletion(suffix: nil, caretUTF16Offset: nil)
         inlineTagSuggestionView.isHidden = true
         recomputePreferredPanelHeight()
@@ -625,7 +716,8 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     ) -> String? {
         guard let completionContext,
               let normalizedPrefix = completionContext.normalizedPrefix,
-              selectedCaretLocation == NSMaxRange(completionContext.replacementRange) else {
+              selectedCaretLocation == NSMaxRange(completionContext.replacementRange),
+              allowsInlineGhostPresentation(at: selectedCaretLocation) else {
             return nil
         }
 
@@ -638,6 +730,32 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
         let suffix = String(resolvedSuggestion.dropFirst(normalizedPrefix.count))
         return suffix.isEmpty ? nil : suffix
+    }
+
+    private func allowsInlineGhostPresentation(at caretUTF16Offset: Int) -> Bool {
+        let nsText = editorHost.textView.string as NSString
+        guard caretUTF16Offset < nsText.length else {
+            return true
+        }
+
+        var cursor = caretUTF16Offset
+        while cursor < nsText.length {
+            guard let scalar = UnicodeScalar(nsText.character(at: cursor)) else {
+                return false
+            }
+
+            if CharacterSet.newlines.contains(scalar) {
+                return true
+            }
+
+            if !CharacterSet.whitespaces.contains(scalar) {
+                return false
+            }
+
+            cursor += 1
+        }
+
+        return true
     }
 
     private func moveInlineTagSelection(by offset: Int) -> Bool {
@@ -751,7 +869,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     func textDidChange(_ notification: Notification) {
-        guard let textView = notification.object as? NSTextView,
+        guard let textView = notification.object as? WrappingCueTextView,
               textView === editorHost.textView else {
             return
         }
@@ -761,7 +879,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         let currentDraftCount = currentDraftText.utf16.count
         let isGrowingDraft = currentDraftCount >= previousDraftCount
         let shouldSkipMeasurement = editorHost.currentMetrics.isScrollable && isGrowingDraft
-        let isComposingMarkedText = textView.hasMarkedText()
+        let isComposingMarkedText = textView.isHandlingMarkedTextComposition
 
         if isComposingMarkedText {
             discardPendingDraftSync()
@@ -786,7 +904,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     func textViewDidChangeSelection(_ notification: Notification) {
-        guard let textView = notification.object as? NSTextView,
+        guard let textView = notification.object as? WrappingCueTextView,
               textView === editorHost.textView else {
             return
         }
@@ -851,8 +969,59 @@ extension CapturePanelRuntimeViewController {
         refreshInlineTagState(resetSuggestionSelection: true)
     }
 
+    func debugApplyEditorAttributedText(_ text: NSAttributedString, selectedLocation: Int? = nil) {
+        let location = max(0, min(selectedLocation ?? text.length, text.length))
+        editorHost.textView.textStorage?.setAttributedString(text)
+        editorHost.textView.setSelectedRange(NSRange(location: location, length: 0))
+        editorHost.scheduleMeasuredMetrics(forceScrollToSelection: true)
+        refreshInlineTagState(resetSuggestionSelection: true)
+    }
+
     func debugScheduleDraftSync(_ text: String) {
         scheduleDraftSync(text)
+    }
+
+    func debugInsertText(_ text: String) {
+        editorHost.textView.insertText(
+            text,
+            replacementRange: editorHost.textView.selectedRange()
+        )
+    }
+
+    func debugPastePlainText(_ text: String) {
+        editorHost.textView.debugPastePlainText(text)
+    }
+
+    func debugPasteFromPasteboard() {
+        editorHost.textView.debugPasteFromPasteboard()
+    }
+
+    func debugMakeEditorFirstResponder() {
+        _ = view.window?.makeFirstResponder(editorHost.textView)
+    }
+
+    func debugSetMarkedText(_ text: String, selectedLocation: Int? = nil) {
+        let location = max(0, min(selectedLocation ?? text.utf16.count, text.utf16.count))
+        editorHost.textView.setMarkedText(
+            text,
+            selectedRange: NSRange(location: location, length: 0),
+            replacementRange: editorHost.textView.selectedRange()
+        )
+        refreshInlineTagState(resetSuggestionSelection: true)
+    }
+
+    var debugHasMarkedText: Bool {
+        editorHost.textView.isHandlingMarkedTextComposition
+    }
+
+    func debugAttributes(at location: Int) -> [NSAttributedString.Key: Any] {
+        guard let textStorage = editorHost.textView.textStorage,
+              textStorage.length > 0 else {
+            return [:]
+        }
+
+        let clampedLocation = max(0, min(location, textStorage.length - 1))
+        return textStorage.attributes(at: clampedLocation, effectiveRange: nil)
     }
 
     @discardableResult

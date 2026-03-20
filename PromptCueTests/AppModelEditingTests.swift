@@ -161,6 +161,32 @@ final class AppModelEditingTests: XCTestCase {
         XCTAssertEqual(loadedCards.first?.tags.map(\.name), ["design"])
     }
 
+    func testSubmitCapturePreservesTagTestPositionForStackDisplay() async throws {
+        let model = makeModel()
+        model.start()
+        model.beginCaptureSession()
+        model.draftText = "alpha beta #tag_test gamma"
+
+        let didSubmit = await model.submitCapture()
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(model.cards.count, 1)
+        XCTAssertEqual(model.cards.first?.text, "alpha beta #tag_test gamma")
+        XCTAssertEqual(model.cards.first?.tags.map(\.name), ["tag_test"])
+        XCTAssertEqual(model.cards.first?.visibleInlineText, "alpha beta #tag_test gamma")
+        XCTAssertEqual(model.cards.first?.visibleInlineTagRanges, [
+            NSRange(location: 11, length: 9),
+        ])
+
+        let loadedCards = try CardStore(databaseURL: databaseURL).load()
+        XCTAssertEqual(loadedCards.first?.text, "alpha beta #tag_test gamma")
+        XCTAssertEqual(loadedCards.first?.tags.map(\.name), ["tag_test"])
+        XCTAssertEqual(loadedCards.first?.visibleInlineText, "alpha beta #tag_test gamma")
+        XCTAssertEqual(loadedCards.first?.visibleInlineTagRanges, [
+            NSRange(location: 11, length: 9),
+        ])
+    }
+
     private func makeModel() -> AppModel {
         AppModel(
             cardStore: CardStore(databaseURL: databaseURL),

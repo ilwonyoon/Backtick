@@ -57,6 +57,19 @@ struct CaptureTagTests {
     }
 
     @Test
+    func extractCanonicalInlineTagsSupportsTagsAdjacentToNonLatinText() {
+        let result = CaptureTagText.extractCanonicalInlineTags(
+            in: "중간#Bug처리와 앞쪽#ui마감"
+        )
+
+        #expect(result.tags.map(\.name) == ["bug", "ui"])
+        #expect(result.matches.map(\.range) == [
+            NSRange(location: 2, length: 4),
+            NSRange(location: 12, length: 3),
+        ])
+    }
+
+    @Test
     func editorTextPreservesRawInlineText() {
         let text = "Fix #bug in the capture panel"
         let tags = [CaptureTag(rawValue: "ui")].compactMap { $0 }
@@ -102,6 +115,21 @@ struct CaptureTagTests {
         #expect(result?.rawToken == "#bu")
         #expect(result?.normalizedPrefix == "bu")
         #expect(result?.replacementRange == NSRange(location: 8, length: 3))
+    }
+
+    @Test
+    func completionContextFindsTagPrefixAdjacentToNonLatinText() {
+        let text = "중간#bu처리"
+        let caret = (text as NSString).range(of: "#bu").location + 3
+
+        let result = CaptureTagText.completionContext(
+            in: text,
+            caretUTF16Offset: caret
+        )
+
+        #expect(result?.rawToken == "#bu")
+        #expect(result?.normalizedPrefix == "bu")
+        #expect(result?.replacementRange == NSRange(location: 2, length: 3))
     }
 
     @Test

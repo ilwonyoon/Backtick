@@ -431,31 +431,20 @@ public enum CaptureTagText {
             return true
         }
 
-        return CharacterSet.whitespacesAndNewlines.contains(previousScalar)
-            || isAllowedLeadingPunctuation(previousScalar)
+        return isPermittedAdjacentScalar(previousScalar)
     }
 
     private static func isValidTagEndBoundary(_ scalar: UnicodeScalar) -> Bool {
-        CharacterSet.whitespacesAndNewlines.contains(scalar)
-            || isAllowedTrailingPunctuation(scalar)
+        isPermittedAdjacentScalar(scalar)
     }
 
-    private static func isAllowedLeadingPunctuation(_ scalar: UnicodeScalar) -> Bool {
-        switch scalar.value {
-        case 34, 39, 40, 60, 91, 123, 171, 8216, 8220:
-            return true
-        default:
+    private static func isPermittedAdjacentScalar(_ scalar: UnicodeScalar) -> Bool {
+        guard scalar.value != 47 else {
+            // Keep URL fragments like "/#section" out of inline tag parsing.
             return false
         }
-    }
 
-    private static func isAllowedTrailingPunctuation(_ scalar: UnicodeScalar) -> Bool {
-        switch scalar.value {
-        case 33, 34, 39, 41, 44, 46, 58, 59, 62, 63, 93, 125, 187, 8217, 8221:
-            return true
-        default:
-            return isAllowedLeadingPunctuation(scalar)
-        }
+        return !CaptureTag.isBodyScalar(scalar)
     }
 
     private static func completionTokenRange(

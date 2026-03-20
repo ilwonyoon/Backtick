@@ -180,10 +180,16 @@ final class WrappingCueTextView: NSTextView {
     var onCancel: (() -> Void)?
     var onCommand: ((CueEditorCommand) -> Bool)?
     var onPaste: (() -> Void)?
+    var onMarkedTextStateChange: ((Bool) -> Void)?
     var inlineCompletionPresentation: CueInlineCompletionPresentation? {
         didSet {
             needsDisplay = true
         }
+    }
+    private var isMarkedTextCompositionActive = false
+
+    var isHandlingMarkedTextComposition: Bool {
+        isMarkedTextCompositionActive || hasMarkedText()
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -192,7 +198,7 @@ final class WrappingCueTextView: NSTextView {
     }
 
     override func keyDown(with event: NSEvent) {
-        if hasMarkedText() {
+        if isHandlingMarkedTextComposition {
             super.keyDown(with: event)
             return
         }
@@ -235,13 +241,19 @@ final class WrappingCueTextView: NSTextView {
     }
 
     override func paste(_ sender: Any?) {
+        if insertPlainTextFromPasteboard() {
+            onPaste?()
+            return
+        }
+
         super.paste(sender)
         onPaste?()
     }
 
     #if DEBUG
     var debugIsInlineCompletionVisible: Bool {
-        guard let inlineCompletionPresentation else {
+        guard !isHandlingMarkedTextComposition,
+              let inlineCompletionPresentation else {
             return false
         }
 
@@ -250,7 +262,8 @@ final class WrappingCueTextView: NSTextView {
     #endif
 
     private func drawInlineCompletionIfNeeded(in dirtyRect: NSRect) {
-        guard let inlineCompletionPresentation,
+        guard !isHandlingMarkedTextComposition,
+              let inlineCompletionPresentation,
               let drawingRect = inlineCompletionDrawingRect(for: inlineCompletionPresentation),
               drawingRect.intersects(dirtyRect) else {
             return
@@ -264,6 +277,99 @@ final class WrappingCueTextView: NSTextView {
             options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
         )
     }
+
+    private func insertPlainText(_ text: String) {
+        insertText(text, replacementRange: selectedRange())
+    }
+
+    private func insertPlainTextFromPasteboard() -> Bool {
+        guard let pastedText = plainTextFromPasteboard(NSPasteboard.general),
+              !pastedText.isEmpty else {
+            return false
+        }
+
+        insertPlainText(pastedText)
+        return true
+    }
+
+    private func plainTextFromPasteboard(_ pasteboard: NSPasteboard) -> String? {
+        if let pastedText = pasteboard.string(forType: .string),
+           !pastedText.isEmpty {
+            return pastedText
+        }
+
+        if let rtfData = pasteboard.data(forType: .rtf),
+           let attributed = try? NSAttributedString(
+               data: rtfData,
+               options: [.documentType: NSAttributedString.DocumentType.rtf],
+               documentAttributes: nil
+           ),
+           !attributed.string.isEmpty {
+            return attributed.string
+        }
+
+        if let rtfdData = pasteboard.data(forType: .rtfd),
+           let attributed = try? NSAttributedString(
+               data: rtfdData,
+               options: [.documentType: NSAttributedString.DocumentType.rtfd],
+               documentAttributes: nil
+           ),
+           !attributed.string.isEmpty {
+            return attributed.string
+        }
+
+        if let htmlData = pasteboard.data(forType: .html),
+           let attributed = try? NSAttributedString(
+               data: htmlData,
+               options: [.documentType: NSAttributedString.DocumentType.html],
+               documentAttributes: nil
+           ),
+           !attributed.string.isEmpty {
+            return attributed.string
+        }
+
+        return nil
+    }
+
+    override func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+        setMarkedTextCompositionActive(true)
+        super.setMarkedText(string, selectedRange: selectedRange, replacementRange: replacementRange)
+        syncMarkedTextCompositionState()
+    }
+
+    override func unmarkText() {
+        super.unmarkText()
+        syncMarkedTextCompositionState()
+    }
+
+    override func insertText(_ string: Any, replacementRange: NSRange) {
+        super.insertText(string, replacementRange: replacementRange)
+        syncMarkedTextCompositionState()
+    }
+
+    private func syncMarkedTextCompositionState() {
+        setMarkedTextCompositionActive(hasMarkedText())
+    }
+
+    private func setMarkedTextCompositionActive(_ isActive: Bool) {
+        guard isMarkedTextCompositionActive != isActive else {
+            return
+        }
+
+        isMarkedTextCompositionActive = isActive
+        onMarkedTextStateChange?(isActive)
+        needsDisplay = true
+    }
+
+    #if DEBUG
+    func debugPastePlainText(_ text: String) {
+        insertPlainText(text)
+    }
+
+    func debugPasteFromPasteboard() {
+        paste(nil)
+    }
+    #endif
 
     private func inlineCompletionDrawingRect(
         for presentation: CueInlineCompletionPresentation
