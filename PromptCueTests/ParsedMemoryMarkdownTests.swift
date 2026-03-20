@@ -74,11 +74,11 @@ final class ParsedMemoryMarkdownTests: XCTestCase {
         """
         let blks = blocks(of: md)
         XCTAssertEqual(blks.count, 1)
-        if case .table(let headers, let rows) = blks[0] {
-            XCTAssertEqual(headers, ["Name", "Age"])
-            XCTAssertEqual(rows.count, 2)
-            XCTAssertEqual(rows[0], ["Alice", "30"])
-            XCTAssertEqual(rows[1], ["Bob", "25"])
+        if case .table(let table) = blks[0] {
+            XCTAssertEqual(table.header, ["Name", "Age"])
+            XCTAssertEqual(table.rows.count, 2)
+            XCTAssertEqual(table.rows[0], ["Alice", "30"])
+            XCTAssertEqual(table.rows[1], ["Bob", "25"])
         } else {
             XCTFail("Expected .table, got \(blks[0])")
         }
@@ -92,9 +92,9 @@ final class ParsedMemoryMarkdownTests: XCTestCase {
         """
         let blks = blocks(of: md)
         XCTAssertEqual(blks.count, 1)
-        if case .table(let headers, let rows) = blks[0] {
-            XCTAssertEqual(headers.count, 3)
-            XCTAssertEqual(rows[0].count, 3)
+        if case .table(let table) = blks[0] {
+            XCTAssertEqual(table.header.count, 3)
+            XCTAssertEqual(table.rows[0].count, 3)
         } else {
             XCTFail("Expected .table")
         }
@@ -107,10 +107,10 @@ final class ParsedMemoryMarkdownTests: XCTestCase {
         | foo |  |
         """
         let blks = blocks(of: md)
-        if case .table(_, let rows) = blks[0] {
+        if case .table(let table) = blks[0] {
             // The empty cell may be dropped by filter(!s.isEmpty) — verify row is parsed
-            XCTAssertEqual(rows.count, 1)
-            XCTAssertEqual(rows[0][0], "foo")
+            XCTAssertEqual(table.rows.count, 1)
+            XCTAssertEqual(table.rows[0][0], "foo")
         } else {
             XCTFail("Expected .table")
         }
@@ -123,8 +123,8 @@ final class ParsedMemoryMarkdownTests: XCTestCase {
         | **bold** |
         """
         let blks = blocks(of: md)
-        if case .table(_, let rows) = blks[0] {
-            XCTAssertEqual(rows[0][0], "**bold**")
+        if case .table(let table) = blks[0] {
+            XCTAssertEqual(table.rows[0][0], "**bold**")
         } else {
             XCTFail("Expected .table")
         }
@@ -137,8 +137,8 @@ final class ParsedMemoryMarkdownTests: XCTestCase {
         | `code` |
         """
         let blks = blocks(of: md)
-        if case .table(_, let rows) = blks[0] {
-            XCTAssertEqual(rows[0][0], "`code`")
+        if case .table(let table) = blks[0] {
+            XCTAssertEqual(table.rows[0][0], "`code`")
         } else {
             XCTFail("Expected .table")
         }

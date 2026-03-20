@@ -664,7 +664,7 @@ private struct MemoryMarkdownTableCell: View {
     }
 }
 
-private enum ParsedMemoryMarkdown {
+enum ParsedMemoryMarkdown {
     struct Section: Identifiable {
         let id = UUID()
         let title: String?
