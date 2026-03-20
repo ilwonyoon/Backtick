@@ -443,6 +443,7 @@ private struct MemoryRenderedDocumentView: View {
                                     .font(.body)
                                     .foregroundStyle(SemanticTokens.Text.primary)
                                     .fixedSize(horizontal: false, vertical: true)
+
                             case .bullets(let items):
                                 VStack(alignment: .leading, spacing: 8) {
                                     ForEach(items, id: \.self) { item in
@@ -459,8 +460,45 @@ private struct MemoryRenderedDocumentView: View {
                                         }
                                     }
                                 }
+                            case .codeBlock(let language, let code):
+                                MemoryCodeBlockView(language: language, code: code)
                             case .table(let table):
                                 MemoryMarkdownTableView(table: table)
+                            case .numberedList(let items):
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
+                                        HStack(alignment: .top, spacing: 8) {
+                                            Text("\(idx + 1).")
+                                                .font(.body.monospacedDigit())
+                                                .foregroundStyle(SemanticTokens.Text.secondary)
+                                                .frame(minWidth: 24, alignment: .trailing)
+
+                                            MemoryInlineMarkdownText(markdown: item)
+                                                .font(.body)
+                                                .foregroundStyle(SemanticTokens.Text.primary)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                    }
+                                }
+                            case .nestedBullets(let items):
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                                        HStack(alignment: .top, spacing: 8) {
+                                            Circle()
+                                                .fill(SemanticTokens.Text.secondary.opacity(
+                                                    item.indent == 0 ? 0.7 : 0.45
+                                                ))
+                                                .frame(width: 4, height: 4)
+                                                .padding(.top, 7)
+
+                                            MemoryInlineMarkdownText(markdown: item.text)
+                                                .font(.body)
+                                                .foregroundStyle(SemanticTokens.Text.primary)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        .padding(.leading, CGFloat(item.indent) * PrimitiveTokens.Space.md)
+                                    }
+                                }
                             }
                         }
                     }
@@ -484,9 +522,48 @@ private struct MemoryInlineMarkdownText: View {
             )
         ) {
             Text(attributed)
+                .environment(\.openURL, OpenURLAction { url in
+                    NSWorkspace.shared.open(url)
+                    return .handled
+                })
         } else {
             Text(markdown)
         }
+    }
+}
+
+private struct MemoryCodeBlockView: View {
+    let language: String?
+    let code: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let language {
+                Text(language)
+                    .font(.system(size: PrimitiveTokens.FontSize.micro, weight: .medium))
+                    .foregroundStyle(SemanticTokens.Text.secondary)
+                    .padding(.horizontal, PrimitiveTokens.Space.sm)
+                    .padding(.top, PrimitiveTokens.Space.xs)
+                    .padding(.bottom, PrimitiveTokens.Space.xxs)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(code)
+                    .font(PrimitiveTokens.Typography.code)
+                    .foregroundStyle(SemanticTokens.Text.primary)
+                    .textSelection(.enabled)
+                    .padding(PrimitiveTokens.Space.sm)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: PrimitiveTokens.Space.xs, style: .continuous)
+                .fill(SemanticTokens.Surface.raisedFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: PrimitiveTokens.Space.xs, style: .continuous)
+                .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
+        )
     }
 }
 
@@ -587,7 +664,7 @@ private struct MemoryMarkdownTableCell: View {
     }
 }
 
-private enum ParsedMemoryMarkdown {
+enum ParsedMemoryMarkdown {
     struct Section: Identifiable {
         let id = UUID()
         let title: String?
@@ -642,7 +719,10 @@ private enum ParsedMemoryMarkdown {
     enum Block {
         case paragraph(String)
         case bullets([String])
+        case codeBlock(language: String?, code: String)
         case table(Table)
+        case numberedList([String])
+        case nestedBullets([(indent: Int, text: String)])
     }
 
     static func parse(_ markdown: String) -> [Section] {
@@ -681,6 +761,8 @@ private enum ParsedMemoryMarkdown {
         var blocks: [Block] = []
         var currentParagraph: [String] = []
         var currentBullets: [String] = []
+        var currentNumbered: [String] = []
+        var currentNestedBullets: [(indent: Int, text: String)] = []
 
         func flushParagraph() {
             let text = currentParagraph
@@ -704,42 +786,112 @@ private enum ParsedMemoryMarkdown {
             currentBullets.removeAll()
         }
 
+        func flushNumbered() {
+            let items = currentNumbered
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if !items.isEmpty {
+                blocks.append(.numberedList(items))
+            }
+            currentNumbered.removeAll()
+        }
+
+        func flushNestedBullets() {
+            if !currentNestedBullets.isEmpty {
+                blocks.append(.nestedBullets(currentNestedBullets))
+            }
+            currentNestedBullets.removeAll()
+        }
+
+        func flushAll() {
+            flushParagraph()
+            flushBullets()
+            flushNumbered()
+            flushNestedBullets()
+        }
+
         var index = 0
         while index < lines.count {
             let rawLine = lines[index]
             let line = rawLine.trimmingCharacters(in: .whitespaces)
 
+            if line.hasPrefix("```") {
+                flushAll()
+                let language: String? = {
+                    let tag = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                    return tag.isEmpty ? nil : tag
+                }()
+                var codeLines: [String] = []
+                index += 1
+                while index < lines.count {
+                    let codeLine = lines[index]
+                    if codeLine.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                        index += 1
+                        break
+                    }
+                    codeLines.append(codeLine)
+                    index += 1
+                }
+                let code = codeLines.joined(separator: "\n")
+                blocks.append(.codeBlock(language: language, code: code))
+                continue
+            }
+
+            if let (table, nextIndex) = parseTable(lines, startingAt: index) {
+                flushAll()
+                blocks.append(.table(table))
+                index = nextIndex
+                continue
+            }
+
             if line.isEmpty {
+                flushAll()
+                index += 1
+                continue
+            }
+
+            let leadingSpaces = rawLine.prefix(while: { $0 == " " }).count
+            if leadingSpaces > 0 && line.hasPrefix("- ") {
                 flushParagraph()
                 flushBullets()
+                flushNumbered()
+                let indentLevel = leadingSpaces / 2
+                let text = String(line.dropFirst(2))
+                currentNestedBullets.append((indent: indentLevel, text: text))
+                index += 1
+                continue
+            }
+
+            let numberedPattern = "^[0-9]+\\. "
+            if let _ = line.range(of: numberedPattern, options: .regularExpression) {
+                flushParagraph()
+                flushBullets()
+                flushNestedBullets()
+                if let dotRange = line.range(of: ". ") {
+                    let text = String(line[dotRange.upperBound...])
+                    currentNumbered.append(text)
+                }
                 index += 1
                 continue
             }
 
             if line.hasPrefix("- ") {
                 flushParagraph()
+                flushNumbered()
+                flushNestedBullets()
                 currentBullets.append(String(line.dropFirst(2)))
                 index += 1
                 continue
             }
 
-            if let (table, nextIndex) = parseTable(lines, startingAt: index) {
-                flushParagraph()
-                flushBullets()
-                blocks.append(.table(table))
-                index = nextIndex
-                continue
-            }
-
-            if !currentBullets.isEmpty {
-                flushBullets()
-            }
+            if !currentBullets.isEmpty { flushBullets() }
+            if !currentNumbered.isEmpty { flushNumbered() }
+            if !currentNestedBullets.isEmpty { flushNestedBullets() }
             currentParagraph.append(line)
             index += 1
         }
 
-        flushParagraph()
-        flushBullets()
+        flushAll()
         return blocks
     }
 
