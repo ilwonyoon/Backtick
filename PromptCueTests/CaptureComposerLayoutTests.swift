@@ -25,7 +25,7 @@ final class CaptureComposerLayoutTests: XCTestCase {
         try super.tearDownWithError()
     }
 
-    func testCaptureComposerKeepsStableHeightBetweenDetectedAndPreviewReady() throws {
+    func testCaptureComposerGrowsWhenPreviewBecomesReady() throws {
         let coordinator = TestRecentScreenshotCoordinator()
         let model = makeModel(recentScreenshotCoordinator: coordinator)
         model.start()
@@ -44,7 +44,13 @@ final class CaptureComposerLayoutTests: XCTestCase {
         drainMainQueue()
         let previewHeight = hostingView.fittingSize.height
 
-        XCTAssertEqual(detectedHeight, previewHeight, accuracy: 1)
+        XCTAssertGreaterThan(
+            previewHeight,
+            detectedHeight,
+            "Preview-ready should be taller than detected because the screenshot slot only appears at preview-ready"
+        )
+        let expectedSlotHeight = PrimitiveTokens.Size.captureAttachmentPreviewSize + PrimitiveTokens.Space.sm
+        XCTAssertEqual(previewHeight - detectedHeight, expectedSlotHeight, accuracy: 2)
     }
 
     func testCaptureComposerGrowsByOneLineForInjectedTwoLineMetric() throws {
