@@ -275,7 +275,6 @@ final class BacktickMCPServerSession {
                     "properties": [
                         "text": ["type": "string"],
                         "tags": tagSchema(),
-                        "suggestedTarget": suggestedTargetSchema(),
                         "screenshotPath": ["type": ["string", "null"]],
                         "isPinned": ["type": ["boolean", "null"], "description": "Pin or unpin this note. Pinned notes never expire and sort to top."],
                         "createdAt": [
@@ -299,14 +298,8 @@ final class BacktickMCPServerSession {
                         ],
                         "text": ["type": ["string", "null"]],
                         "tags": tagSchema(),
-                        "suggestedTarget": suggestedTargetSchema(),
                         "screenshotPath": ["type": ["string", "null"]],
                         "isPinned": ["type": ["boolean", "null"], "description": "Pin or unpin this note. Pinned notes never expire and sort to top."],
-                        "lastCopiedAt": [
-                            "type": ["string", "null"],
-                            "format": "date-time",
-                            "description": "Set null to move note back to Active, or ISO-8601 date to mark as copied.",
-                        ],
                     ],
                     "required": ["id"],
                     "additionalProperties": false,
@@ -525,33 +518,6 @@ final class BacktickMCPServerSession {
         ]
     }
 
-    private func suggestedTargetSchema() -> [String: Any] {
-        [
-            "type": ["object", "null"],
-            "properties": [
-                "appName": ["type": "string"],
-                "bundleIdentifier": ["type": "string"],
-                "windowTitle": ["type": ["string", "null"]],
-                "sessionIdentifier": ["type": ["string", "null"]],
-                "terminalTTY": ["type": ["string", "null"]],
-                "currentWorkingDirectory": ["type": ["string", "null"]],
-                "repositoryRoot": ["type": ["string", "null"]],
-                "repositoryName": ["type": ["string", "null"]],
-                "branch": ["type": ["string", "null"]],
-                "capturedAt": [
-                    "type": "string",
-                    "format": "date-time",
-                ],
-                "confidence": [
-                    "type": "string",
-                    "enum": ["high", "low"],
-                ],
-            ],
-            "required": ["appName", "bundleIdentifier"],
-            "additionalProperties": false,
-        ]
-    }
-
     private func tagSchema() -> [String: Any] {
         [
             "type": ["array", "null"],
@@ -664,7 +630,6 @@ final class BacktickMCPServerSession {
         let request = StackNoteCreateRequest(
             text: try requiredString(arguments, key: "text", allowEmpty: true),
             tags: try parseTags(arguments["tags"]),
-            suggestedTarget: try parseSuggestedTarget(arguments["suggestedTarget"]),
             screenshotPath: try parseOptionalString(arguments["screenshotPath"]),
             createdAt: try parseDate(arguments["createdAt"]) ?? Date(),
             isPinned: (arguments["isPinned"] as? Bool) ?? false
@@ -681,10 +646,8 @@ final class BacktickMCPServerSession {
         let changes = StackNoteUpdate(
             text: try parseTextUpdate(arguments, key: "text"),
             tags: try parseTagsUpdate(arguments, key: "tags"),
-            suggestedTarget: try parseSuggestedTargetUpdate(arguments, key: "suggestedTarget"),
             screenshotPath: try parseStringUpdate(arguments, key: "screenshotPath"),
-            isPinned: try parseBoolUpdate(arguments, key: "isPinned"),
-            lastCopiedAt: try parseDateUpdate(arguments, key: "lastCopiedAt")
+            isPinned: try parseBoolUpdate(arguments, key: "isPinned")
         )
         let note = try writeService.updateNote(id: id, changes: changes)
 
@@ -1072,7 +1035,6 @@ final class BacktickMCPServerSession {
             "isCopied": note.isCopied,
             "isPinned": note.isPinned,
             "sortOrder": note.sortOrder,
-            "suggestedTarget": note.suggestedTarget.map(suggestedTargetDictionary) ?? NSNull(),
         ]
     }
 
@@ -1117,22 +1079,6 @@ final class BacktickMCPServerSession {
             "copiedAt": Self.iso8601Formatter.string(from: copyEvent.copiedAt),
             "copiedVia": copyEvent.copiedVia.rawValue,
             "copiedBy": copyEvent.copiedBy.rawValue,
-        ]
-    }
-
-    private func suggestedTargetDictionary(_ target: CaptureSuggestedTarget) -> [String: Any] {
-        [
-            "appName": target.appName,
-            "bundleIdentifier": target.bundleIdentifier,
-            "windowTitle": target.windowTitle ?? NSNull(),
-            "sessionIdentifier": target.sessionIdentifier ?? NSNull(),
-            "terminalTTY": target.terminalTTY ?? NSNull(),
-            "currentWorkingDirectory": target.currentWorkingDirectory ?? NSNull(),
-            "repositoryRoot": target.repositoryRoot ?? NSNull(),
-            "repositoryName": target.repositoryName ?? NSNull(),
-            "branch": target.branch ?? NSNull(),
-            "capturedAt": Self.iso8601Formatter.string(from: target.capturedAt),
-            "confidence": target.confidence.rawValue,
         ]
     }
 
@@ -1580,35 +1526,6 @@ final class BacktickMCPServerSession {
         ].contains(topic)
     }
 
-    private func parseSuggestedTarget(_ value: Any?) throws -> CaptureSuggestedTarget? {
-        guard let value else {
-            return nil
-        }
-        if value is NSNull {
-            return nil
-        }
-        guard let dictionary = value as? [String: Any] else {
-            throw BacktickMCPToolError(message: "suggestedTarget must be an object or null")
-        }
-
-        let appName = try requiredString(dictionary, key: "appName")
-        let bundleIdentifier = try requiredString(dictionary, key: "bundleIdentifier")
-
-        return CaptureSuggestedTarget(
-            appName: appName,
-            bundleIdentifier: bundleIdentifier,
-            windowTitle: try parseOptionalString(dictionary["windowTitle"]),
-            sessionIdentifier: try parseOptionalString(dictionary["sessionIdentifier"]),
-            terminalTTY: try parseOptionalString(dictionary["terminalTTY"]),
-            currentWorkingDirectory: try parseOptionalString(dictionary["currentWorkingDirectory"]),
-            repositoryRoot: try parseOptionalString(dictionary["repositoryRoot"]),
-            repositoryName: try parseOptionalString(dictionary["repositoryName"]),
-            branch: try parseOptionalString(dictionary["branch"]),
-            capturedAt: try parseDate(dictionary["capturedAt"]) ?? Date(),
-            confidence: try parseConfidence(dictionary["confidence"])
-        )
-    }
-
     private func parseTags(_ value: Any?) throws -> [CaptureTag] {
         guard let value else {
             return []
@@ -1626,17 +1543,6 @@ final class BacktickMCPServerSession {
         }
 
         return CaptureTag.deduplicatePreservingOrder(tags)
-    }
-
-    private func parseConfidence(_ value: Any?) throws -> CaptureSuggestedTargetConfidence {
-        guard let confidence = try parseOptionalString(value) else {
-            return .high
-        }
-        guard let parsedConfidence = CaptureSuggestedTargetConfidence(rawValue: confidence) else {
-            throw BacktickMCPToolError(message: "confidence must be high or low")
-        }
-
-        return parsedConfidence
     }
 
     private func parseTextUpdate(
@@ -1669,25 +1575,6 @@ final class BacktickMCPServerSession {
             throw BacktickMCPToolError(message: "\(key) must be a string or null")
         }
         return .set(stringValue)
-    }
-
-    private func parseSuggestedTargetUpdate(
-        _ arguments: [String: Any],
-        key: String
-    ) throws -> StackOptionalUpdate<CaptureSuggestedTarget> {
-        guard arguments.keys.contains(key) else {
-            return .keep
-        }
-        if arguments[key] is NSNull {
-            return .clear
-        }
-        guard let value = arguments[key] else {
-            return .keep
-        }
-        guard let target = try parseSuggestedTarget(value) else {
-            return .clear
-        }
-        return .set(target)
     }
 
     private func parseBoolUpdate(

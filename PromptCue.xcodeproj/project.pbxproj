@@ -268,7 +268,6 @@
 		9BD5E156028526C47C73E7A4 /* ScreenshotDirectoryResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDirectoryResolverTests.swift; sourceTree = "<group>"; };
 		9BF569996ACD466F0A9F0D65 /* StackPanelAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackPanelAppearanceTests.swift; sourceTree = "<group>"; };
 		9D7037F3C1F08BD57AE02B42 /* CloudSyncControlling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncControlling.swift; sourceTree = "<group>"; };
-		A0B6E3308D90B0071DEEAF76 /* PromptCue-remove-app-selector */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "PromptCue-remove-app-selector"; path = .; sourceTree = SOURCE_ROOT; };
 		A377806B38E2AD651F10793B /* CaptureEditorResolvedHeight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorResolvedHeight.swift; sourceTree = "<group>"; };
 		A3BAAF04096830B510376E3E /* DevSigned.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = DevSigned.xcconfig; sourceTree = "<group>"; };
 		A50539CFB15DD7757BC97835 /* CaptureEditorLayoutCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorLayoutCalculator.swift; sourceTree = "<group>"; };
@@ -318,6 +317,7 @@
 		EA97F3D13BA392CBAF2BDCF8 /* LocalImageThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalImageThumbnail.swift; sourceTree = "<group>"; };
 		ECBCAD08F6EF428AD0BFFA79 /* CapturePanelRuntimeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePanelRuntimeViewController.swift; sourceTree = "<group>"; };
 		F1FABC33B332039515080670 /* StackWriteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackWriteService.swift; sourceTree = "<group>"; };
+		F287F749BFB619B9796E0FE2 /* PromptCue */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PromptCue; path = .; sourceTree = SOURCE_ROOT; };
 		F447D3D2D92FFA7B5252D467 /* HotKeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyCenter.swift; sourceTree = "<group>"; };
 		F50F3545344096FAFA3E2BFE /* AppUIConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUIConstants.swift; sourceTree = "<group>"; };
 		F792E0662541E86F69E0A48A /* PromptCue.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PromptCue.entitlements; sourceTree = "<group>"; };
@@ -485,7 +485,7 @@
 		6FDC8665E7B2B81DDA302044 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				A0B6E3308D90B0071DEEAF76 /* PromptCue-remove-app-selector */,
+				F287F749BFB619B9796E0FE2 /* PromptCue */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
