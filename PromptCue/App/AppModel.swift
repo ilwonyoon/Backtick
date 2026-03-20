@@ -86,6 +86,7 @@ final class AppModel: ObservableObject {
     let suggestedTargetProvider: any SuggestedTargetProviding
     private let cloudSyncEngineFactory: @MainActor () -> any CloudSyncControlling
     private let cleanupInterval: TimeInterval
+    private let requiresCloudEntitlements: Bool
     var cloudSyncEngine: (any CloudSyncControlling)?
     private var cleanupTimer: Timer?
     var captureSubmissionTask: Task<Bool, Never>?
@@ -110,7 +111,8 @@ final class AppModel: ObservableObject {
         suggestedTargetProvider: (any SuggestedTargetProviding)? = nil,
         cloudSyncEngine: (any CloudSyncControlling)? = nil,
         cloudSyncEngineFactory: @escaping @MainActor () -> any CloudSyncControlling = { CloudSyncEngine() },
-        cleanupInterval: TimeInterval = 60
+        cleanupInterval: TimeInterval = 60,
+        requiresCloudEntitlements: Bool = true
     ) {
         self.cardStore = cardStore
         self.attachmentStore = attachmentStore
@@ -119,6 +121,7 @@ final class AppModel: ObservableObject {
         self.cloudSyncEngine = cloudSyncEngine
         self.cloudSyncEngineFactory = cloudSyncEngineFactory
         self.cleanupInterval = cleanupInterval
+        self.requiresCloudEntitlements = requiresCloudEntitlements
         self.suggestedTargetProvider.onChange = { [weak self] in
             Task { @MainActor [weak self] in
                 self?.syncAvailableSuggestedTargets()
@@ -775,7 +778,7 @@ final class AppModel: ObservableObject {
 
     func setSyncEnabled(_ enabled: Bool) {
         if enabled, cloudSyncEngine == nil {
-            guard Self.hasCloudEntitlements else {
+            guard !requiresCloudEntitlements || Self.hasCloudEntitlements else {
                 NSLog("CloudSync: skipped — no provisioning profile")
                 return
             }

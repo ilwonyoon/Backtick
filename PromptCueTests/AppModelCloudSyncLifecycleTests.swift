@@ -35,7 +35,7 @@ final class AppModelCloudSyncLifecycleTests: XCTestCase {
         XCTAssertEqual(factoryCallCount, 0)
 
         model.setSyncEnabled(true)
-        await Task.yield()
+        try? await Task.sleep(nanoseconds: 50_000_000)
 
         XCTAssertEqual(factoryCallCount, 1)
         XCTAssertEqual(engine.setupCallCount, 1)
@@ -74,7 +74,8 @@ final class AppModelCloudSyncLifecycleTests: XCTestCase {
             ),
             recentScreenshotCoordinator: LifecycleTestRecentScreenshotCoordinator(),
             cloudSyncEngine: cloudSyncEngine,
-            cloudSyncEngineFactory: cloudSyncEngineFactory
+            cloudSyncEngineFactory: cloudSyncEngineFactory,
+            requiresCloudEntitlements: false
         )
     }
 }

@@ -15,11 +15,22 @@ final class ScreenshotDirectoryObserverTests: XCTestCase {
 
     override func tearDownWithError() throws {
         if let tempDirectoryURL, FileManager.default.fileExists(atPath: tempDirectoryURL.path) {
-            try FileManager.default.removeItem(at: tempDirectoryURL)
+            forceRemoveDirectory(tempDirectoryURL)
         }
 
         tempDirectoryURL = nil
         try super.tearDownWithError()
+    }
+
+    private func forceRemoveDirectory(_ url: URL) {
+        let fileManager = FileManager.default
+        if let enumerator = fileManager.enumerator(at: url, includingPropertiesForKeys: nil) {
+            for case let itemURL as URL in enumerator {
+                try? fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: itemURL.path)
+            }
+        }
+        try? fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        try? fileManager.removeItem(at: url)
     }
 
     func testObserverEmitsConfigurationChangeWhenAuthorizedFolderChanges() throws {
