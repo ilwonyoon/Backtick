@@ -24,7 +24,10 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
     ) {
         self.id = id
         self.text = text
-        self.tags = CaptureTag.deduplicatePreservingOrder(tags)
+
+        let extractedTags = CaptureTagText.extractCanonicalInlineTags(in: text).tags
+        self.tags = CaptureTag.deduplicatePreservingOrder(extractedTags + tags)
+
         self.createdAt = createdAt
         self.screenshotPath = screenshotPath
         self.lastCopiedAt = lastCopiedAt
@@ -47,9 +50,13 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         text = try container.decode(String.self, forKey: .text)
-        tags = CaptureTag.deduplicatePreservingOrder(
+
+        let decodedTags = CaptureTag.deduplicatePreservingOrder(
             try container.decodeIfPresent([CaptureTag].self, forKey: .tags) ?? []
         )
+        let extractedTags = CaptureTagText.extractCanonicalInlineTags(in: text).tags
+        tags = CaptureTag.deduplicatePreservingOrder(extractedTags + decodedTags)
+
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         screenshotPath = try container.decodeIfPresent(String.self, forKey: .screenshotPath)
         lastCopiedAt = try container.decodeIfPresent(Date.self, forKey: .lastCopiedAt)
@@ -82,50 +89,24 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
     }
 
     public var visibleBodyText: String {
-        guard !tags.isEmpty else {
-            return text
-        }
-
-        let parseResult = CaptureTagText.parseCommittedPrefix(in: text)
-        guard parseResult.tags == tags else {
-            return text
-        }
-
-        return parseResult.bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        text
     }
 
     public var visibleInlineText: String {
-        guard !tags.isEmpty else {
+        if text.contains("#") || tags.isEmpty {
             return text
         }
 
-        let parseResult = CaptureTagText.parseCommittedPrefix(in: text)
-        if parseResult.tags.isEmpty {
-            return CaptureTagText.inlineDisplayText(tags: tags, bodyText: text)
-        }
-
-        guard parseResult.tags == tags else {
-            return text
-        }
-
-        return CaptureTagText.inlineDisplayText(tags: tags, bodyText: parseResult.bodyText)
+        return CaptureTagText.legacyInlineDisplayText(tags: tags, bodyText: text)
     }
 
     public var visibleInlineTagRanges: [NSRange] {
-        guard !tags.isEmpty else {
-            return []
+        let ranges = CaptureTagText.inlineDisplayTagRanges(tags: tags, bodyText: text)
+        if !ranges.isEmpty || text.contains("#") || tags.isEmpty {
+            return ranges
         }
 
-        let parseResult = CaptureTagText.parseCommittedPrefix(in: text)
-        if parseResult.tags.isEmpty {
-            return CaptureTagText.inlineDisplayTagRanges(tags: tags, bodyText: text)
-        }
-
-        guard parseResult.tags == tags else {
-            return []
-        }
-
-        return CaptureTagText.inlineDisplayTagRanges(tags: tags, bodyText: parseResult.bodyText)
+        return CaptureTagText.legacyInlineDisplayTagRanges(tags: tags, bodyText: text)
     }
 
     public func markCopied(at date: Date = Date()) -> CaptureCard {
