@@ -120,7 +120,7 @@ struct CueTextEditor: NSViewRepresentable {
         textView.drawsBackground = false
         textView.backgroundColor = .clear
         textView.textColor = .labelColor
-        let font = NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture)
+        let font = CaptureEditorLayoutCalculator.editorFont()
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.minimumLineHeight = PrimitiveTokens.LineHeight.capture
         paragraphStyle.maximumLineHeight = PrimitiveTokens.LineHeight.capture
@@ -138,6 +138,7 @@ struct CueTextEditor: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.alignment = .left
         textView.defaultParagraphStyle = paragraphStyle
+        textView.layoutManager?.usesFontLeading = false
         textView.textContainer?.widthTracksTextView = false
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.lineBreakMode = .byWordWrapping
@@ -500,7 +501,7 @@ final class WrappingCueTextView: NSTextView {
     private var inlineCompletionFont: NSFont {
         inlineCompletionPresentation?.attributes[.font] as? NSFont
             ?? font
-            ?? NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture)
+            ?? CaptureEditorLayoutCalculator.editorFont()
     }
 }
 

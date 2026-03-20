@@ -204,7 +204,7 @@ extension AppModel {
             viewportWidth: CaptureRuntimeMetrics.editorViewportWidth,
             maxContentHeight: CaptureRuntimeMetrics.editorMaxHeight,
             minimumLineHeight: CaptureRuntimeMetrics.textLineHeight,
-            font: NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture),
+            font: CaptureEditorLayoutCalculator.editorFont(),
             lineHeight: PrimitiveTokens.LineHeight.capture
         )
 

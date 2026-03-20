@@ -467,9 +467,15 @@ final class CaptureEditorRuntimeHostView: NSView {
         )
         layoutManager.ensureLayout(for: textContainer)
 
-        let usedHeight = ceil(layoutManager.usedRect(for: textContainer).height)
+        let lineCount = CaptureEditorLayoutCalculator.renderedLineCount(
+            text: textView.string,
+            layoutManager: layoutManager,
+            textContainer: textContainer
+        )
         let insetHeight = textView.textContainerInset.height * 2
-        return max(minimumBodyVisibleHeight, usedHeight + insetHeight)
+        let lineHeight = max(editorParagraphStyle.minimumLineHeight, CaptureRuntimeMetrics.textLineHeight)
+        let contentHeight = CGFloat(lineCount) * lineHeight
+        return max(minimumBodyVisibleHeight, contentHeight + insetHeight)
     }
 
     private func normalizeTextStorageAttributes(for appearance: NSAppearance? = nil) {
@@ -656,6 +662,7 @@ final class CaptureEditorRuntimeHostView: NSView {
         textView.isVerticallyResizable = true
         textView.alignment = .left
         textView.defaultParagraphStyle = editorParagraphStyle
+        textView.layoutManager?.usesFontLeading = false
         textView.textContainer?.widthTracksTextView = false
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.lineBreakMode = .byWordWrapping
@@ -665,7 +672,7 @@ final class CaptureEditorRuntimeHostView: NSView {
     }
 
     private var editorFont: NSFont {
-        NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture)
+        CaptureEditorLayoutCalculator.editorFont()
     }
 
     private var editorParagraphStyle: NSParagraphStyle {

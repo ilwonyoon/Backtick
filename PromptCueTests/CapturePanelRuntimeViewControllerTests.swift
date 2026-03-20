@@ -244,6 +244,23 @@ final class CapturePanelRuntimeViewControllerTests: XCTestCase {
         XCTAssertFalse(controller.debugIsInlineCompletionVisible)
     }
 
+    func testKoreanIMECompositionKeepsPreferredPanelHeightStableFromPlaceholder() throws {
+        let model = makeModel()
+        let controller = makePreparedController(model: model)
+        let initialHeight = controller.currentPreferredPanelHeight
+
+        controller.debugSetMarkedText("한", selectedLocation: 1)
+        drainMainQueue(seconds: 0.25)
+        let markedHeight = controller.currentPreferredPanelHeight
+
+        controller.debugApplyEditorText("한", selectedLocation: 1)
+        drainMainQueue(seconds: 0.25)
+        let committedHeight = controller.currentPreferredPanelHeight
+
+        XCTAssertEqual(markedHeight, initialHeight, accuracy: 0.5)
+        XCTAssertEqual(committedHeight, initialHeight, accuracy: 0.5)
+    }
+
     func testPastingMixedLanguageRTFThenTypingHashPreservesText() throws {
         let model = makeModel(
             cards: [

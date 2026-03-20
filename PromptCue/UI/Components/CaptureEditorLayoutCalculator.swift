@@ -2,6 +2,61 @@ import AppKit
 import CoreGraphics
 
 enum CaptureEditorLayoutCalculator {
+    static func editorFont(size: CGFloat = PrimitiveTokens.FontSize.capture) -> NSFont {
+        let baseFont = NSFont.systemFont(ofSize: size)
+        guard let fallbackFont = NSFont(name: "AppleSDGothicNeo-Regular", size: size) else {
+            return baseFont
+        }
+
+        let descriptor = baseFont.fontDescriptor.addingAttributes([
+            .cascadeList: [fallbackFont.fontDescriptor],
+        ])
+        return NSFont(descriptor: descriptor, size: size) ?? baseFont
+    }
+
+    static func lineCount(
+        text: String,
+        width: CGFloat,
+        font: NSFont,
+        lineHeight: CGFloat
+    ) -> Int {
+        guard !text.isEmpty else {
+            return 1
+        }
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.minimumLineHeight = lineHeight
+        paragraphStyle.maximumLineHeight = lineHeight
+        paragraphStyle.lineBreakMode = .byWordWrapping
+
+        let textStorage = NSTextStorage(
+            attributedString: NSAttributedString(
+                string: text,
+                attributes: [
+                    .font: font,
+                    .paragraphStyle: paragraphStyle,
+                ]
+            )
+        )
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(
+            size: NSSize(width: max(width, 1), height: .greatestFiniteMagnitude)
+        )
+        textContainer.lineFragmentPadding = 0
+        textContainer.lineBreakMode = .byWordWrapping
+
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.addTextContainer(textContainer)
+        layoutManager.usesFontLeading = false
+        layoutManager.ensureLayout(for: textContainer)
+
+        return renderedLineCount(
+            text: text,
+            layoutManager: layoutManager,
+            textContainer: textContainer
+        )
+    }
+
     static func measuredTextHeight(
         text: String,
         width: CGFloat,
@@ -16,24 +71,14 @@ enum CaptureEditorLayoutCalculator {
             return minimumLineHeight + verticalInsetHeight + bottomBreathingRoom
         }
 
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.minimumLineHeight = lineHeight
-        paragraphStyle.maximumLineHeight = lineHeight
-        paragraphStyle.lineBreakMode = .byWordWrapping
-
-        let attributedString = NSAttributedString(
-            string: text,
-            attributes: [
-                .font: font,
-                .paragraphStyle: paragraphStyle,
-            ]
+        let lineCount = lineCount(
+            text: text,
+            width: width,
+            font: font,
+            lineHeight: lineHeight
         )
-
-        let boundingRect = attributedString.boundingRect(
-            with: NSSize(width: max(width, 1), height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading]
-        )
-        return max(minimumLineHeight, ceil(boundingRect.height)) + verticalInsetHeight + bottomBreathingRoom
+        let contentHeight = max(minimumLineHeight, CGFloat(lineCount) * lineHeight)
+        return contentHeight + verticalInsetHeight + bottomBreathingRoom
     }
 
     static func metrics(
@@ -84,5 +129,32 @@ enum CaptureEditorLayoutCalculator {
                 lineHeight: lineHeight
             )
         }
+    }
+
+    static func renderedLineCount(
+        text: String,
+        layoutManager: NSLayoutManager,
+        textContainer: NSTextContainer
+    ) -> Int {
+        let glyphRange = layoutManager.glyphRange(for: textContainer)
+        var lineCount = 0
+        var glyphIndex = glyphRange.location
+
+        while glyphIndex < NSMaxRange(glyphRange) {
+            var lineRange = NSRange()
+            layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: &lineRange)
+            guard lineRange.length > 0 else {
+                break
+            }
+
+            lineCount += 1
+            glyphIndex = NSMaxRange(lineRange)
+        }
+
+        if text.hasSuffix("\n"), !layoutManager.extraLineFragmentRect.isEmpty {
+            lineCount += 1
+        }
+
+        return max(lineCount, 1)
     }
 }
