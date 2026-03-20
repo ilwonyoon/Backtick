@@ -69,8 +69,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private static let captureSurfaceVerticalInset = AppUIConstants.captureSurfaceInnerPadding
 
     private let model: AppModel
-    private let buildStampContainer = NSVisualEffectView()
-    private let buildStampLabel = NSTextField(labelWithString: "")
     private let shadowHostView = CapturePanelShadowHostView()
     private let shadowCasterView = CapturePanelShadowCasterView()
     private let shellView = CapturePanelShellView()
@@ -187,31 +185,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     private func buildViewHierarchy() {
-        buildStampContainer.translatesAutoresizingMaskIntoConstraints = false
-        buildStampContainer.blendingMode = .withinWindow
-        buildStampContainer.material = .hudWindow
-        buildStampContainer.state = .active
-        buildStampContainer.wantsLayer = true
-        buildStampContainer.layer?.cornerRadius = 9
-        buildStampContainer.layer?.masksToBounds = true
-        buildStampContainer.toolTip = Self.buildStampTooltip()
-        view.addSubview(buildStampContainer)
-
-        buildStampLabel.translatesAutoresizingMaskIntoConstraints = false
-        buildStampLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-        buildStampLabel.textColor = NSColor.secondaryLabelColor
-        buildStampLabel.stringValue = Self.buildStampText()
-        buildStampContainer.addSubview(buildStampLabel)
-
-        NSLayoutConstraint.activate([
-            buildStampContainer.topAnchor.constraint(equalTo: view.topAnchor, constant: 2),
-            buildStampContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -PanelMetrics.capturePanelOuterPadding),
-            buildStampLabel.leadingAnchor.constraint(equalTo: buildStampContainer.leadingAnchor, constant: 8),
-            buildStampLabel.trailingAnchor.constraint(equalTo: buildStampContainer.trailingAnchor, constant: -8),
-            buildStampLabel.topAnchor.constraint(equalTo: buildStampContainer.topAnchor, constant: 4),
-            buildStampLabel.bottomAnchor.constraint(equalTo: buildStampContainer.bottomAnchor, constant: -4),
-        ])
-
         shadowHostView.translatesAutoresizingMaskIntoConstraints = false
         shadowCasterView.translatesAutoresizingMaskIntoConstraints = false
         shellView.translatesAutoresizingMaskIntoConstraints = false
@@ -342,56 +315,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         ])
 
         recomputePreferredPanelHeight()
-    }
-
-    private static func buildStampDate() -> Date? {
-        let candidateURLs = [Bundle.main.executableURL, Bundle.main.bundleURL].compactMap { $0 }
-
-        for url in candidateURLs {
-            guard let resourceValues = try? url.resourceValues(forKeys: [
-                .contentModificationDateKey,
-                .creationDateKey,
-            ]) else {
-                continue
-            }
-
-            if let date = resourceValues.contentModificationDate ?? resourceValues.creationDate {
-                return date
-            }
-        }
-
-        return nil
-    }
-
-    private static func buildStampText(referenceDate: Date = Date()) -> String {
-        guard let buildDate = buildStampDate() else {
-            return "Build unknown"
-        }
-
-        let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        formatter.doesRelativeDateFormatting = false
-        if Calendar.autoupdatingCurrent.isDate(buildDate, inSameDayAs: referenceDate) {
-            formatter.dateStyle = .none
-            formatter.timeStyle = .medium
-        } else {
-            formatter.dateStyle = .short
-            formatter.timeStyle = .medium
-        }
-
-        return "Built \(formatter.string(from: buildDate))"
-    }
-
-    private static func buildStampTooltip() -> String? {
-        guard let buildDate = buildStampDate() else {
-            return nil
-        }
-
-        let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        formatter.dateStyle = .full
-        formatter.timeStyle = .full
-        return "Latest local build: \(formatter.string(from: buildDate))"
     }
 
     private func bindModel() {

@@ -439,12 +439,16 @@ public enum CaptureTagText {
     }
 
     private static func isPermittedAdjacentScalar(_ scalar: UnicodeScalar) -> Bool {
-        guard scalar.value != 47 else {
+        switch scalar.value {
+        case 35:
+            // Reject doubled hashes like "##tag" and adjacent hashtags without a separator.
+            return false
+        case 47:
             // Keep URL fragments like "/#section" out of inline tag parsing.
             return false
+        default:
+            return !CaptureTag.isBodyScalar(scalar)
         }
-
-        return !CaptureTag.isBodyScalar(scalar)
     }
 
     private static func completionTokenRange(

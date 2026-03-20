@@ -268,6 +268,11 @@ final class CapturePanelRuntimeViewControllerTests: XCTestCase {
         )
 
         let pasteboard = NSPasteboard.general
+        let originalItems = snapshotPasteboardItems(from: pasteboard)
+        defer {
+            restorePasteboard(pasteboard, items: originalItems)
+        }
+
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.setData(rtfData, forType: .rtf))
 
@@ -340,6 +345,29 @@ final class CapturePanelRuntimeViewControllerTests: XCTestCase {
 
     private func drainMainQueue(seconds: TimeInterval) {
         RunLoop.main.run(until: Date().addingTimeInterval(seconds))
+    }
+
+    private func snapshotPasteboardItems(from pasteboard: NSPasteboard) -> [NSPasteboardItem] {
+        (pasteboard.pasteboardItems ?? []).map { item in
+            let snapshot = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) {
+                    snapshot.setData(data, forType: type)
+                } else if let string = item.string(forType: type) {
+                    snapshot.setString(string, forType: type)
+                }
+            }
+            return snapshot
+        }
+    }
+
+    private func restorePasteboard(_ pasteboard: NSPasteboard, items: [NSPasteboardItem]) {
+        pasteboard.clearContents()
+        guard !items.isEmpty else {
+            return
+        }
+
+        pasteboard.writeObjects(items)
     }
 }
 

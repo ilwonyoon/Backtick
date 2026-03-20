@@ -70,6 +70,17 @@ struct CaptureTagTests {
     }
 
     @Test
+    func extractCanonicalInlineTagsRejectsDoubleHashPrefixes() {
+        let text = "Heading ##bug should stay raw while 중간#ui는 유지"
+        let result = CaptureTagText.extractCanonicalInlineTags(in: text)
+
+        #expect(result.tags.map(\.name) == ["ui"])
+        #expect(result.matches.map(\.range) == [
+            (text as NSString).range(of: "#ui"),
+        ])
+    }
+
+    @Test
     func editorTextPreservesRawInlineText() {
         let text = "Fix #bug in the capture panel"
         let tags = [CaptureTag(rawValue: "ui")].compactMap { $0 }
@@ -130,6 +141,19 @@ struct CaptureTagTests {
         #expect(result?.rawToken == "#bu")
         #expect(result?.normalizedPrefix == "bu")
         #expect(result?.replacementRange == NSRange(location: 2, length: 3))
+    }
+
+    @Test
+    func completionContextRejectsDoubleHashPrefixes() {
+        let text = "##bu"
+        let caret = text.utf16.count
+
+        let result = CaptureTagText.completionContext(
+            in: text,
+            caretUTF16Offset: caret
+        )
+
+        #expect(result == nil)
     }
 
     @Test
