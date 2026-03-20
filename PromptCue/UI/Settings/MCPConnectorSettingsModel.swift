@@ -290,7 +290,7 @@ enum ExperimentalMCPHTTPStatusAction: Equatable {
         case .copyPublicMCPURL:
             return "Copy ChatGPT MCP URL"
         case .resetLocalState:
-            return "Reset Local State"
+            return "Reset OAuth State"
         case .retry:
             return "Try Again"
         }
@@ -300,6 +300,7 @@ enum ExperimentalMCPHTTPStatusAction: Equatable {
 struct ExperimentalMCPHTTPStatusPresentation: Equatable {
     let title: String
     let reason: String
+    let detail: String?
     let tone: ExperimentalMCPHTTPStatusTone
     let action: ExperimentalMCPHTTPStatusAction?
 }
@@ -307,6 +308,91 @@ struct ExperimentalMCPHTTPStatusPresentation: Equatable {
 enum ExperimentalMCPHTTPProbeIssue: Equatable {
     case localEndpointUnreachable
     case publicEndpointUnreachable
+}
+
+private enum ExperimentalMCPHTTPRemoteClientSurface: String, Equatable {
+    case web
+    case macos
+    case iphone
+    case ipad
+    case android
+    case unknown
+
+    var shortTitle: String {
+        switch self {
+        case .web:
+            return "Web"
+        case .macos:
+            return "macOS"
+        case .iphone:
+            return "iPhone"
+        case .ipad:
+            return "iPad"
+        case .android:
+            return "Android"
+        case .unknown:
+            return "Unknown"
+        }
+    }
+
+    var fullTitle: String {
+        switch self {
+        case .web:
+            return "ChatGPT web"
+        case .macos:
+            return "ChatGPT macOS"
+        case .iphone:
+            return "ChatGPT iPhone"
+        case .ipad:
+            return "ChatGPT iPad"
+        case .android:
+            return "ChatGPT Android"
+        case .unknown:
+            return "another ChatGPT surface"
+        }
+    }
+}
+
+private struct ExperimentalMCPHTTPRemoteRequestActivity: Equatable {
+    let surface: ExperimentalMCPHTTPRemoteClientSurface
+    let rpcMethod: String?
+    let targetKind: String?
+    let targetName: String?
+    let recordedAt: Date
+
+    var summary: String {
+        var components = [surface.shortTitle]
+        if let rpcMethod, !rpcMethod.isEmpty {
+            components.append(rpcMethod)
+        }
+
+        if let targetName, !targetName.isEmpty {
+            if targetKind == "prompt" {
+                components.append("prompt:\(targetName)")
+            } else if targetKind == "resource" {
+                components.append("resource")
+            } else {
+                components.append(targetName)
+            }
+        }
+
+        return components.joined(separator: " · ")
+    }
+}
+
+private struct ExperimentalMCPHTTPOAuthFailureActivity: Equatable {
+    let errorCode: String
+    let surface: ExperimentalMCPHTTPRemoteClientSurface
+    let grantType: String?
+    let recordedAt: Date
+
+    var summary: String {
+        var components = [surface.shortTitle, errorCode]
+        if let grantType, !grantType.isEmpty {
+            components.append(grantType)
+        }
+        return components.joined(separator: " · ")
+    }
 }
 
 protocol ExperimentalMCPHTTPProbing {
@@ -455,10 +541,6 @@ struct ExperimentalMCPHTTPNgrokTunnelDetector: ExperimentalMCPHTTPTunnelDetectin
         configuration.timeoutIntervalForResource = 2
         return URLSession(configuration: configuration)
     }
-}
-
-private enum ExperimentalMCPHTTPRecoveryIssue: Equatable {
-    case staleChatGPTGrant
 }
 
 enum MCPConnectorPrimaryAction: Equatable {
@@ -881,8 +963,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
     @Published private(set) var experimentalRemoteSettings: ExperimentalMCPHTTPSettings
     @Published private(set) var experimentalRemoteRuntimeState: ExperimentalMCPHTTPRuntimeState = .stopped
     @Published var directConfigSuccessClient: MCPConnectorClient?
-    private var experimentalRemoteRecoveryIssue: ExperimentalMCPHTTPRecoveryIssue?
-    private var experimentalRemoteHasSeenRemoteSuccess = false
+    private var experimentalRemoteLastOAuthFailure: ExperimentalMCPHTTPOAuthFailureActivity?
+    private var experimentalRemoteLastSuccessfulRequest: ExperimentalMCPHTTPRemoteRequestActivity?
 
     private let inspector: MCPConnectorInspector
     private let connectionTester: MCPServerConnectionTesting
@@ -1122,8 +1204,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     var experimentalRemoteIsConnected: Bool {
-        experimentalRemoteRecoveryIssue == nil
-            && experimentalRemoteHasSeenRemoteSuccess
+        experimentalRemoteLastOAuthFailure == nil
+            && experimentalRemoteLastSuccessfulRequest != nil
             && experimentalRemoteRuntimeState == .running
             && experimentalRemoteProbeIssue == nil
     }
@@ -1133,7 +1215,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return false
         }
 
-        if experimentalRemoteRecoveryIssue == .staleChatGPTGrant {
+        if experimentalRemoteLastOAuthFailure != nil {
             return false
         }
 
@@ -1155,18 +1237,14 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return ExperimentalMCPHTTPStatusPresentation(
                 title: "Off",
                 reason: "Turn this on when you want Backtick to host a local MCP endpoint on this Mac.",
+                detail: nil,
                 tone: .neutral,
                 action: nil
             )
         }
 
-        if experimentalRemoteRecoveryIssue == .staleChatGPTGrant {
-            return ExperimentalMCPHTTPStatusPresentation(
-                title: "Reconnect needed",
-                reason: "ChatGPT is still holding an older Backtick grant. Reset local state here, then recreate the Backtick app in ChatGPT.",
-                tone: .warning,
-                action: .resetLocalState
-            )
+        if let experimentalRemoteLastOAuthFailure {
+            return statusPresentationForOAuthFailure(experimentalRemoteLastOAuthFailure)
         }
 
         switch experimentalRemoteRuntimeState {
@@ -1174,6 +1252,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return ExperimentalMCPHTTPStatusPresentation(
                 title: "Starting",
                 reason: "Backtick is starting the local MCP endpoint now.",
+                detail: nil,
                 tone: .accent,
                 action: nil
             )
@@ -1181,6 +1260,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return ExperimentalMCPHTTPStatusPresentation(
                 title: "Restarting",
                 reason: "Backtick is restarting the local MCP endpoint with your latest settings.",
+                detail: nil,
                 tone: .accent,
                 action: nil
             )
@@ -1194,6 +1274,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return ExperimentalMCPHTTPStatusPresentation(
                 title: "Public URL required",
                 reason: "Start a public HTTPS tunnel, then paste its base URL below before you connect ChatGPT.",
+                detail: nil,
                 tone: .warning,
                 action: experimentalRemoteRecommendedTunnelPath == nil ? .installTunnel : .launchTunnel
             )
@@ -1208,6 +1289,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return ExperimentalMCPHTTPStatusPresentation(
                 title: "Connected",
                 reason: "ChatGPT has already reached this Backtick endpoint with your current app setup.",
+                detail: experimentalRemoteLastSuccessfulRequest.map { "Recent request: \($0.summary)." },
                 tone: .success,
                 action: .copyPublicMCPURL
             )
@@ -1216,6 +1298,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         return ExperimentalMCPHTTPStatusPresentation(
             title: "Ready to connect",
             reason: runningStatusReason,
+            detail: nil,
             tone: experimentalRemoteRuntimeState == .running ? .success : .accent,
             action: .copyPublicMCPURL
         )
@@ -1230,8 +1313,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             updatedSettings.apiKey = Self.generateExperimentalRemoteAPIKey()
         }
         if !isEnabled {
-            experimentalRemoteRecoveryIssue = nil
-            experimentalRemoteHasSeenRemoteSuccess = false
+            resetExperimentalRemoteDiagnostics()
             experimentalRemoteProbeIssue = nil
         }
         saveExperimentalRemoteSettings(updatedSettings)
@@ -1243,10 +1325,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         if authMode == .apiKey, updatedSettings.apiKey.isEmpty {
             updatedSettings.apiKey = Self.generateExperimentalRemoteAPIKey()
         }
-        if authMode != .oauth {
-            experimentalRemoteRecoveryIssue = nil
-            experimentalRemoteHasSeenRemoteSuccess = false
-        }
+        resetExperimentalRemoteDiagnostics()
         experimentalRemoteProbeIssue = nil
         saveExperimentalRemoteSettings(updatedSettings)
     }
@@ -1260,7 +1339,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         var updatedSettings = experimentalRemoteSettings
         updatedSettings.port = parsedPort
-        experimentalRemoteHasSeenRemoteSuccess = false
+        resetExperimentalRemoteDiagnostics()
         experimentalRemoteProbeIssue = nil
         saveExperimentalRemoteSettings(updatedSettings)
         return true
@@ -1301,7 +1380,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         var updatedSettings = experimentalRemoteSettings
         updatedSettings.publicBaseURL = Self.normalizedExperimentalRemotePublicBaseURL(url)
-        experimentalRemoteHasSeenRemoteSuccess = false
+        resetExperimentalRemoteDiagnostics()
         experimentalRemoteProbeIssue = nil
         saveExperimentalRemoteSettings(updatedSettings)
         return true
@@ -1357,8 +1436,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         notificationCenter.post(name: .experimentalMCPHTTPOAuthResetRequested, object: self)
-        experimentalRemoteRecoveryIssue = nil
-        experimentalRemoteHasSeenRemoteSuccess = false
+        resetExperimentalRemoteDiagnostics()
         experimentalRemoteProbeIssue = nil
         return didRemoveExistingState
     }
@@ -1459,18 +1537,26 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     func recordExperimentalRemoteHelperLog(_ chunk: String) {
-        let lowercasedChunk = chunk.lowercased()
-        if lowercasedChunk.contains("token exchange rejected: invalid_client")
-            || lowercasedChunk.contains("token exchange rejected: invalid_grant") {
-            experimentalRemoteRecoveryIssue = .staleChatGPTGrant
-            experimentalRemoteHasSeenRemoteSuccess = false
-            experimentalRemoteProbeIssue = nil
-        }
+        for rawLine in chunk.split(whereSeparator: \.isNewline) {
+            let line = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else {
+                continue
+            }
 
-        if lowercasedChunk.contains("served protected remote request method=") {
-            experimentalRemoteRecoveryIssue = nil
-            experimentalRemoteHasSeenRemoteSuccess = true
-            experimentalRemoteProbeIssue = nil
+            if let failureActivity = experimentalRemoteOAuthFailureActivity(from: line) {
+                experimentalRemoteLastOAuthFailure = failureActivity
+                experimentalRemoteProbeIssue = nil
+                continue
+            }
+
+            if let requestActivity = experimentalRemoteRequestActivity(from: line) {
+                experimentalRemoteLastSuccessfulRequest = requestActivity
+                if let failureActivity = experimentalRemoteLastOAuthFailure,
+                   shouldClearRemoteOAuthFailure(failureActivity, after: requestActivity) {
+                    experimentalRemoteLastOAuthFailure = nil
+                }
+                experimentalRemoteProbeIssue = nil
+            }
         }
     }
 
@@ -2112,6 +2198,38 @@ final class MCPConnectorSettingsModel: ObservableObject {
         return "Backtick is running and ready. Copy the public MCP URL below and pair it with your Auth Token in the remote client."
     }
 
+    private func resetExperimentalRemoteDiagnostics() {
+        experimentalRemoteLastOAuthFailure = nil
+        experimentalRemoteLastSuccessfulRequest = nil
+    }
+
+    private func statusPresentationForOAuthFailure(
+        _ failureActivity: ExperimentalMCPHTTPOAuthFailureActivity
+    ) -> ExperimentalMCPHTTPStatusPresentation {
+        let detail = failureStatusDetail(for: failureActivity)
+
+        if let successActivity = experimentalRemoteLastSuccessfulRequest,
+           successActivity.surface != .unknown,
+           failureActivity.surface != .unknown,
+           successActivity.surface != failureActivity.surface {
+            return ExperimentalMCPHTTPStatusPresentation(
+                title: "Some ChatGPT surfaces need reconnect",
+                reason: "Backtick recently worked from \(successActivity.surface.fullTitle), but \(failureActivity.surface.fullTitle) is still presenting an older Backtick OAuth grant. One ChatGPT surface can keep working while another stays stale until you reset OAuth state here and recreate the Backtick app in the failing surface.",
+                detail: detail,
+                tone: .warning,
+                action: .resetLocalState
+            )
+        }
+
+        return ExperimentalMCPHTTPStatusPresentation(
+            title: "Reconnect needed",
+            reason: "\(failureActivity.surface.fullTitle) is still presenting an older Backtick OAuth grant. Reset OAuth state here, then recreate the Backtick app in that ChatGPT surface.",
+            detail: detail,
+            tone: .warning,
+            action: .resetLocalState
+        )
+    }
+
     private func statusPresentationForProbeIssue(
         _ issue: ExperimentalMCPHTTPProbeIssue
     ) -> ExperimentalMCPHTTPStatusPresentation {
@@ -2120,6 +2238,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return ExperimentalMCPHTTPStatusPresentation(
                 title: "Needs attention",
                 reason: "Backtick couldn't confirm that its local MCP endpoint is still responding. Try again, then restart Backtick if this keeps happening.",
+                detail: nil,
                 tone: .warning,
                 action: .retry
             )
@@ -2127,6 +2246,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return ExperimentalMCPHTTPStatusPresentation(
                 title: "Needs attention",
                 reason: "Backtick is running locally, but the public HTTPS URL is not serving Backtick's MCP/OAuth endpoints. Restart ngrok on the same local port Backtick is using, or update the public URL below.",
+                detail: nil,
                 tone: .warning,
                 action: experimentalRemoteRecommendedTunnelPath == nil ? .installTunnel : .launchTunnel
             )
@@ -2142,6 +2262,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return ExperimentalMCPHTTPStatusPresentation(
                 title: "Public URL required",
                 reason: "Add a public HTTPS URL before ChatGPT can discover Backtick over OAuth.",
+                detail: nil,
                 tone: .warning,
                 action: experimentalRemoteRecommendedTunnelPath == nil ? .installTunnel : .launchTunnel
             )
@@ -2151,6 +2272,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return ExperimentalMCPHTTPStatusPresentation(
                 title: "Backtick unavailable",
                 reason: "This Backtick build can't launch its local MCP helper right now. Restart Backtick, then try again.",
+                detail: nil,
                 tone: .danger,
                 action: .retry
             )
@@ -2159,9 +2281,112 @@ final class MCPConnectorSettingsModel: ObservableObject {
         return ExperimentalMCPHTTPStatusPresentation(
             title: "Needs attention",
             reason: "Backtick couldn't keep the local MCP endpoint running. Try again.",
+            detail: nil,
             tone: .danger,
             action: .retry
         )
+    }
+
+    private func failureStatusDetail(
+        for failureActivity: ExperimentalMCPHTTPOAuthFailureActivity
+    ) -> String {
+        if let successActivity = experimentalRemoteLastSuccessfulRequest {
+            return "Recent success: \(successActivity.summary). Latest rejected OAuth exchange: \(failureActivity.summary)."
+        }
+
+        return "Latest rejected OAuth exchange: \(failureActivity.summary)."
+    }
+
+    private func shouldClearRemoteOAuthFailure(
+        _ failureActivity: ExperimentalMCPHTTPOAuthFailureActivity,
+        after successActivity: ExperimentalMCPHTTPRemoteRequestActivity
+    ) -> Bool {
+        failureActivity.surface == .unknown
+            || successActivity.surface == .unknown
+            || failureActivity.surface == successActivity.surface
+    }
+
+    private func experimentalRemoteOAuthFailureActivity(
+        from line: String
+    ) -> ExperimentalMCPHTTPOAuthFailureActivity? {
+        if let metadata = logMetadata(
+            withPrefix: "Backtick MCP HTTP OAuth token request rejected",
+            in: line
+        ) {
+            let errorCode = metadata["error"] ?? "invalid_grant"
+            guard errorCode == "invalid_client" || errorCode == "invalid_grant" else {
+                return nil
+            }
+
+            return ExperimentalMCPHTTPOAuthFailureActivity(
+                errorCode: errorCode,
+                surface: ExperimentalMCPHTTPRemoteClientSurface(rawValue: metadata["surface"] ?? "") ?? .unknown,
+                grantType: metadata["grantType"],
+                recordedAt: Date()
+            )
+        }
+
+        let lowercasedLine = line.lowercased()
+        if lowercasedLine.contains("token exchange rejected: invalid_client") {
+            return ExperimentalMCPHTTPOAuthFailureActivity(
+                errorCode: "invalid_client",
+                surface: .unknown,
+                grantType: nil,
+                recordedAt: Date()
+            )
+        }
+        if lowercasedLine.contains("token exchange rejected: invalid_grant") {
+            return ExperimentalMCPHTTPOAuthFailureActivity(
+                errorCode: "invalid_grant",
+                surface: .unknown,
+                grantType: nil,
+                recordedAt: Date()
+            )
+        }
+
+        return nil
+    }
+
+    private func experimentalRemoteRequestActivity(
+        from line: String
+    ) -> ExperimentalMCPHTTPRemoteRequestActivity? {
+        guard let metadata = logMetadata(
+            withPrefix: "Backtick MCP HTTP served protected remote request",
+            in: line
+        ) else {
+            return nil
+        }
+
+        return ExperimentalMCPHTTPRemoteRequestActivity(
+            surface: ExperimentalMCPHTTPRemoteClientSurface(rawValue: metadata["surface"] ?? "") ?? .unknown,
+            rpcMethod: metadata["rpcMethod"],
+            targetKind: metadata["targetKind"],
+            targetName: metadata["targetName"],
+            recordedAt: Date()
+        )
+    }
+
+    private func logMetadata(withPrefix prefix: String, in line: String) -> [String: String]? {
+        guard let prefixRange = line.range(of: prefix) else {
+            return nil
+        }
+
+        let suffix = String(line[prefixRange.upperBound...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !suffix.isEmpty else {
+            return [:]
+        }
+
+        return suffix.split(separator: " ").reduce(into: [String: String]()) { result, pair in
+            let pairString = String(pair)
+            guard let separator = pairString.firstIndex(of: "=") else {
+                return
+            }
+
+            let key = String(pairString[..<separator])
+            let valueStart = pairString.index(after: separator)
+            result[key] = String(pairString[valueStart...])
+        }
     }
 
     private static func loadExperimentalRemoteSettings(from userDefaults: UserDefaults) -> ExperimentalMCPHTTPSettings {
@@ -2311,7 +2536,16 @@ struct MCPServerSelfTester: MCPServerConnectionTesting {
         inputPipe.fileHandleForWriting.write(Data((initializeRequest + "\n" + toolsRequest + "\n").utf8))
         try? inputPipe.fileHandleForWriting.close()
 
-        process.waitUntilExit()
+        let deadline = Date().addingTimeInterval(10)
+        while process.isRunning {
+            if Date() > deadline {
+                process.terminate()
+                throw MCPServerConnectionFailure.launchFailed(
+                    "Backtick MCP did not respond within 10 seconds."
+                )
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
 
         let stdoutData = outputPipe.fileHandleForReading.readDataToEndOfFile()
         let stderrData = errorPipe.fileHandleForReading.readDataToEndOfFile()

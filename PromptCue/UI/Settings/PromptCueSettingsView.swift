@@ -517,6 +517,10 @@ struct PromptCueSettingsView: View {
 
                             rowNote(mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.reason)
 
+                            if let detail = mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.detail {
+                                rowNote(detail)
+                            }
+
                             if experimentalRemoteHasPendingPortChange {
                                 rowNote("Apply the local port change first. Backtick and ngrok must use the same port.")
                             }
