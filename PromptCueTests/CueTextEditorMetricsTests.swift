@@ -61,6 +61,40 @@ final class CueTextEditorMetricsTests: XCTestCase {
         )
     }
 
+    func testSingleLineKoreanKeepsMinimumVisibleHeightContract() {
+        setText("한")
+
+        XCTAssertEqual(lastReportedMetrics.contentHeight, CaptureRuntimeMetrics.editorMinimumVisibleHeight, accuracy: 0.5)
+        XCTAssertEqual(lastReportedMetrics.visibleHeight, CaptureRuntimeMetrics.editorMinimumVisibleHeight, accuracy: 0.5)
+        XCTAssertFalse(lastReportedMetrics.isScrollable)
+        XCTAssertEqual(firstLineFragmentHeight(), PrimitiveTokens.LineHeight.capture, accuracy: 0.1)
+    }
+
+    func testMarkedTextFromEmptyEditorKeepsMinimumVisibleHeightContract() {
+        container.textView.setMarkedText(
+            "한",
+            selectedRange: NSRange(location: 1, length: 0),
+            replacementRange: NSRange(location: 0, length: 0)
+        )
+        container.updateMeasuredMetrics(forceMeasure: true)
+        drainMainQueue()
+
+        XCTAssertTrue(container.textView.hasMarkedText())
+        XCTAssertEqual(lastReportedMetrics.contentHeight, CaptureRuntimeMetrics.editorMinimumVisibleHeight, accuracy: 0.5)
+        XCTAssertEqual(lastReportedMetrics.visibleHeight, CaptureRuntimeMetrics.editorMinimumVisibleHeight, accuracy: 0.5)
+        XCTAssertFalse(lastReportedMetrics.isScrollable)
+    }
+
+    func testAppendingSpaceToSingleHangulGlyphKeepsBaselineStable() {
+        setText("한")
+        let glyphYBeforeSpace = firstGlyphLocationY()
+
+        setText("한 ")
+        let glyphYAfterSpace = firstGlyphLocationY()
+
+        XCTAssertEqual(glyphYBeforeSpace, glyphYAfterSpace, accuracy: 0.1)
+    }
+
     func testPastePayloadGrowsToCapBeforeScrollerTurnsOn() {
         layoutEditor(width: CaptureRuntimeMetrics.editorViewportWidth)
 
@@ -129,7 +163,7 @@ final class CueTextEditorMetricsTests: XCTestCase {
             viewportWidth: CaptureRuntimeMetrics.editorViewportWidth,
             maxContentHeight: CaptureRuntimeMetrics.editorMaxHeight,
             minimumLineHeight: PrimitiveTokens.LineHeight.capture,
-            font: NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture),
+            font: CaptureEditorLayoutCalculator.editorFont(),
             lineHeight: PrimitiveTokens.LineHeight.capture
         )
     }
@@ -174,6 +208,28 @@ final class CueTextEditorMetricsTests: XCTestCase {
         ) as? NSColor
     }
 
+    private func firstLineFragmentHeight() -> CGFloat {
+        guard let layoutManager = container.textView.layoutManager,
+              let textContainer = container.textView.textContainer,
+              container.textView.string.isEmpty == false else {
+            return 0
+        }
+
+        layoutManager.ensureLayout(for: textContainer)
+        return layoutManager.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil).height
+    }
+
+    private func firstGlyphLocationY() -> CGFloat {
+        guard let layoutManager = container.textView.layoutManager,
+              let textContainer = container.textView.textContainer,
+              container.textView.string.isEmpty == false else {
+            return 0
+        }
+
+        layoutManager.ensureLayout(for: textContainer)
+        return layoutManager.location(forGlyphAt: 0).y
+    }
+
     private func resolvedLabelColor(for appearance: NSAppearance) -> NSColor {
         var resolved = NSColor.labelColor
         appearance.performAsCurrentDrawingAppearance {
@@ -183,7 +239,7 @@ final class CueTextEditorMetricsTests: XCTestCase {
     }
 
     private func applyProductionTypingStyle(to textView: WrappingCueTextView) {
-        let font = NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture)
+        let font = CaptureEditorLayoutCalculator.editorFont()
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.minimumLineHeight = PrimitiveTokens.LineHeight.capture
         paragraphStyle.maximumLineHeight = PrimitiveTokens.LineHeight.capture
@@ -194,6 +250,7 @@ final class CueTextEditorMetricsTests: XCTestCase {
             width: 0,
             height: CaptureRuntimeMetrics.editorVerticalInset
         )
+        textView.layoutManager?.usesFontLeading = false
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.lineBreakMode = .byWordWrapping

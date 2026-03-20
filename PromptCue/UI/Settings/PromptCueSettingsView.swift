@@ -337,7 +337,7 @@ struct PromptCueSettingsView: View {
         SettingsSection(
             title: "Screenshots",
             titleFont: SettingsTokens.Typography.sectionTitleMedium,
-            footer: "Auto-attach only checks the screenshot folder you explicitly approve."
+            footer: "Auto-attach watches the folder you approve and checks the current macOS screenshot save location while capture is open."
         ) {
             SettingsRows {
                 SettingsTwoColumnGroupRow("Status") {
@@ -516,6 +516,10 @@ struct PromptCueSettingsView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                             rowNote(mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.reason)
+
+                            if let detail = mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.detail {
+                                rowNote(detail)
+                            }
 
                             if experimentalRemoteHasPendingPortChange {
                                 rowNote("Apply the local port change first. Backtick and ngrok must use the same port.")

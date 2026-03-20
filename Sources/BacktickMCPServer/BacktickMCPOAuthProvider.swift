@@ -9,6 +9,7 @@ enum BacktickMCPHTTPAuthMode: String, Codable, Equatable {
 actor BacktickMCPOAuthProvider {
     private static let primaryScope = "backtick.mcp"
     private static let offlineAccessScope = "offline_access"
+    private static let refreshTokenLifetime: TimeInterval = 90 * 24 * 60 * 60 // 90 days
 
     struct ProtectedResourceMetadata: Codable, Sendable {
         let resource: String
@@ -353,9 +354,14 @@ actor BacktickMCPOAuthProvider {
         }
 
         guard let registration = dynamicClients[clientID] else {
-            NSLog(
-                "BacktickMCPOAuthProvider token exchange rejected: invalid_client clientID=%@",
-                Self.redactedToken(clientID)
+            logTokenExchangeRejection(
+                errorCode: "invalid_client",
+                flow: "authorization_code",
+                clientID: clientID,
+                redirectURI: redirectURI,
+                authorizationCode: code,
+                registrationPresent: false,
+                authorizationCodePresent: authorizationCodes[code] != nil
             )
             throw OAuthError.invalidClient
         }
@@ -421,18 +427,40 @@ actor BacktickMCPOAuthProvider {
             throw OAuthError.invalidGrant("refresh_token and client_id are required")
         }
 
+        let knownRefreshGrant = refreshTokens[refreshToken]
+
         guard dynamicClients[clientID] != nil else {
+            logTokenExchangeRejection(
+                errorCode: "invalid_client",
+                flow: "refresh_token",
+                clientID: clientID,
+                refreshToken: refreshToken,
+                registrationPresent: false,
+                refreshTokenPresent: knownRefreshGrant != nil,
+                refreshClientMatches: knownRefreshGrant?.clientID == clientID
+            )
             throw OAuthError.invalidClient
         }
 
-        guard let refreshGrant = refreshTokens[refreshToken],
+        guard let refreshGrant = knownRefreshGrant,
               refreshGrant.clientID == clientID else {
-            NSLog(
-                "BacktickMCPOAuthProvider token exchange rejected: invalid_grant clientID=%@ refreshToken=%@",
-                Self.redactedToken(clientID),
-                Self.redactedToken(refreshToken)
+            logTokenExchangeRejection(
+                errorCode: "invalid_grant",
+                flow: "refresh_token",
+                clientID: clientID,
+                refreshToken: refreshToken,
+                registrationPresent: true,
+                refreshTokenPresent: knownRefreshGrant != nil,
+                refreshClientMatches: knownRefreshGrant?.clientID == clientID
             )
             throw OAuthError.invalidGrant("refresh token is invalid")
+        }
+
+        let refreshTokenExpiry = refreshGrant.createdAt.addingTimeInterval(Self.refreshTokenLifetime)
+        guard refreshTokenExpiry > Date() else {
+            refreshTokens.removeValue(forKey: refreshToken)
+            persistState()
+            throw OAuthError.invalidGrant("refresh token has expired")
         }
 
         let accessToken = Self.randomToken(length: 48)
@@ -511,11 +539,70 @@ actor BacktickMCPOAuthProvider {
         let now = Date()
         let previousAuthorizationCodeCount = authorizationCodes.count
         let previousAccessTokenCount = accessTokens.count
+        let previousRefreshTokenCount = refreshTokens.count
         authorizationCodes = authorizationCodes.filter { $0.value.expiresAt > now }
         accessTokens = accessTokens.filter { $0.value.expiresAt > now }
-        if authorizationCodes.count != previousAuthorizationCodeCount || accessTokens.count != previousAccessTokenCount {
+        let refreshTokenExpiry = now.addingTimeInterval(-Self.refreshTokenLifetime)
+        refreshTokens = refreshTokens.filter { $0.value.createdAt > refreshTokenExpiry }
+        if authorizationCodes.count != previousAuthorizationCodeCount
+            || accessTokens.count != previousAccessTokenCount
+            || refreshTokens.count != previousRefreshTokenCount
+        {
             persistState()
         }
+    }
+
+    private func logTokenExchangeRejection(
+        errorCode: String,
+        flow: String,
+        clientID: String?,
+        redirectURI: String? = nil,
+        authorizationCode: String? = nil,
+        refreshToken: String? = nil,
+        registrationPresent: Bool? = nil,
+        authorizationCodePresent: Bool? = nil,
+        refreshTokenPresent: Bool? = nil,
+        refreshClientMatches: Bool? = nil
+    ) {
+        var fields = ["flow=\(flow)"]
+
+        if let clientID, !clientID.isEmpty {
+            fields.append("clientID=\(Self.redactedToken(clientID))")
+        }
+        if let registrationPresent {
+            fields.append("clientRegistered=\(Self.logBool(registrationPresent))")
+        }
+        if let redirectHost = Self.redirectHost(from: redirectURI) {
+            fields.append("redirectHost=\(redirectHost)")
+        }
+        if let redirectPathHash = Self.redirectPathHash(from: redirectURI) {
+            fields.append("redirectPathHash=\(redirectPathHash)")
+        }
+        if let authorizationCode, !authorizationCode.isEmpty {
+            fields.append("authorizationCode=\(Self.redactedToken(authorizationCode))")
+        }
+        if let authorizationCodePresent {
+            fields.append("authorizationCodePresent=\(Self.logBool(authorizationCodePresent))")
+        }
+        if let refreshToken, !refreshToken.isEmpty {
+            fields.append("refreshToken=\(Self.redactedToken(refreshToken))")
+        }
+        if let refreshTokenPresent {
+            fields.append("refreshTokenPresent=\(Self.logBool(refreshTokenPresent))")
+        }
+        if let refreshClientMatches {
+            fields.append("refreshClientMatches=\(Self.logBool(refreshClientMatches))")
+        }
+
+        fields.append("knownClients=\(dynamicClients.count)")
+        fields.append("storedRefreshTokens=\(refreshTokens.count)")
+        fields.append("activeAccessTokens=\(accessTokens.count)")
+
+        NSLog(
+            "BacktickMCPOAuthProvider token exchange rejected: %@ %@",
+            errorCode,
+            fields.joined(separator: " ")
+        )
     }
 
     private func persistState() {
@@ -568,9 +655,10 @@ actor BacktickMCPOAuthProvider {
 
     private static func cleanedPersistedState(_ persistedState: PersistedState) -> PersistedState {
         let now = Date()
+        let refreshTokenExpiry = now.addingTimeInterval(-refreshTokenLifetime)
         return PersistedState(
             dynamicClients: persistedState.dynamicClients,
-            refreshTokens: persistedState.refreshTokens,
+            refreshTokens: persistedState.refreshTokens.filter { $0.value.createdAt > refreshTokenExpiry },
             accessTokens: persistedState.accessTokens.filter { $0.value.expiresAt > now }
         )
     }
@@ -578,6 +666,36 @@ actor BacktickMCPOAuthProvider {
     private static func redactedToken(_ value: String) -> String {
         let prefix = value.prefix(6)
         return "\(prefix)…"
+    }
+
+    private static func redirectHost(from redirectURI: String?) -> String? {
+        guard let redirectURI,
+              let components = URLComponents(string: redirectURI),
+              let host = components.host?.lowercased(),
+              !host.isEmpty else {
+            return nil
+        }
+
+        return host
+    }
+
+    private static func redirectPathHash(from redirectURI: String?) -> String? {
+        guard let redirectURI,
+              let components = URLComponents(string: redirectURI) else {
+            return nil
+        }
+
+        let path = components.path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty, path != "/" else {
+            return nil
+        }
+
+        let digest = SHA256.hash(data: Data(path.utf8))
+        return digest.prefix(4).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func logBool(_ value: Bool) -> String {
+        value ? "true" : "false"
     }
 
     private struct AuthorizationRequest {

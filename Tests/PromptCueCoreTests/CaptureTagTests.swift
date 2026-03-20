@@ -21,38 +21,82 @@ struct CaptureTagTests {
     }
 
     @Test
-    func editorTextSerializesTagsBeforeBody() {
-        let tags = [
-            CaptureTag(rawValue: "bug"),
-            CaptureTag(rawValue: "ui"),
-        ].compactMap { $0 }
-
-        let editorText = CaptureTagText.editorText(
-            tags: tags,
-            bodyText: "Fix the capture panel"
+    func extractCanonicalInlineTagsFindsInlineHashtagsAnywhere() {
+        let result = CaptureTagText.extractCanonicalInlineTags(
+            in: "Fix #Bug in the middle, then mention #ui and #bug_fix."
         )
 
-        #expect(editorText == "#bug #ui Fix the capture panel")
+        #expect(result.tags.map(\.name) == ["bug", "ui", "bug_fix"])
+        #expect(result.matches.map(\.range) == [
+            NSRange(location: 4, length: 4),
+            NSRange(location: 37, length: 3),
+            NSRange(location: 45, length: 8),
+        ])
     }
 
     @Test
-    func inlineDisplayTextSerializesTagsWithoutTrailingWhitespace() {
-        let tags = [
-            CaptureTag(rawValue: "bug"),
-            CaptureTag(rawValue: "ui"),
-        ].compactMap { $0 }
-
-        let inlineText = CaptureTagText.inlineDisplayText(
-            tags: tags,
-            bodyText: "Fix the capture panel"
+    func extractCanonicalInlineTagsLeavesNonCanonicalHashtagsInText() {
+        let result = CaptureTagText.extractCanonicalInlineTags(
+            in: "#123 keep this raw, and #ㅠㅕbug stays raw too"
         )
 
-        #expect(inlineText == "#bug #ui Fix the capture panel")
-        #expect(CaptureTagText.inlineDisplayText(tags: tags, bodyText: "") == "#bug #ui")
+        #expect(result.tags.isEmpty)
+        #expect(result.matches.isEmpty)
     }
 
     @Test
-    func inlineDisplayTagRangesCoverEachStructuredTagPrefix() {
+    func extractCanonicalInlineTagsIgnoresURLFragments() {
+        let result = CaptureTagText.extractCanonicalInlineTags(
+            in: "See https://example.com/#section before shipping #bug"
+        )
+
+        #expect(result.tags.map(\.name) == ["bug"])
+        #expect(result.matches.map(\.range) == [
+            NSRange(location: 49, length: 4),
+        ])
+    }
+
+    @Test
+    func extractCanonicalInlineTagsSupportsTagsAdjacentToNonLatinText() {
+        let result = CaptureTagText.extractCanonicalInlineTags(
+            in: "중간#Bug처리와 앞쪽#ui마감"
+        )
+
+        #expect(result.tags.map(\.name) == ["bug", "ui"])
+        #expect(result.matches.map(\.range) == [
+            NSRange(location: 2, length: 4),
+            NSRange(location: 12, length: 3),
+        ])
+    }
+
+    @Test
+    func extractCanonicalInlineTagsRejectsDoubleHashPrefixes() {
+        let text = "Heading ##bug should stay raw while 중간#ui는 유지"
+        let result = CaptureTagText.extractCanonicalInlineTags(in: text)
+
+        #expect(result.tags.map(\.name) == ["ui"])
+        #expect(result.matches.map(\.range) == [
+            (text as NSString).range(of: "#ui"),
+        ])
+    }
+
+    @Test
+    func editorTextPreservesRawInlineText() {
+        let text = "Fix #bug in the capture panel"
+        let tags = [CaptureTag(rawValue: "ui")].compactMap { $0 }
+
+        #expect(CaptureTagText.editorText(tags: tags, bodyText: text) == text)
+    }
+
+    @Test
+    func inlineDisplayTextUsesRawTextBaseline() {
+        let text = "Fix #bug in the capture panel"
+
+        #expect(CaptureTagText.inlineDisplayText(tags: [], bodyText: text) == text)
+    }
+
+    @Test
+    func inlineDisplayTagRangesUseRawTextLocations() {
         let tags = [
             CaptureTag(rawValue: "bug"),
             CaptureTag(rawValue: "ui"),
@@ -61,61 +105,55 @@ struct CaptureTagTests {
         #expect(
             CaptureTagText.inlineDisplayTagRanges(
                 tags: tags,
-                bodyText: "Fix the capture panel"
+                bodyText: "Fix #bug in #ui panel"
             ) == [
-                NSRange(location: 0, length: 4),
-                NSRange(location: 5, length: 3),
-            ]
-        )
-        #expect(
-            CaptureTagText.inlineDisplayTagRanges(tags: tags, bodyText: "") == [
-                NSRange(location: 0, length: 4),
-                NSRange(location: 5, length: 3),
+                NSRange(location: 4, length: 4),
+                NSRange(location: 12, length: 3),
             ]
         )
     }
 
     @Test
-    func parseCommittedPrefixExtractsLeadingTagsAndBody() {
-        let result = CaptureTagText.parseCommittedPrefix(in: "#bug #ui Fix the capture panel")
+    func completionContextFindsMidlinePartialTagPrefix() {
+        let text = "Fix the #bu capture panel"
+        let caret = (text as NSString).range(of: "#bu").location + 3
 
-        #expect(result.tags.map(\.name) == ["bug", "ui"])
-        #expect(result.bodyText == "Fix the capture panel")
-        #expect(result.committedTokenRanges == [
-            NSRange(location: 0, length: 4),
-            NSRange(location: 5, length: 3),
-        ])
-    }
-
-    @Test
-    func parseCommittedPrefixLeavesUncommittedHashInBody() {
-        let result = CaptureTagText.parseCommittedPrefix(in: "#bug")
-
-        #expect(result.tags.isEmpty)
-        #expect(result.bodyText == "#bug")
-        #expect(result.bodyStartUTF16Offset == 0)
-    }
-
-    @Test
-    func parseCommittedPrefixLeavesMixedScriptPrefixInBody() {
-        let result = CaptureTagText.parseCommittedPrefix(in: "#ㅠㅕbug Fix capture")
-
-        #expect(result.tags.isEmpty)
-        #expect(result.bodyText == "#ㅠㅕbug Fix capture")
-        #expect(result.bodyStartUTF16Offset == 0)
-    }
-
-    @Test
-    func completionContextFindsLeadingTagPrefix() {
-        let text = "#bug #bu"
         let result = CaptureTagText.completionContext(
             in: text,
-            caretUTF16Offset: (text as NSString).length
+            caretUTF16Offset: caret
         )
 
         #expect(result?.rawToken == "#bu")
         #expect(result?.normalizedPrefix == "bu")
-        #expect(result?.replacementRange == NSRange(location: 5, length: 3))
+        #expect(result?.replacementRange == NSRange(location: 8, length: 3))
+    }
+
+    @Test
+    func completionContextFindsTagPrefixAdjacentToNonLatinText() {
+        let text = "중간#bu처리"
+        let caret = (text as NSString).range(of: "#bu").location + 3
+
+        let result = CaptureTagText.completionContext(
+            in: text,
+            caretUTF16Offset: caret
+        )
+
+        #expect(result?.rawToken == "#bu")
+        #expect(result?.normalizedPrefix == "bu")
+        #expect(result?.replacementRange == NSRange(location: 2, length: 3))
+    }
+
+    @Test
+    func completionContextRejectsDoubleHashPrefixes() {
+        let text = "##bu"
+        let caret = text.utf16.count
+
+        let result = CaptureTagText.completionContext(
+            in: text,
+            caretUTF16Offset: caret
+        )
+
+        #expect(result == nil)
     }
 
     @Test
@@ -126,9 +164,38 @@ struct CaptureTagTests {
     }
 
     @Test
-    func captureCardVisibleBodyTextHidesLeadingTagPrefixWhenTagsExist() {
+    func captureCardDerivesTagsFromRawInlineTextAndPreservesText() {
         let card = CaptureCard(
-            text: "#bug #ui Fix the capture panel",
+            text: "Fix #bug and #ui in the capture panel",
+            createdAt: .now
+        )
+
+        #expect(card.text == "Fix #bug and #ui in the capture panel")
+        #expect(card.tags.map(\.name) == ["bug", "ui"])
+        #expect(card.visibleBodyText == "Fix #bug and #ui in the capture panel")
+        #expect(card.visibleInlineText == "Fix #bug and #ui in the capture panel")
+        #expect(card.visibleInlineTagRanges == [
+            NSRange(location: 4, length: 4),
+            NSRange(location: 13, length: 3),
+        ])
+    }
+
+    @Test
+    func captureCardLeavesNonCanonicalHashtagsInTextAndOutOfTags() {
+        let card = CaptureCard(
+            text: "#123 keep this raw",
+            createdAt: .now
+        )
+
+        #expect(card.tags.isEmpty)
+        #expect(card.visibleInlineText == "#123 keep this raw")
+        #expect(card.visibleInlineTagRanges.isEmpty)
+    }
+
+    @Test
+    func captureCardUsesLegacyFallbackOnlyForBodyOnlyStoredTags() {
+        let card = CaptureCard(
+            text: "legacy body only",
             tags: [
                 CaptureTag(rawValue: "bug"),
                 CaptureTag(rawValue: "ui"),
@@ -136,57 +203,7 @@ struct CaptureTagTests {
             createdAt: .now
         )
 
-        #expect(card.visibleBodyText == "Fix the capture panel")
-    }
-
-    @Test
-    func captureCardVisibleBodyTextPreservesPlainTextWhenTagsAreAbsent() {
-        let card = CaptureCard(
-            text: "#ship this is plain text",
-            createdAt: .now
-        )
-
-        #expect(card.visibleBodyText == "#ship this is plain text")
-    }
-
-    @Test
-    func captureCardVisibleBodyTextPreservesHashPrefixedBodyWhenItDoesNotMatchStoredTags() {
-        let card = CaptureCard(
-            text: "#ship this is actual body text",
-            tags: [
-                CaptureTag(rawValue: "bug"),
-            ].compactMap { $0 },
-            createdAt: .now
-        )
-
-        #expect(card.visibleBodyText == "#ship this is actual body text")
-    }
-
-    @Test
-    func captureCardVisibleInlineTextPrefixesStructuredTagsForStackDisplay() {
-        let card = CaptureCard(
-            text: "Fix the capture panel",
-            tags: [
-                CaptureTag(rawValue: "bug"),
-                CaptureTag(rawValue: "ui"),
-            ].compactMap { $0 },
-            createdAt: .now
-        )
-
-        #expect(card.visibleInlineText == "#bug #ui Fix the capture panel")
-    }
-
-    @Test
-    func captureCardVisibleInlineTagRangesFollowStructuredTags() {
-        let card = CaptureCard(
-            text: "Fix the capture panel",
-            tags: [
-                CaptureTag(rawValue: "bug"),
-                CaptureTag(rawValue: "ui"),
-            ].compactMap { $0 },
-            createdAt: .now
-        )
-
+        #expect(card.visibleInlineText == "#bug #ui legacy body only")
         #expect(card.visibleInlineTagRanges == [
             NSRange(location: 0, length: 4),
             NSRange(location: 5, length: 3),
@@ -194,42 +211,110 @@ struct CaptureTagTests {
     }
 
     @Test
-    func captureCardVisibleInlineTextPreservesLegacyPrefixedTextWithoutDuplication() {
+    func captureCardMergesInlineAndExplicitCanonicalTags() {
         let card = CaptureCard(
-            text: "#bug #ui Fix the capture panel",
+            text: "Fix #bug before handoff",
             tags: [
-                CaptureTag(rawValue: "bug"),
                 CaptureTag(rawValue: "ui"),
-            ].compactMap { $0 },
-            createdAt: .now
-        )
-
-        #expect(card.visibleInlineText == "#bug #ui Fix the capture panel")
-    }
-
-    @Test
-    func captureCardVisibleInlineTagRangesIgnoreMismatchedLeadingHashBody() {
-        let card = CaptureCard(
-            text: "#ship this is actual body text",
-            tags: [
                 CaptureTag(rawValue: "bug"),
             ].compactMap { $0 },
             createdAt: .now
         )
 
-        #expect(card.visibleInlineTagRanges.isEmpty)
+        #expect(card.tags.map(\.name) == ["bug", "ui"])
+        #expect(card.visibleInlineText == "Fix #bug before handoff")
+        #expect(card.visibleInlineTagRanges == [
+            NSRange(location: 4, length: 4),
+        ])
     }
 
     @Test
-    func captureCardVisibleInlineTextPreservesMismatchedLeadingHashBody() {
-        let card = CaptureCard(
-            text: "#ship this is actual body text",
-            tags: [
-                CaptureTag(rawValue: "bug"),
-            ].compactMap { $0 },
-            createdAt: .now
+    func captureCardJSONCodecRoundTrip() throws {
+        let id = UUID()
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let lastCopiedAt = Date(timeIntervalSince1970: 1_700_001_000)
+        let original = CaptureCard(
+            id: id,
+            text: "round-trip test with #bug",
+            createdAt: createdAt,
+            screenshotPath: "/tmp/screenshot.png",
+            lastCopiedAt: lastCopiedAt,
+            sortOrder: 42.0
         )
 
-        #expect(card.visibleInlineText == "#ship this is actual body text")
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        let data = try encoder.encode(original)
+        let decoded = try decoder.decode(CaptureCard.self, from: data)
+
+        #expect(decoded == original)
+        #expect(decoded.id == id)
+        #expect(decoded.text == "round-trip test with #bug")
+        #expect(decoded.tags.map(\.name) == ["bug"])
+        #expect(decoded.createdAt == createdAt)
+        #expect(decoded.screenshotPath == "/tmp/screenshot.png")
+        #expect(decoded.lastCopiedAt == lastCopiedAt)
+        #expect(decoded.sortOrder == 42.0)
+    }
+
+    @Test
+    func captureCardJSONCodecRoundTripMinimalFields() throws {
+        let original = CaptureCard(
+            text: "minimal card",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        let data = try encoder.encode(original)
+        let decoded = try decoder.decode(CaptureCard.self, from: data)
+
+        #expect(decoded == original)
+        #expect(decoded.tags.isEmpty)
+        #expect(decoded.screenshotPath == nil)
+        #expect(decoded.lastCopiedAt == nil)
+        #expect(decoded.sortOrder == original.createdAt.timeIntervalSinceReferenceDate)
+    }
+
+    @Test
+    func captureCardDecodesCanonicalTagsFromRawTextWhenTagsFieldIsMissing() throws {
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let id = UUID()
+        let json = """
+        {
+            "id": "\(id.uuidString)",
+            "text": "legacy card with #bug and #ui",
+            "createdAt": \(createdAt.timeIntervalSinceReferenceDate)
+        }
+        """
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(CaptureCard.self, from: Data(json.utf8))
+
+        #expect(decoded.id == id)
+        #expect(decoded.text == "legacy card with #bug and #ui")
+        #expect(decoded.tags.map(\.name) == ["bug", "ui"])
+        #expect(decoded.sortOrder == createdAt.timeIntervalSinceReferenceDate)
+    }
+
+    @Test
+    func captureCardDecodesWithMissingSortOrderFallback() throws {
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let id = UUID()
+        let json = """
+        {
+            "id": "\(id.uuidString)",
+            "text": "legacy card",
+            "createdAt": \(createdAt.timeIntervalSinceReferenceDate)
+        }
+        """
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(CaptureCard.self, from: Data(json.utf8))
+
+        #expect(decoded.id == id)
+        #expect(decoded.text == "legacy card")
+        #expect(decoded.tags.isEmpty)
+        #expect(decoded.sortOrder == createdAt.timeIntervalSinceReferenceDate)
     }
 }

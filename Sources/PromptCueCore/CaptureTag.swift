@@ -107,6 +107,26 @@ public struct CaptureTag: Codable, Hashable, Sendable, Comparable {
     }
 }
 
+public struct CaptureTagInlineMatch: Equatable, Sendable {
+    public let tag: CaptureTag
+    public let range: NSRange
+
+    public init(tag: CaptureTag, range: NSRange) {
+        self.tag = tag
+        self.range = range
+    }
+}
+
+public struct CaptureTagInlineExtractionResult: Equatable, Sendable {
+    public let tags: [CaptureTag]
+    public let matches: [CaptureTagInlineMatch]
+
+    public init(tags: [CaptureTag], matches: [CaptureTagInlineMatch]) {
+        self.tags = tags
+        self.matches = matches
+    }
+}
+
 public struct CaptureTagPrefixParseResult: Equatable, Sendable {
     public let tags: [CaptureTag]
     public let bodyText: String
@@ -143,32 +163,88 @@ public struct CaptureTagCompletionContext: Equatable, Sendable {
 }
 
 public enum CaptureTagText {
+    public static func extractCanonicalInlineTags(
+        in text: String
+    ) -> CaptureTagInlineExtractionResult {
+        let matches = canonicalInlineTagMatches(in: text)
+        let tags = CaptureTag.deduplicatePreservingOrder(matches.map(\.tag))
+
+        return CaptureTagInlineExtractionResult(tags: tags, matches: matches)
+    }
+
+    public static func canonicalInlineTagMatches(in text: String) -> [CaptureTagInlineMatch] {
+        let nsText = text as NSString
+        let length = nsText.length
+        guard length > 0 else {
+            return []
+        }
+
+        var cursor = 0
+        var matches: [CaptureTagInlineMatch] = []
+
+        while cursor < length {
+            guard nsText.character(at: cursor) == 35 else {
+                cursor += 1
+                continue
+            }
+
+            let tokenStart = cursor
+            if !isValidTagStartBoundary(in: nsText, at: tokenStart) {
+                cursor += 1
+                continue
+            }
+
+            cursor += 1
+            guard cursor < length,
+                  let leadingScalar = unicodeScalar(in: nsText, at: cursor),
+                  CaptureTag.normalize(String(leadingScalar)) != nil else {
+                cursor = tokenStart + 1
+                continue
+            }
+
+            cursor += 1
+            while cursor < length,
+                  let scalar = unicodeScalar(in: nsText, at: cursor),
+                  CaptureTag.isBodyScalar(scalar) {
+                cursor += 1
+            }
+
+            if let trailingScalar = unicodeScalar(in: nsText, at: cursor),
+               !isValidTagEndBoundary(trailingScalar) {
+                cursor = tokenStart + 1
+                continue
+            }
+
+            let tokenRange = NSRange(location: tokenStart, length: cursor - tokenStart)
+            guard let tag = CaptureTag(rawValue: nsText.substring(with: tokenRange)) else {
+                cursor = tokenStart + 1
+                continue
+            }
+
+            matches.append(CaptureTagInlineMatch(tag: tag, range: tokenRange))
+        }
+
+        return matches
+    }
+
     public static func inlineDisplayText(
         tags: [CaptureTag],
         bodyText: String
     ) -> String {
-        serializedText(
-            tags: tags,
-            bodyText: bodyText,
-            includesTrailingSpaceWhenBodyIsEmpty: false
-        )
+        bodyText
     }
 
     public static func editorText(
         tags: [CaptureTag],
         bodyText: String
     ) -> String {
-        serializedText(
-            tags: tags,
-            bodyText: bodyText,
-            includesTrailingSpaceWhenBodyIsEmpty: true
-        )
+        bodyText
     }
 
-    private static func serializedText(
+    public static func legacyInlineDisplayText(
         tags: [CaptureTag],
         bodyText: String,
-        includesTrailingSpaceWhenBodyIsEmpty: Bool
+        includesTrailingSpaceWhenBodyIsEmpty: Bool = false
     ) -> String {
         let normalizedTags = CaptureTag.deduplicatePreservingOrder(tags)
         let trimmedBodyText = bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -185,6 +261,20 @@ public enum CaptureTagText {
     }
 
     public static func inlineDisplayTagRanges(
+        tags: [CaptureTag],
+        bodyText: String
+    ) -> [NSRange] {
+        let normalizedTags = Set(CaptureTag.deduplicatePreservingOrder(tags))
+        guard !normalizedTags.isEmpty else {
+            return []
+        }
+
+        return canonicalInlineTagMatches(in: bodyText)
+            .filter { normalizedTags.contains($0.tag) }
+            .map(\.range)
+    }
+
+    public static func legacyInlineDisplayTagRanges(
         tags: [CaptureTag],
         bodyText: String
     ) -> [NSRange] {
@@ -242,7 +332,7 @@ public enum CaptureTagText {
             cursor += 1
             while cursor < length,
                   let scalar = unicodeScalar(in: nsText, at: cursor),
-                  isTagBodyScalar(scalar) {
+                  CaptureTag.isBodyScalar(scalar) {
                 cursor += 1
             }
 
@@ -286,53 +376,33 @@ public enum CaptureTagText {
         in text: String,
         caretUTF16Offset: Int
     ) -> CaptureTagCompletionContext? {
-        let parseResult = parseCommittedPrefix(in: text)
         let nsText = text as NSString
         let length = nsText.length
         let clampedCaret = max(0, min(caretUTF16Offset, length))
-        guard clampedCaret >= parseResult.bodyStartUTF16Offset else {
+        guard let tokenRange = completionTokenRange(
+            in: nsText,
+            caretUTF16Offset: clampedCaret
+        ) else {
             return nil
         }
 
-        let bodyRange = NSRange(
-            location: parseResult.bodyStartUTF16Offset,
-            length: length - parseResult.bodyStartUTF16Offset
-        )
-        let bodyText = nsText.substring(with: bodyRange)
-        guard bodyText.hasPrefix("#") else {
-            return nil
-        }
-
-        let bodyNSString = bodyText as NSString
-        var tokenLength = 1
-        while tokenLength < bodyNSString.length,
-              let scalar = unicodeScalar(in: bodyNSString, at: tokenLength),
-              isTagBodyScalar(scalar) {
-            tokenLength += 1
-        }
-
-        let candidateRange = NSRange(
-            location: parseResult.bodyStartUTF16Offset,
-            length: tokenLength
-        )
-        guard NSMaxRange(candidateRange) >= clampedCaret else {
-            return nil
-        }
-
-        let rawToken = nsText.substring(with: candidateRange)
-        let tokenBody = rawToken.hasPrefix("#") ? String(rawToken.dropFirst()) : rawToken
+        let rawToken = nsText.substring(with: tokenRange)
+        let bodyStart = tokenRange.location + 1
+        let prefixLength = max(0, min(clampedCaret - bodyStart, nsText.length - bodyStart))
+        let prefixBody = prefixLength > 0
+            ? nsText.substring(with: NSRange(location: bodyStart, length: prefixLength))
+            : ""
         let normalizedPrefix: String?
-        if tokenBody.isEmpty {
+        if prefixBody.isEmpty {
             normalizedPrefix = ""
         } else {
-            normalizedPrefix = CaptureTag.normalize(tokenBody)
-                ?? normalizePrefix(tokenBody)
+            normalizedPrefix = CaptureTag.normalize(prefixBody) ?? normalizePrefix(prefixBody)
         }
 
         return CaptureTagCompletionContext(
             rawToken: rawToken,
             normalizedPrefix: normalizedPrefix,
-            replacementRange: candidateRange
+            replacementRange: tokenRange
         )
     }
 
@@ -345,11 +415,81 @@ public enum CaptureTagText {
         let normalized = trimmed.lowercased()
         guard let firstScalar = normalized.unicodeScalars.first,
               CaptureTag.isLeadingScalar(firstScalar),
-              normalized.unicodeScalars.dropFirst().allSatisfy(isTagBodyScalar) else {
+              normalized.unicodeScalars.dropFirst().allSatisfy(CaptureTag.isBodyScalar) else {
             return nil
         }
 
         return normalized
+    }
+
+    private static func isValidTagStartBoundary(in text: NSString, at tokenStart: Int) -> Bool {
+        guard tokenStart > 0 else {
+            return true
+        }
+
+        guard let previousScalar = unicodeScalar(in: text, at: tokenStart - 1) else {
+            return true
+        }
+
+        return isPermittedAdjacentScalar(previousScalar)
+    }
+
+    private static func isValidTagEndBoundary(_ scalar: UnicodeScalar) -> Bool {
+        isPermittedAdjacentScalar(scalar)
+    }
+
+    private static func isPermittedAdjacentScalar(_ scalar: UnicodeScalar) -> Bool {
+        switch scalar.value {
+        case 35:
+            // Reject doubled hashes like "##tag" and adjacent hashtags without a separator.
+            return false
+        case 47:
+            // Keep URL fragments like "/#section" out of inline tag parsing.
+            return false
+        default:
+            return !CaptureTag.isBodyScalar(scalar)
+        }
+    }
+
+    private static func completionTokenRange(
+        in text: NSString,
+        caretUTF16Offset: Int
+    ) -> NSRange? {
+        let length = text.length
+        guard length > 0 else {
+            return nil
+        }
+
+        var start = caretUTF16Offset
+        while start > 0,
+              let scalar = unicodeScalar(in: text, at: start - 1),
+              CaptureTag.isBodyScalar(scalar) {
+            start -= 1
+        }
+
+        guard start > 0,
+              text.substring(with: NSRange(location: start - 1, length: 1)) == "#" else {
+            return nil
+        }
+
+        let tokenStart = start - 1
+        guard isValidTagStartBoundary(in: text, at: tokenStart) else {
+            return nil
+        }
+
+        var end = caretUTF16Offset
+        while end < length,
+              let scalar = unicodeScalar(in: text, at: end),
+              CaptureTag.isBodyScalar(scalar) {
+            end += 1
+        }
+
+        if let trailingScalar = unicodeScalar(in: text, at: end),
+           !isValidTagEndBoundary(trailingScalar) {
+            return nil
+        }
+
+        return NSRange(location: tokenStart, length: end - tokenStart)
     }
 
     private static func unicodeScalar(
@@ -362,9 +502,5 @@ public enum CaptureTagText {
 
         let value = text.character(at: utf16Offset)
         return UnicodeScalar(value)
-    }
-
-    private static func isTagBodyScalar(_ scalar: UnicodeScalar) -> Bool {
-        CaptureTag.isBodyScalar(scalar)
     }
 }

@@ -126,6 +126,67 @@ final class AppModelEditingTests: XCTestCase {
         XCTAssertNil(model.recentScreenshotPreviewURL)
     }
 
+    func testBeginEditingPreservesRawInlineTagText() {
+        let card = CaptureCard(
+            id: UUID(),
+            text: "Discuss #design follow-up",
+            tags: [CaptureTag(rawValue: "design")].compactMap { $0 },
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            sortOrder: 10
+        )
+
+        let model = makeModel()
+        model.start()
+
+        model.beginEditingCaptureCard(card)
+
+        XCTAssertEqual(model.draftText, "Discuss #design follow-up")
+    }
+
+    func testSubmitCaptureDerivesCanonicalTagsFromInlineRawText() async throws {
+        let model = makeModel()
+        model.start()
+        model.beginCaptureSession()
+        model.draftText = "Ship #design review with #Design and #한글 notes"
+
+        let didSubmit = await model.submitCapture()
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(model.cards.count, 1)
+        XCTAssertEqual(model.cards.first?.text, "Ship #design review with #Design and #한글 notes")
+        XCTAssertEqual(model.cards.first?.tags.map(\.name), ["design"])
+
+        let loadedCards = try CardStore(databaseURL: databaseURL).load()
+        XCTAssertEqual(loadedCards.first?.text, "Ship #design review with #Design and #한글 notes")
+        XCTAssertEqual(loadedCards.first?.tags.map(\.name), ["design"])
+    }
+
+    func testSubmitCapturePreservesTagTestPositionForStackDisplay() async throws {
+        let model = makeModel()
+        model.start()
+        model.beginCaptureSession()
+        model.draftText = "alpha beta #tag_test gamma"
+
+        let didSubmit = await model.submitCapture()
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(model.cards.count, 1)
+        XCTAssertEqual(model.cards.first?.text, "alpha beta #tag_test gamma")
+        XCTAssertEqual(model.cards.first?.tags.map(\.name), ["tag_test"])
+        XCTAssertEqual(model.cards.first?.visibleInlineText, "alpha beta #tag_test gamma")
+        XCTAssertEqual(model.cards.first?.visibleInlineTagRanges, [
+            NSRange(location: 11, length: 9),
+        ])
+
+        let loadedCards = try CardStore(databaseURL: databaseURL).load()
+        XCTAssertEqual(loadedCards.first?.text, "alpha beta #tag_test gamma")
+        XCTAssertEqual(loadedCards.first?.tags.map(\.name), ["tag_test"])
+        XCTAssertEqual(loadedCards.first?.visibleInlineText, "alpha beta #tag_test gamma")
+        XCTAssertEqual(loadedCards.first?.visibleInlineTagRanges, [
+            NSRange(location: 11, length: 9),
+        ])
+    }
+
     private func makeModel() -> AppModel {
         AppModel(
             cardStore: CardStore(databaseURL: databaseURL),
@@ -151,4 +212,3 @@ private final class EditingTestRecentScreenshotCoordinator: RecentScreenshotCoor
     func consumeCurrent() {}
     func dismissCurrent() {}
 }
-

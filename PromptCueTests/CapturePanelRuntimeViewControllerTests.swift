@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import PromptCueCore
 import XCTest
@@ -6,6 +7,7 @@ import XCTest
 @MainActor
 final class CapturePanelRuntimeViewControllerTests: XCTestCase {
     private var tempDirectoryURL: URL!
+    private var windows: [NSWindow] = []
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -21,6 +23,7 @@ final class CapturePanelRuntimeViewControllerTests: XCTestCase {
         if let tempDirectoryURL, FileManager.default.fileExists(atPath: tempDirectoryURL.path) {
             try FileManager.default.removeItem(at: tempDirectoryURL)
         }
+        windows.removeAll()
         tempDirectoryURL = nil
         try super.tearDownWithError()
     }
@@ -91,6 +94,218 @@ final class CapturePanelRuntimeViewControllerTests: XCTestCase {
         XCTAssertTrue(controller.debugIsInlineCompletionVisible)
     }
 
+    func testInlineTagGhostStaysHiddenMidSentence() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["hello"]),
+                makeTaggedCard(text: "Second", tags: ["help"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        let text = "Write a #he note"
+        let tokenRange = (text as NSString).range(of: "#he")
+        controller.debugApplyEditorText(text, selectedLocation: NSMaxRange(tokenRange))
+
+        XCTAssertNil(controller.debugInlineCompletionSuffix)
+        XCTAssertFalse(controller.debugIsInlineCompletionVisible)
+    }
+
+    func testInlineTagCompletionKeepsInlineTagInSentence() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["hello"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        let text = "Write a #he note"
+        let tokenRange = (text as NSString).range(of: "#he")
+        controller.debugApplyEditorText(text, selectedLocation: NSMaxRange(tokenRange))
+
+        XCTAssertNil(controller.debugInlineCompletionSuffix)
+        XCTAssertFalse(controller.debugIsInlineCompletionVisible)
+        XCTAssertTrue(controller.debugCompleteInlineTagSelection())
+        XCTAssertEqual(controller.debugEditorText, "Write a #hello note")
+        XCTAssertEqual(model.draftText, "Write a #hello note")
+    }
+
+    func testInlineTagGhostStaysHiddenWhenTokenTouchesNonLatinText() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["hello"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        let text = "중간#he텍스트"
+        let tokenRange = (text as NSString).range(of: "#he")
+        controller.debugApplyEditorText(text, selectedLocation: NSMaxRange(tokenRange))
+
+        XCTAssertNil(controller.debugInlineCompletionSuffix)
+        XCTAssertFalse(controller.debugIsInlineCompletionVisible)
+    }
+
+    func testInlineTagCompletionKeepsAdjacentNonLatinText() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["hello"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        let text = "중간#he텍스트"
+        let tokenRange = (text as NSString).range(of: "#he")
+        controller.debugApplyEditorText(text, selectedLocation: NSMaxRange(tokenRange))
+
+        XCTAssertTrue(controller.debugCompleteInlineTagSelection())
+        XCTAssertEqual(controller.debugEditorText, "중간#hello텍스트")
+        XCTAssertEqual(model.draftText, "중간#hello텍스트")
+    }
+
+    func testTypingHashMidSentenceDoesNotResetDraftText() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["hello"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        let text = "Write a note"
+        let insertionLocation = (text as NSString).range(of: "note").location
+        controller.debugApplyEditorText(text, selectedLocation: insertionLocation)
+
+        controller.debugInsertText("#")
+        drainMainQueue(seconds: 0.25)
+
+        XCTAssertEqual(controller.debugEditorText, "Write a #note")
+        XCTAssertEqual(model.draftText, "Write a #note")
+    }
+
+    func testTypingInlineTagMidSentencePreservesSurroundingText() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["hello"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        let text = "중간텍스트"
+        let insertionLocation = (text as NSString).range(of: "텍스트").location
+        controller.debugApplyEditorText(text, selectedLocation: insertionLocation)
+
+        controller.debugInsertText("#he")
+        drainMainQueue(seconds: 0.25)
+
+        XCTAssertEqual(controller.debugEditorText, "중간#he텍스트")
+        XCTAssertEqual(model.draftText, "중간#he텍스트")
+        XCTAssertNil(controller.debugInlineCompletionSuffix)
+        XCTAssertFalse(controller.debugIsInlineCompletionVisible)
+    }
+
+    func testTypingExactTagTestMidSentencePreservesExistingText() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["tag_test"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        let text = "alpha beta gamma"
+        let insertionLocation = (text as NSString).range(of: "gamma").location
+        controller.debugApplyEditorText(text, selectedLocation: insertionLocation)
+
+        controller.debugInsertText("#tag_test ")
+        drainMainQueue(seconds: 0.25)
+
+        XCTAssertEqual(controller.debugEditorText, "alpha beta #tag_test gamma")
+        XCTAssertEqual(model.draftText, "alpha beta #tag_test gamma")
+        XCTAssertNil(controller.debugInlineCompletionSuffix)
+        XCTAssertFalse(controller.debugIsInlineCompletionVisible)
+    }
+
+    func testMarkedTextCompositionHidesInlineCompletionGhost() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["backtick"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        controller.debugApplyEditorText("#", selectedLocation: 1)
+
+        XCTAssertEqual(controller.debugInlineCompletionSuffix, "backtick")
+        XCTAssertTrue(controller.debugIsInlineCompletionVisible)
+
+        controller.debugSetMarkedText("한", selectedLocation: 1)
+
+        XCTAssertTrue(controller.debugHasMarkedText)
+        XCTAssertNil(controller.debugInlineCompletionSuffix)
+        XCTAssertFalse(controller.debugIsInlineCompletionVisible)
+    }
+
+    func testKoreanIMECompositionKeepsPreferredPanelHeightStableFromPlaceholder() throws {
+        let model = makeModel()
+        let controller = makePreparedController(model: model)
+        let initialHeight = controller.currentPreferredPanelHeight
+
+        controller.debugSetMarkedText("한", selectedLocation: 1)
+        drainMainQueue(seconds: 0.25)
+        let markedHeight = controller.currentPreferredPanelHeight
+
+        controller.debugApplyEditorText("한", selectedLocation: 1)
+        drainMainQueue(seconds: 0.25)
+        let committedHeight = controller.currentPreferredPanelHeight
+
+        XCTAssertEqual(markedHeight, initialHeight, accuracy: 0.5)
+        XCTAssertEqual(committedHeight, initialHeight, accuracy: 0.5)
+    }
+
+    func testPastingMixedLanguageRTFThenTypingHashPreservesText() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["backtick"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        let text = "카운트 classification quality mixed-input rubric"
+        let attributedText = NSAttributedString(
+            string: text,
+            attributes: [
+                .kern: 6,
+                .obliqueness: 0.3,
+            ]
+        )
+        let rtfData = try XCTUnwrap(
+            attributedText.data(
+                from: NSRange(location: 0, length: attributedText.length),
+                documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
+            )
+        )
+
+        let pasteboard = NSPasteboard.general
+        let originalItems = snapshotPasteboardItems(from: pasteboard)
+        defer {
+            restorePasteboard(pasteboard, items: originalItems)
+        }
+
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.setData(rtfData, forType: .rtf))
+
+        controller.debugPasteFromPasteboard()
+        drainMainQueue(seconds: 0.25)
+
+        controller.debugInsertText("#")
+        drainMainQueue(seconds: 0.25)
+
+        XCTAssertEqual(controller.debugEditorText, text + "#")
+        let attributes = controller.debugAttributes(at: 0)
+        XCTAssertNotNil(attributes[.font] as? NSFont)
+        XCTAssertNil(attributes[.kern])
+        XCTAssertNil(attributes[.obliqueness])
+    }
+
     private func makeModel(cards: [CaptureCard] = []) -> AppModel {
         let store = CardStore(databaseURL: tempDirectoryURL.appendingPathComponent("PromptCue.sqlite"))
         if !cards.isEmpty {
@@ -115,20 +330,23 @@ final class CapturePanelRuntimeViewControllerTests: XCTestCase {
         controller.view.layoutSubtreeIfNeeded()
         controller.prepareForPresentation()
 
-        let window = NSWindow(
+        let window = TestCapturePanel(
             contentRect: NSRect(
                 x: 0,
                 y: 0,
                 width: AppUIConstants.capturePanelWidth,
                 height: controller.currentPreferredPanelHeight
             ),
-            styleMask: [.borderless],
+            styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.contentViewController = controller
+        window.makeKeyAndOrderFront(nil)
+        controller.debugMakeEditorFirstResponder()
         window.layoutIfNeeded()
         window.layoutIfNeeded()
+        windows.append(window)
         return controller
     }
 
@@ -144,6 +362,29 @@ final class CapturePanelRuntimeViewControllerTests: XCTestCase {
 
     private func drainMainQueue(seconds: TimeInterval) {
         RunLoop.main.run(until: Date().addingTimeInterval(seconds))
+    }
+
+    private func snapshotPasteboardItems(from pasteboard: NSPasteboard) -> [NSPasteboardItem] {
+        (pasteboard.pasteboardItems ?? []).map { item in
+            let snapshot = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) {
+                    snapshot.setData(data, forType: type)
+                } else if let string = item.string(forType: type) {
+                    snapshot.setString(string, forType: type)
+                }
+            }
+            return snapshot
+        }
+    }
+
+    private func restorePasteboard(_ pasteboard: NSPasteboard, items: [NSPasteboardItem]) {
+        pasteboard.clearContents()
+        guard !items.isEmpty else {
+            return
+        }
+
+        pasteboard.writeObjects(items)
     }
 }
 
@@ -161,4 +402,9 @@ private final class TestRuntimeRecentScreenshotCoordinator: RecentScreenshotCoor
     func dismissCurrent() {}
     func suspendExpiration() {}
     func resumeExpiration() {}
+}
+
+private final class TestCapturePanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
 }

@@ -35,7 +35,7 @@ extension AppModel {
     func beginEditingCaptureCard(_ card: CaptureCard) {
         editingCaptureCardID = card.isCopied ? nil : card.id
         isSeedingCaptureFromCopiedCard = card.isCopied
-        draftText = CaptureTagText.editorText(tags: card.tags, bodyText: card.text)
+        draftText = card.text
         draftEditorMetrics = .empty
         if let screenshotURL = card.screenshotURL {
             draftRecentScreenshotStateOverride = .previewReady(
@@ -89,12 +89,11 @@ extension AppModel {
             }
         }
 
-        let tagParseResult = CaptureTagText.parseCommittedPrefix(in: draftText)
-        let trimmed = tagParseResult.bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let tags = tagParseResult.tags
+        let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tags = CaptureTagText.extractCanonicalInlineTags(in: trimmed).tags
         var attachment = currentRecentScreenshotAttachment
 
-        if attachment == nil, recentScreenshotState.showsCaptureSlot {
+        if attachment == nil, !isEditingCaptureCard {
             if let resolvedURL = await recentScreenshotCoordinator.resolveCurrentCaptureAttachment(
                 timeout: AppTiming.recentScreenshotSubmitResolveTimeout
             ) {
@@ -205,7 +204,7 @@ extension AppModel {
             viewportWidth: CaptureRuntimeMetrics.editorViewportWidth,
             maxContentHeight: CaptureRuntimeMetrics.editorMaxHeight,
             minimumLineHeight: CaptureRuntimeMetrics.textLineHeight,
-            font: NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture),
+            font: CaptureEditorLayoutCalculator.editorFont(),
             lineHeight: PrimitiveTokens.LineHeight.capture
         )
 

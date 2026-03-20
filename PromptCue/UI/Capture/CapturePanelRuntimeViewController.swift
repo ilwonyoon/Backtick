@@ -274,6 +274,18 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
         editorHost.translatesAutoresizingMaskIntoConstraints = false
         editorHost.textView.delegate = self
+        editorHost.textView.onMarkedTextStateChange = { [weak self] isActive in
+            guard let self else {
+                return
+            }
+
+            if isActive {
+                self.discardPendingDraftSync()
+                self.suspendInlineTagPresentationForMarkedText()
+            } else {
+                self.refreshInlineTagState(resetSuggestionSelection: true)
+            }
+        }
         contentStack.addArrangedSubview(editorHost)
         editorHeightConstraint = editorHost.heightAnchor.constraint(equalToConstant: CaptureRuntimeMetrics.editorMinimumVisibleHeight)
         editorHeightConstraint.isActive = true
@@ -314,6 +326,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             .store(in: &cancellables)
 
         model.$draftText
+            .dropFirst()
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] draftText in
@@ -342,7 +355,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         }
 
         // IME composition owns the live editor contents until the marked text commits.
-        guard !editorHost.textView.hasMarkedText() else {
+        guard !editorHost.textView.isHandlingMarkedTextComposition else {
             return
         }
 
@@ -427,10 +440,16 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         screenshotSurface.showLoading(true)
         screenshotSpinner.stopAnimation(nil)
 
-        imageLoadTask = Task.detached(priority: .utility) { [weak self, cacheKey, url] in
-            let image = CapturePreviewImageCache.loadUncachedImage(from: url)
+        imageLoadTask = Task { [weak self, cacheKey, url] in
+            let image = await Task.detached(priority: .utility) {
+                CapturePreviewImageCache.loadUncachedImage(from: url)
+            }.value
 
             guard !Task.isCancelled else {
+                return
+            }
+
+            guard let self else {
                 return
             }
 
@@ -438,20 +457,14 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
                 Self.previewImageCache.store(image, forKey: cacheKey)
             }
 
-            await MainActor.run {
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                let resolvedImage = Self.previewImageCache.image(forKey: cacheKey)
-                guard let self, self.displayedPreviewImageKey == cacheKey else {
-                    return
-                }
-
-                self.screenshotImageView.image = resolvedImage
-                self.screenshotSurface.showLoading(false)
-                self.screenshotSpinner.stopAnimation(nil)
+            guard self.displayedPreviewImageKey == cacheKey else {
+                return
             }
+
+            let resolvedImage = Self.previewImageCache.image(forKey: cacheKey)
+            self.screenshotImageView.image = resolvedImage
+            self.screenshotSurface.showLoading(false)
+            self.screenshotSpinner.stopAnimation(nil)
         }
     }
 
@@ -557,14 +570,14 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     private func refreshInlineTagState(resetSuggestionSelection: Bool = false) {
-        guard !editorHost.textView.hasMarkedText() else {
+        guard !editorHost.textView.isHandlingMarkedTextComposition else {
             suspendInlineTagPresentationForMarkedText()
             return
         }
 
-        let parseResult = CaptureTagText.parseCommittedPrefix(in: editorHost.textView.string)
+        let inlineTags = CaptureTagText.extractCanonicalInlineTags(in: editorHost.textView.string).matches
         let completionContext = currentInlineTagCompletionContext()
-        var highlightedRanges = parseResult.committedTokenRanges
+        var highlightedRanges = inlineTags.map(\.range)
         if let completionContext,
            completionContext.replacementRange.length > 0 {
             highlightedRanges.append(completionContext.replacementRange)
@@ -572,7 +585,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         editorHost.highlightedInlineTagRanges = highlightedRanges
 
         let suggestions = matchingInlineTagSuggestions(
-            parseResult: parseResult,
+            committedTagNames: Set(inlineTags.map(\.tag.name)),
             completionContext: completionContext
         )
         let queryValue = completionContext?.normalizedPrefix
@@ -598,6 +611,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         lastInlineTagQueryValue = nil
         inlineTagSuggestions = []
         selectedInlineTagSuggestionIndex = 0
+        editorHost.highlightedInlineTagRanges = []
         editorHost.setInlineCompletion(suffix: nil, caretUTF16Offset: nil)
         inlineTagSuggestionView.isHidden = true
         recomputePreferredPanelHeight()
@@ -625,7 +639,8 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     ) -> String? {
         guard let completionContext,
               let normalizedPrefix = completionContext.normalizedPrefix,
-              selectedCaretLocation == NSMaxRange(completionContext.replacementRange) else {
+              selectedCaretLocation == NSMaxRange(completionContext.replacementRange),
+              allowsInlineGhostPresentation(at: selectedCaretLocation) else {
             return nil
         }
 
@@ -638,6 +653,32 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
         let suffix = String(resolvedSuggestion.dropFirst(normalizedPrefix.count))
         return suffix.isEmpty ? nil : suffix
+    }
+
+    private func allowsInlineGhostPresentation(at caretUTF16Offset: Int) -> Bool {
+        let nsText = editorHost.textView.string as NSString
+        guard caretUTF16Offset < nsText.length else {
+            return true
+        }
+
+        var cursor = caretUTF16Offset
+        while cursor < nsText.length {
+            guard let scalar = UnicodeScalar(nsText.character(at: cursor)) else {
+                return false
+            }
+
+            if CharacterSet.newlines.contains(scalar) {
+                return true
+            }
+
+            if !CharacterSet.whitespaces.contains(scalar) {
+                return false
+            }
+
+            cursor += 1
+        }
+
+        return true
     }
 
     private func moveInlineTagSelection(by offset: Int) -> Bool {
@@ -675,7 +716,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     private func matchingInlineTagSuggestions(
-        parseResult: CaptureTagPrefixParseResult,
+        committedTagNames: Set<String>,
         completionContext: CaptureTagCompletionContext?
     ) -> [String] {
         guard let completionContext,
@@ -683,10 +724,9 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             return []
         }
 
-        let committedNames = Set(parseResult.tags.map(\.name))
         return model.knownCaptureTagNames.filter { candidate in
             (normalizedPrefix.isEmpty || candidate.hasPrefix(normalizedPrefix))
-                && !committedNames.contains(candidate)
+                && !committedTagNames.contains(candidate)
         }
     }
 
@@ -709,8 +749,9 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             return false
         }
 
-        let replacement = tag.displayText + " "
         let nsText = editorHost.textView.string as NSString
+        let shouldAppendTrailingSpace = NSMaxRange(completionContext.replacementRange) >= nsText.length
+        let replacement = tag.displayText + (shouldAppendTrailingSpace ? " " : "")
         let updatedText = nsText.replacingCharacters(
             in: completionContext.replacementRange,
             with: replacement
@@ -751,7 +792,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     func textDidChange(_ notification: Notification) {
-        guard let textView = notification.object as? NSTextView,
+        guard let textView = notification.object as? WrappingCueTextView,
               textView === editorHost.textView else {
             return
         }
@@ -761,7 +802,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         let currentDraftCount = currentDraftText.utf16.count
         let isGrowingDraft = currentDraftCount >= previousDraftCount
         let shouldSkipMeasurement = editorHost.currentMetrics.isScrollable && isGrowingDraft
-        let isComposingMarkedText = textView.hasMarkedText()
+        let isComposingMarkedText = textView.isHandlingMarkedTextComposition
 
         if isComposingMarkedText {
             discardPendingDraftSync()
@@ -786,7 +827,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     func textViewDidChangeSelection(_ notification: Notification) {
-        guard let textView = notification.object as? NSTextView,
+        guard let textView = notification.object as? WrappingCueTextView,
               textView === editorHost.textView else {
             return
         }
@@ -851,8 +892,64 @@ extension CapturePanelRuntimeViewController {
         refreshInlineTagState(resetSuggestionSelection: true)
     }
 
+    func debugApplyEditorAttributedText(_ text: NSAttributedString, selectedLocation: Int? = nil) {
+        let location = max(0, min(selectedLocation ?? text.length, text.length))
+        editorHost.textView.textStorage?.setAttributedString(text)
+        editorHost.textView.setSelectedRange(NSRange(location: location, length: 0))
+        editorHost.scheduleMeasuredMetrics(forceScrollToSelection: true)
+        refreshInlineTagState(resetSuggestionSelection: true)
+    }
+
     func debugScheduleDraftSync(_ text: String) {
         scheduleDraftSync(text)
+    }
+
+    func debugInsertText(_ text: String) {
+        editorHost.textView.insertText(
+            text,
+            replacementRange: editorHost.textView.selectedRange()
+        )
+    }
+
+    func debugPastePlainText(_ text: String) {
+        editorHost.textView.debugPastePlainText(text)
+    }
+
+    func debugPasteFromPasteboard() {
+        editorHost.textView.debugPasteFromPasteboard()
+    }
+
+    func debugMakeEditorFirstResponder() {
+        _ = view.window?.makeFirstResponder(editorHost.textView)
+    }
+
+    func debugSetMarkedText(_ text: String, selectedLocation: Int? = nil) {
+        let location = max(0, min(selectedLocation ?? text.utf16.count, text.utf16.count))
+        editorHost.textView.setMarkedText(
+            text,
+            selectedRange: NSRange(location: location, length: 0),
+            replacementRange: editorHost.textView.selectedRange()
+        )
+        refreshInlineTagState(resetSuggestionSelection: true)
+    }
+
+    var debugHasMarkedText: Bool {
+        editorHost.textView.isHandlingMarkedTextComposition
+    }
+
+    func debugAttributes(at location: Int) -> [NSAttributedString.Key: Any] {
+        guard let textStorage = editorHost.textView.textStorage,
+              textStorage.length > 0 else {
+            return [:]
+        }
+
+        let clampedLocation = max(0, min(location, textStorage.length - 1))
+        return textStorage.attributes(at: clampedLocation, effectiveRange: nil)
+    }
+
+    @discardableResult
+    func debugCompleteInlineTagSelection() -> Bool {
+        completePendingInlineTagIfPossible()
     }
 }
 #endif

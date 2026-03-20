@@ -779,13 +779,15 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
         model.setExperimentalRemoteRuntimeState(.running)
         model.recordExperimentalRemoteHelperLog(
-            "BacktickMCPOAuthProvider token exchange rejected: invalid_grant clientID=abc refreshToken=def"
+            "Backtick MCP HTTP OAuth token request rejected error=invalid_grant surface=iphone path=/oauth/token grantType=refresh_token clientID=abc123"
         )
 
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Reconnect needed")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .resetLocalState)
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("older Backtick OAuth grant"))
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("recreate the Backtick app"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("iPhone · invalid_grant · refresh_token") == true)
     }
 
     @MainActor
@@ -867,20 +869,21 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
         model.setExperimentalRemoteRuntimeState(.running)
         model.recordExperimentalRemoteHelperLog(
-            "Backtick MCP HTTP served protected remote request method=tools/call"
+            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=312 rpcMethod=tools/call targetKind=tool targetName=list_documents"
         )
 
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Connected")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .success)
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .copyPublicMCPURL)
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("current app setup"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("Web · tools/call · list_documents") == true)
 
         _ = model.updateExperimentalRemotePublicBaseURL("https://new-backtick.test")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Ready to connect")
     }
 
     @MainActor
-    func testExperimentalRemoteSuccessfulRemoteLogClearsStaleGrantRecoveryIssue() {
+    func testExperimentalRemoteSuccessfulRemoteLogKeepsReconnectGuidanceWhenDifferentSurfaceIsStale() {
         let userDefaults = makeUserDefaults()
         let model = MCPConnectorSettingsModel(
             inspector: makeInspector(),
@@ -893,13 +896,44 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
         model.setExperimentalRemoteRuntimeState(.running)
         model.recordExperimentalRemoteHelperLog(
-            "BacktickMCPOAuthProvider token exchange rejected: invalid_grant clientID=abc refreshToken=def"
+            "Backtick MCP HTTP OAuth token request rejected error=invalid_grant surface=iphone path=/oauth/token grantType=refresh_token"
         )
 
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Reconnect needed")
 
         model.recordExperimentalRemoteHelperLog(
-            "Backtick MCP HTTP served protected remote request method=tools/call"
+            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=288 rpcMethod=tools/call targetKind=tool targetName=recall_document"
+        )
+
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Some ChatGPT surfaces need reconnect")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .resetLocalState)
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("another stays stale"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("Web · tools/call · recall_document") == true)
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("iPhone · invalid_grant · refresh_token") == true)
+    }
+
+    @MainActor
+    func testExperimentalRemoteSuccessfulRemoteLogClearsStaleGrantRecoveryIssueForSameSurface() {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
+        model.setExperimentalRemoteRuntimeState(.running)
+        model.recordExperimentalRemoteHelperLog(
+            "Backtick MCP HTTP OAuth token request rejected error=invalid_grant surface=web path=/oauth/token grantType=refresh_token"
+        )
+
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Reconnect needed")
+
+        model.recordExperimentalRemoteHelperLog(
+            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=244 rpcMethod=tools/call targetKind=tool targetName=list_documents"
         )
 
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Connected")
@@ -948,7 +982,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
         model.setExperimentalRemoteRuntimeState(.running)
         model.recordExperimentalRemoteHelperLog(
-            "Backtick MCP HTTP served protected remote request method=tools/call"
+            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=188 rpcMethod=tools/call targetKind=tool targetName=list_documents"
         )
         model.refreshExperimentalRemoteProbe()
         try? await Task.sleep(nanoseconds: 50_000_000)
