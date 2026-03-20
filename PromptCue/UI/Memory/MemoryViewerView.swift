@@ -459,6 +459,8 @@ private struct MemoryRenderedDocumentView: View {
                                         }
                                     }
                                 }
+                            case .table(let table):
+                                MemoryMarkdownTableView(table: table)
                             }
                         }
                     }
@@ -488,6 +490,103 @@ private struct MemoryInlineMarkdownText: View {
     }
 }
 
+private struct MemoryMarkdownTableView: View {
+    let table: ParsedMemoryMarkdown.Table
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
+                GridRow {
+                    ForEach(Array(table.header.enumerated()), id: \.offset) { index, cell in
+                        MemoryMarkdownTableCell(
+                            markdown: cell,
+                            alignment: table.alignment(at: index),
+                            isHeader: true,
+                            isStriped: false,
+                            showsTrailingDivider: index < table.columnCount - 1,
+                            showsBottomDivider: !table.rows.isEmpty
+                        )
+                    }
+                }
+
+                ForEach(Array(table.rows.enumerated()), id: \.offset) { rowIndex, row in
+                    GridRow {
+                        ForEach(Array(row.enumerated()), id: \.offset) { columnIndex, cell in
+                            MemoryMarkdownTableCell(
+                                markdown: cell,
+                                alignment: table.alignment(at: columnIndex),
+                                isHeader: false,
+                                isStriped: rowIndex.isMultiple(of: 2),
+                                showsTrailingDivider: columnIndex < table.columnCount - 1,
+                                showsBottomDivider: rowIndex < table.rows.count - 1
+                            )
+                        }
+                    }
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.75), lineWidth: 1)
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollIndicators(.automatic)
+    }
+}
+
+private struct MemoryMarkdownTableCell: View {
+    let markdown: String
+    let alignment: ParsedMemoryMarkdown.TableColumnAlignment
+    let isHeader: Bool
+    let isStriped: Bool
+    let showsTrailingDivider: Bool
+    let showsBottomDivider: Bool
+
+    var body: some View {
+        MemoryInlineMarkdownText(markdown: markdown)
+            .font(isHeader ? .callout.weight(.semibold) : .body)
+            .foregroundStyle(SemanticTokens.Text.primary)
+            .multilineTextAlignment(alignment.textAlignment)
+            .frame(minWidth: 120, maxWidth: .infinity, alignment: alignment.frameAlignment)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(backgroundFill)
+            .overlay(alignment: .trailing) {
+                if showsTrailingDivider {
+                    Rectangle()
+                        .fill(Color(nsColor: .separatorColor).opacity(0.55))
+                        .frame(width: 1)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if showsBottomDivider {
+                    Rectangle()
+                        .fill(Color(nsColor: .separatorColor).opacity(0.55))
+                        .frame(height: 1)
+                }
+            }
+    }
+
+    private var backgroundFill: Color {
+        if isHeader {
+            return SemanticTokens.adaptiveColor(
+                light: NSColor.black.withAlphaComponent(0.04),
+                dark: NSColor.white.withAlphaComponent(0.08)
+            )
+        }
+
+        if isStriped {
+            return SemanticTokens.adaptiveColor(
+                light: NSColor.black.withAlphaComponent(0.015),
+                dark: NSColor.white.withAlphaComponent(0.03)
+            )
+        }
+
+        return .clear
+    }
+}
+
 private enum ParsedMemoryMarkdown {
     struct Section: Identifiable {
         let id = UUID()
@@ -495,9 +594,55 @@ private enum ParsedMemoryMarkdown {
         let blocks: [Block]
     }
 
+    struct Table {
+        let header: [String]
+        let alignments: [TableColumnAlignment]
+        let rows: [[String]]
+
+        var columnCount: Int {
+            header.count
+        }
+
+        func alignment(at index: Int) -> TableColumnAlignment {
+            guard alignments.indices.contains(index) else {
+                return .leading
+            }
+            return alignments[index]
+        }
+    }
+
+    enum TableColumnAlignment {
+        case leading
+        case center
+        case trailing
+
+        var frameAlignment: Alignment {
+            switch self {
+            case .leading:
+                return .leading
+            case .center:
+                return .center
+            case .trailing:
+                return .trailing
+            }
+        }
+
+        var textAlignment: TextAlignment {
+            switch self {
+            case .leading:
+                return .leading
+            case .center:
+                return .center
+            case .trailing:
+                return .trailing
+            }
+        }
+    }
+
     enum Block {
         case paragraph(String)
         case bullets([String])
+        case table(Table)
     }
 
     static func parse(_ markdown: String) -> [Section] {
@@ -559,18 +704,30 @@ private enum ParsedMemoryMarkdown {
             currentBullets.removeAll()
         }
 
-        for rawLine in lines {
+        var index = 0
+        while index < lines.count {
+            let rawLine = lines[index]
             let line = rawLine.trimmingCharacters(in: .whitespaces)
 
             if line.isEmpty {
                 flushParagraph()
                 flushBullets()
+                index += 1
                 continue
             }
 
             if line.hasPrefix("- ") {
                 flushParagraph()
                 currentBullets.append(String(line.dropFirst(2)))
+                index += 1
+                continue
+            }
+
+            if let (table, nextIndex) = parseTable(lines, startingAt: index) {
+                flushParagraph()
+                flushBullets()
+                blocks.append(.table(table))
+                index = nextIndex
                 continue
             }
 
@@ -578,11 +735,155 @@ private enum ParsedMemoryMarkdown {
                 flushBullets()
             }
             currentParagraph.append(line)
+            index += 1
         }
 
         flushParagraph()
         flushBullets()
         return blocks
+    }
+
+    private static func parseTable(_ lines: [String], startingAt startIndex: Int) -> (Table, Int)? {
+        guard startIndex + 1 < lines.count else {
+            return nil
+        }
+
+        let headerLine = lines[startIndex].trimmingCharacters(in: .whitespaces)
+        let delimiterLine = lines[startIndex + 1].trimmingCharacters(in: .whitespaces)
+
+        let headerCells = splitTableRow(headerLine)
+        let delimiterCells = splitTableRow(delimiterLine)
+
+        guard !headerCells.isEmpty,
+              !delimiterCells.isEmpty,
+              isDelimiterRow(delimiterCells) else {
+            return nil
+        }
+
+        let columnCount = max(headerCells.count, delimiterCells.count)
+        let parsedRows = parseTableRows(lines, startingAt: startIndex + 2, columnCount: columnCount)
+        let table = Table(
+            header: normalizedCells(headerCells, to: columnCount),
+            alignments: normalizedAlignments(parseDelimiterAlignments(delimiterCells), to: columnCount),
+            rows: parsedRows.rows
+        )
+        return (table, parsedRows.nextIndex)
+    }
+
+    private static func parseTableRows(
+        _ lines: [String],
+        startingAt startIndex: Int,
+        columnCount: Int
+    ) -> (rows: [[String]], nextIndex: Int) {
+        var rows: [[String]] = []
+        var index = startIndex
+
+        while index < lines.count {
+            let line = lines[index].trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty, !line.hasPrefix("- ") else {
+                break
+            }
+
+            let cells = splitTableRow(line)
+            guard !cells.isEmpty else {
+                break
+            }
+
+            rows.append(normalizedCells(cells, to: columnCount))
+            index += 1
+        }
+
+        return (rows, index)
+    }
+
+    private static func splitTableRow(_ line: String) -> [String] {
+        guard line.contains("|") else {
+            return []
+        }
+
+        var working = line.trimmingCharacters(in: .whitespaces)
+        if working.hasPrefix("|") {
+            working.removeFirst()
+        }
+        if working.hasSuffix("|") {
+            working.removeLast()
+        }
+
+        let characters = Array(working)
+        var cells: [String] = []
+        var current = ""
+        var index = 0
+
+        while index < characters.count {
+            let character = characters[index]
+
+            if character == "\\",
+               index + 1 < characters.count,
+               characters[index + 1] == "|" {
+                current.append("|")
+                index += 2
+                continue
+            }
+
+            if character == "|" {
+                cells.append(current.trimmingCharacters(in: .whitespaces))
+                current.removeAll()
+            } else {
+                current.append(character)
+            }
+            index += 1
+        }
+
+        cells.append(current.trimmingCharacters(in: .whitespaces))
+        return cells.contains(where: { !$0.isEmpty }) ? cells : []
+    }
+
+    private static func isDelimiterRow(_ cells: [String]) -> Bool {
+        cells.allSatisfy { cell in
+            let trimmed = cell.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else {
+                return false
+            }
+
+            let withoutColons = trimmed.replacingOccurrences(of: ":", with: "")
+            return withoutColons.count >= 3 && withoutColons.allSatisfy { $0 == "-" }
+        }
+    }
+
+    private static func parseDelimiterAlignments(_ cells: [String]) -> [TableColumnAlignment] {
+        cells.map { cell in
+            let trimmed = cell.trimmingCharacters(in: .whitespaces)
+            let hasLeadingColon = trimmed.hasPrefix(":")
+            let hasTrailingColon = trimmed.hasSuffix(":")
+
+            if hasLeadingColon && hasTrailingColon {
+                return .center
+            }
+            if hasTrailingColon {
+                return .trailing
+            }
+            return .leading
+        }
+    }
+
+    private static func normalizedCells(_ cells: [String], to count: Int) -> [String] {
+        var normalized = cells
+        if normalized.count < count {
+            normalized.append(contentsOf: Array(repeating: "", count: count - normalized.count))
+        } else if normalized.count > count {
+            normalized = Array(normalized.prefix(count))
+        }
+        return normalized
+    }
+
+    private static func normalizedAlignments(_ alignments: [TableColumnAlignment], to count: Int) -> [TableColumnAlignment] {
+        var normalized = alignments
+        if normalized.count < count {
+            normalized.append(contentsOf: Array(repeating: .leading, count: count - normalized.count))
+        } else if normalized.count > count {
+            normalized = Array(normalized.prefix(count))
+        }
+        return normalized
     }
 
     private static func trimTrailingBlankLines(_ lines: [String]) -> [String] {

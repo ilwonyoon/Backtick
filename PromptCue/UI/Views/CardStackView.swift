@@ -296,6 +296,12 @@ struct CardStackView: View {
 
     private func collapsedCopiedStack(copiedCards: [CaptureCard]) -> some View {
         ZStack(alignment: .topLeading) {
+            ForEach(collapsedBackPlateIndices(for: copiedCards), id: \.self) { index in
+                stackedBackPlate(index: index)
+                    .offset(y: CopiedStackRecipe.collapsedVerticalOffset(for: index))
+                    .zIndex(Double(-index))
+            }
+
             StackNotificationCardSurface(isEmphasized: isCopiedStackHovered) {
                 VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                     if let card = copiedCards.first {
@@ -321,9 +327,15 @@ struct CardStackView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             .frame(height: collapsedCopiedCardHeight)
+            .shadow(
+                color: isCopiedStackHovered ? .clear : CopiedStackRecipe.backPlateShadowColor(index: 1),
+                radius: CopiedStackRecipe.backPlateShadowRadius(index: 1),
+                x: PrimitiveTokens.Shadow.zeroX,
+                y: CopiedStackRecipe.backPlateShadowYOffset(index: 1)
+            )
             .zIndex(1)
         }
-        .opacity(isCopiedStackHovered ? 1 : PrimitiveTokens.Opacity.copiedCard)
+        .padding(.bottom, collapsedBackPlateBottomPadding(copiedCards: copiedCards))
         .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: isCopiedStackHovered)
         .onHover { hovered in
             isCopiedStackHovered = hovered
@@ -341,18 +353,24 @@ struct CardStackView: View {
     }
 
     private func stackedBackPlate(index: Int) -> some View {
-        RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
+        RoundedRectangle(cornerRadius: CopiedStackRecipe.backPlateCornerRadius(for: index), style: .continuous)
             .fill(CopiedStackRecipe.backPlateFill(index: index))
             .overlay {
-                RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: CopiedStackRecipe.backPlateCornerRadius(for: index), style: .continuous)
                     .fill(CopiedStackRecipe.backPlateShade(index: index))
             }
             .overlay {
-                RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: CopiedStackRecipe.backPlateCornerRadius(for: index), style: .continuous)
                     .stroke(CopiedStackRecipe.backPlateBorder(index: index))
             }
             .frame(height: collapsedCopiedCardHeight)
-            .padding(.horizontal, CGFloat(index) * PrimitiveTokens.Space.xs)
+            .padding(.horizontal, CopiedStackRecipe.collapsedHorizontalInset(for: index))
+            .shadow(
+                color: CopiedStackRecipe.backPlateShadowColor(index: index),
+                radius: CopiedStackRecipe.backPlateShadowRadius(index: index),
+                x: PrimitiveTokens.Shadow.zeroX,
+                y: CopiedStackRecipe.backPlateShadowYOffset(index: index)
+            )
     }
 
     private func collapsedBackPlateBottomPadding(copiedCards: [CaptureCard]) -> CGFloat {
