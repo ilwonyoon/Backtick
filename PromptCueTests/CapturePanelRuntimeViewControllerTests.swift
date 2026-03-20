@@ -91,6 +91,40 @@ final class CapturePanelRuntimeViewControllerTests: XCTestCase {
         XCTAssertTrue(controller.debugIsInlineCompletionVisible)
     }
 
+    func testInlineTagGhostWorksMidSentence() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["hello"]),
+                makeTaggedCard(text: "Second", tags: ["help"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        let text = "Write a #he note"
+        let tokenRange = (text as NSString).range(of: "#he")
+        controller.debugApplyEditorText(text, selectedLocation: NSMaxRange(tokenRange))
+
+        XCTAssertEqual(controller.debugInlineCompletionSuffix, "llo")
+        XCTAssertTrue(controller.debugIsInlineCompletionVisible)
+    }
+
+    func testInlineTagCompletionKeepsInlineTagInSentence() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["hello"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        let text = "Write a #he note"
+        let tokenRange = (text as NSString).range(of: "#he")
+        controller.debugApplyEditorText(text, selectedLocation: NSMaxRange(tokenRange))
+
+        XCTAssertTrue(controller.debugCompleteInlineTagSelection())
+        XCTAssertEqual(controller.debugEditorText, "Write a #hello note")
+        XCTAssertEqual(model.draftText, "Write a #hello note")
+    }
+
     private func makeModel(cards: [CaptureCard] = []) -> AppModel {
         let store = CardStore(databaseURL: tempDirectoryURL.appendingPathComponent("PromptCue.sqlite"))
         if !cards.isEmpty {

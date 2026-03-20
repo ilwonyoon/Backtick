@@ -562,9 +562,9 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             return
         }
 
-        let parseResult = CaptureTagText.parseCommittedPrefix(in: editorHost.textView.string)
+        let inlineTags = CaptureTagText.extractCanonicalInlineTags(in: editorHost.textView.string).matches
         let completionContext = currentInlineTagCompletionContext()
-        var highlightedRanges = parseResult.committedTokenRanges
+        var highlightedRanges = inlineTags.map(\.range)
         if let completionContext,
            completionContext.replacementRange.length > 0 {
             highlightedRanges.append(completionContext.replacementRange)
@@ -572,7 +572,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         editorHost.highlightedInlineTagRanges = highlightedRanges
 
         let suggestions = matchingInlineTagSuggestions(
-            parseResult: parseResult,
+            committedTagNames: Set(inlineTags.map(\.tag.name)),
             completionContext: completionContext
         )
         let queryValue = completionContext?.normalizedPrefix
@@ -675,7 +675,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     private func matchingInlineTagSuggestions(
-        parseResult: CaptureTagPrefixParseResult,
+        committedTagNames: Set<String>,
         completionContext: CaptureTagCompletionContext?
     ) -> [String] {
         guard let completionContext,
@@ -683,10 +683,9 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             return []
         }
 
-        let committedNames = Set(parseResult.tags.map(\.name))
         return model.knownCaptureTagNames.filter { candidate in
             (normalizedPrefix.isEmpty || candidate.hasPrefix(normalizedPrefix))
-                && !committedNames.contains(candidate)
+                && !committedTagNames.contains(candidate)
         }
     }
 
@@ -709,8 +708,9 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             return false
         }
 
-        let replacement = tag.displayText + " "
         let nsText = editorHost.textView.string as NSString
+        let shouldAppendTrailingSpace = NSMaxRange(completionContext.replacementRange) >= nsText.length
+        let replacement = tag.displayText + (shouldAppendTrailingSpace ? " " : "")
         let updatedText = nsText.replacingCharacters(
             in: completionContext.replacementRange,
             with: replacement
@@ -853,6 +853,11 @@ extension CapturePanelRuntimeViewController {
 
     func debugScheduleDraftSync(_ text: String) {
         scheduleDraftSync(text)
+    }
+
+    @discardableResult
+    func debugCompleteInlineTagSelection() -> Bool {
+        completePendingInlineTagIfPossible()
     }
 }
 #endif
