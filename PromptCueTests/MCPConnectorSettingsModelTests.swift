@@ -877,6 +877,71 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testFreshLegacyAliasActivityPromptsClaudeCodeToStartNewSession() async throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(executableURL.path)",
+              "args": ["--stdio"],
+              "env": {
+                "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+              }
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let activity = MCPConnectorConnectionActivity(
+            transport: .stdio,
+            surface: nil,
+            clientName: "claude-code",
+            clientVersion: "1.0.0",
+            sessionID: "legacy-session",
+            toolName: exposedToolName("list_documents"),
+            requestedToolName: "list_documents",
+            recordedAt: Date(),
+            configuredClientID: "claudeCode",
+            launchCommand: executableURL.path,
+            launchArguments: ["--stdio"]
+        )
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .passed(
+                MCPServerConnectionReport(
+                    protocolVersion: "2025-03-26",
+                    toolNames: [exposedToolName("list_notes")],
+                    verifiedToolName: exposedToolName("get_started")
+                )
+            )),
+            connectionActivityReader: TestConnectionActivityReader(activities: [activity])
+        )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Needs refresh")
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Start a new Claude Code session")
+        XCTAssertEqual(model.primaryAction(for: claude), nil)
+        XCTAssertTrue(model.clientSummary(for: claude).contains("older Backtick tool name"))
+        XCTAssertTrue(model.clientNextStepDetail(for: claude).contains("Start a new Claude Code session"))
+    }
+
+    @MainActor
     func testRefreshDropsPassedLocalCheckWhenConfiguredLaunchSpecChanges() async throws {
         let firstExecutableURL = repositoryRootURL
             .appendingPathComponent(".build/debug", isDirectory: true)

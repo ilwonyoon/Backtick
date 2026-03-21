@@ -1024,6 +1024,8 @@ struct PromptCueSettingsView: View {
                 return "Configured. Run Check Setup, then use Backtick once in \(client.client.title). \(lastUsedDetail)"
             }
             return "Configured. Run Check Setup, then use Backtick once in \(client.client.title)."
+        case .needsRefresh:
+            return mcpConnectorSettingsModel.clientNextStepDetail(for: client)
         case .connected:
             if case .passed(let report) = mcpConnectorSettingsModel.verificationState(for: client) {
                 if let lastUsedDetail = mcpConnectorSettingsModel.clientLastUsedDetail(for: client) {
@@ -1128,6 +1130,8 @@ struct PromptCueSettingsView: View {
         switch mcpConnectorSettingsModel.readinessState(for: client) {
         case .connected:
             return .success
+        case .needsRefresh:
+            return .warning
         case .needsAttention:
             return .danger
         case .configured, .checking, .needsSetup:
@@ -1170,6 +1174,8 @@ struct PromptCueSettingsView: View {
             return "Configured"
         case .checking:
             return "Checking"
+        case .needsRefresh:
+            return "Needs Refresh"
         case .connected:
             return "Connected"
         case .needsAttention:
@@ -1197,6 +1203,8 @@ struct PromptCueSettingsView: View {
         switch mcpConnectorSettingsModel.readinessState(for: client) {
         case .connected:
             return .success
+        case .needsRefresh:
+            return .warning
         case .needsAttention:
             return .danger
         case .configured, .checking, .needsSetup:

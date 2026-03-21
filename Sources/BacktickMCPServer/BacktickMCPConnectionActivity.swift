@@ -12,6 +12,7 @@ struct BacktickMCPConnectionActivity: Codable, Equatable {
     let clientVersion: String?
     let sessionID: String?
     let toolName: String
+    let requestedToolName: String?
     let recordedAt: Date
     let configuredClientID: String?
     let launchCommand: String?
@@ -64,6 +65,7 @@ final class BacktickMCPConnectionActivityStore {
         clientVersion: String?,
         sessionID: String?,
         toolName: String,
+        requestedToolName: String?,
         configuredClientID: String?,
         launchCommand: String?,
         launchArguments: [String]
@@ -79,6 +81,7 @@ final class BacktickMCPConnectionActivityStore {
             clientVersion: clientVersion,
             sessionID: sessionID,
             toolName: toolName,
+            requestedToolName: requestedToolName,
             recordedAt: Date(),
             configuredClientID: configuredClientID,
             launchCommand: launchCommand,

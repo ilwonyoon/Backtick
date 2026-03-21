@@ -722,6 +722,7 @@ enum MCPConnectorReadinessState: Equatable {
     case configured
     case checking
     case connected
+    case needsRefresh
     case needsAttention
 }
 
@@ -2143,6 +2144,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return .checking
         }
 
+        if hasStaleLocalToolSurface(for: client) {
+            return .needsRefresh
+        }
+
         return .configured
     }
 
@@ -2186,6 +2191,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return "Checking"
         case .configured:
             return "Configured"
+        case .needsRefresh:
+            return "Needs refresh"
         case .needsAttention:
             return "Needs attention"
         case .unavailable, .installRequired, .needsSetup:
@@ -2264,6 +2271,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 }
                 return message
             }
+        case .needsRefresh:
+            return "This \(client.client.title) session is still calling an older Backtick tool name. Restart the client or begin a fresh session so it reloads the current Backtick tool surface."
         case .needsAttention:
             return "Backtick is set up, but the latest local server test failed. Fix the issue, then run the test again."
         case .unavailable, .installRequired, .needsSetup:
@@ -2303,6 +2312,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return "Backtick is configured in \(location). The local setup check is running now."
         case .connected:
             return appendLastUsedDetail("Backtick is connected in \(location).", for: client)
+        case .needsRefresh:
+            return "Backtick is configured in \(location), but the most recent client session is still using an older Backtick tool name."
         case .needsAttention:
             return "Backtick is configured in \(location), but the last local check failed."
         case .unavailable, .installRequired, .needsSetup:
@@ -2343,6 +2354,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return "Checking setup"
         case .connected:
             return "Backtick is connected"
+        case .needsRefresh:
+            switch client.client {
+            case .claudeDesktop:
+                return "Restart Claude Desktop"
+            case .claudeCode:
+                return "Start a new Claude Code session"
+            case .codex:
+                return "Start a new Codex session"
+            }
         case .needsAttention:
             return "Fix the setup and check again"
         case .unavailable, .installRequired, .needsSetup:
@@ -2418,6 +2438,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 "\(client.client.title) has already completed a Backtick tool call here.",
                 for: client
             )
+        case .needsRefresh:
+            switch client.client {
+            case .claudeDesktop:
+                return "Claude Desktop is still using an older Backtick tool name from the current session. Quit and reopen Claude Desktop so it reloads the latest Backtick tool surface."
+            case .claudeCode:
+                return "The current Claude Code session is still using an older Backtick tool name. Start a new Claude Code session so it reloads the latest Backtick tool surface."
+            case .codex:
+                return "The current Codex session is still using an older Backtick tool name. Start a new Codex session so it reloads the latest Backtick tool surface."
+            }
         case .needsAttention:
             return "Read the fix below, correct the issue, then run the local setup check again."
         case .unavailable, .installRequired, .needsSetup:
@@ -2523,6 +2552,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
             switch readinessState(for: client) {
             case .connected:
                 return nil
+            case .needsRefresh:
+                return nil
             case .configured, .checking, .needsAttention:
                 if case .passed = verificationState(for: client) {
                     return nil
@@ -2564,6 +2595,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
         switch readinessState(for: client) {
         case .connected:
             return nil
+        case .needsRefresh:
+            return nil
         case .configured, .checking, .needsAttention:
             if case .passed = verificationState(for: client) {
                 return nil
@@ -2572,6 +2605,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
         case .unavailable, .installRequired, .needsSetup:
             return nil
         }
+    }
+
+    private func hasStaleLocalToolSurface(for client: MCPConnectorClientStatus) -> Bool {
+        guard !hasConfiguredHelperDrift(for: client),
+              let activity = recentConnectionActivity(for: client) else {
+            return false
+        }
+
+        return activity.usesLegacyToolAlias
     }
 
     @discardableResult

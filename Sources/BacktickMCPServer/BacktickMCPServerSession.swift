@@ -300,6 +300,7 @@ final class BacktickMCPServerSession {
             let toolResult = callTool(name: canonicalToolName, arguments: arguments)
             if (toolResult["isError"] as? Bool) == false {
                 recordSuccessfulToolCall(
+                    requestedToolName: toolName,
                     toolName: BacktickMCPToolNaming.exposedName(canonicalToolName),
                     activityContext: activityContext
                 )
@@ -350,6 +351,7 @@ final class BacktickMCPServerSession {
     }
 
     private func recordSuccessfulToolCall(
+        requestedToolName: String?,
         toolName: String,
         activityContext: BacktickMCPConnectionContext
     ) {
@@ -359,6 +361,7 @@ final class BacktickMCPServerSession {
             clientVersion: clientVersion,
             sessionID: sessionID,
             toolName: toolName,
+            requestedToolName: requestedToolName,
             configuredClientID: configuredClientID,
             launchCommand: launchCommand,
             launchArguments: launchArguments
