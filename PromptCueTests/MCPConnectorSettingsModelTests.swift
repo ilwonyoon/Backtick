@@ -152,13 +152,17 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         )
 
         let inspection = makeInspector(applicationBundleURL: appBundleURL).inspect()
+        let stableLauncherURL = homeDirectoryURL
+            .appendingPathComponent("Library/Application Support/Backtick/bin/BacktickMCP")
+        let launcherContents = try String(contentsOf: stableLauncherURL)
 
         XCTAssertEqual(inspection.bundledHelperPath, bundledHelperURL.path)
-        XCTAssertEqual(inspection.launchSpec?.command, bundledHelperURL.path)
-        XCTAssertTrue(inspection.status(for: .claudeCode).addCommand?.contains(bundledHelperURL.path) == true)
-        XCTAssertTrue(inspection.status(for: .codex).addCommand?.contains(bundledHelperURL.path) == true)
+        XCTAssertEqual(inspection.launchSpec?.command, stableLauncherURL.path)
+        XCTAssertTrue(inspection.status(for: .claudeCode).addCommand?.contains(stableLauncherURL.path) == true)
+        XCTAssertTrue(inspection.status(for: .codex).addCommand?.contains(stableLauncherURL.path) == true)
         XCTAssertTrue(inspection.status(for: .claudeCode).configSnippet?.contains("BacktickMCP") == true)
         XCTAssertTrue(inspection.status(for: .codex).configSnippet?.contains("BacktickMCP") == true)
+        XCTAssertTrue(launcherContents.contains(bundledHelperURL.path))
     }
 
     @MainActor

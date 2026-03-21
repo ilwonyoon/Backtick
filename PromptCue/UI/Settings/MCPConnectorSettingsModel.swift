@@ -709,6 +709,7 @@ protocol MCPServerConnectionTesting {
 
 struct MCPConnectorInspector {
     static let connectorClientEnvironmentKey = "BACKTICK_CONNECTOR_CLIENT"
+    private static let stableLauncherRelativePath = "Library/Application Support/Backtick/bin/BacktickMCP"
 
     private let fileManager: FileManager
     private let environment: [String: String]
@@ -732,7 +733,11 @@ struct MCPConnectorInspector {
 
     func inspect() -> MCPConnectorInspection {
         let bundledHelperURL = bundledHelperURL()
-        let launchSpec = launchSpecification(bundledHelperURL: bundledHelperURL)
+        let stableLauncherURL = bundledHelperURL.flatMap(syncStableLauncher)
+        let launchSpec = launchSpecification(
+            stableLauncherURL: stableLauncherURL,
+            bundledHelperURL: bundledHelperURL
+        )
 
         return MCPConnectorInspection(
             repositoryRootPath: repositoryRootURL?.path,
@@ -765,7 +770,17 @@ struct MCPConnectorInspector {
         return nil
     }
 
-    private func launchSpecification(bundledHelperURL: URL?) -> MCPServerLaunchSpec? {
+    private func launchSpecification(
+        stableLauncherURL: URL?,
+        bundledHelperURL: URL?
+    ) -> MCPServerLaunchSpec? {
+        if let stableLauncherURL {
+            return MCPServerLaunchSpec(
+                command: stableLauncherURL.path,
+                arguments: []
+            )
+        }
+
         if let bundledHelperURL {
             return MCPServerLaunchSpec(
                 command: bundledHelperURL.path,
@@ -817,6 +832,46 @@ struct MCPConnectorInspector {
         }
 
         return nil
+    }
+
+    private func stableLauncherURL() -> URL {
+        homeDirectoryURL
+            .appendingPathComponent(Self.stableLauncherRelativePath, isDirectory: false)
+    }
+
+    private func syncStableLauncher(for bundledHelperURL: URL) -> URL? {
+        let launcherURL = stableLauncherURL()
+        let launcherContents = stableLauncherScript(targetPath: bundledHelperURL.path)
+
+        do {
+            try fileManager.createDirectory(
+                at: launcherURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+
+            if let existingContents = try? String(contentsOf: launcherURL),
+               existingContents == launcherContents,
+               isExecutableFile(launcherURL) {
+                return launcherURL.standardizedFileURL
+            }
+
+            try launcherContents.write(to: launcherURL, atomically: true, encoding: .utf8)
+            try fileManager.setAttributes(
+                [.posixPermissions: 0o755],
+                ofItemAtPath: launcherURL.path
+            )
+            return launcherURL.standardizedFileURL
+        } catch {
+            return nil
+        }
+    }
+
+    private func stableLauncherScript(targetPath: String) -> String {
+        let escapedTargetPath = targetPath.replacingOccurrences(of: "'", with: "'\"'\"'")
+        return """
+        #!/bin/sh
+        exec '\(escapedTargetPath)' "$@"
+        """
     }
 
     private func clientStatus(
