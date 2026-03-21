@@ -580,6 +580,65 @@ Examples to avoid going forward:
 - type-like topics
 - architecture-bucket topics that are really several separate subjects
 
+## MCP Update And Naming Model
+
+This polish lane also needs a release model for MCP itself.
+
+The problem is no longer only "does the server have the right tool description?" It is "after Backtick MCP changes, do connected clients actually see the latest tool contract?"
+
+### Current Diagnosis
+
+Recent dogfooding exposed three sources of drift:
+
+- a client conversation can keep stale tool descriptions for the life of the session
+- an existing client config can still point at an older helper path even if a newer bundled helper exists
+- the current Backtick server declares `tools.listChanged = false`, so Claude Code cannot use MCP dynamic tool refresh for this server today
+
+This means a correct local build can still produce outdated live behavior.
+
+### Client Refresh Model
+
+Backtick should treat refresh behavior as client-specific:
+
+- `Claude Code`: supports MCP `list_changed`, so dynamic refresh is available only if the server opts in and sends the notification
+- `ChatGPT` developer mode: app settings must refresh the app to pull the newest tools and descriptions
+- `Codex`: safest assumption is a fresh session or reconnect after tool-schema changes
+
+The release question is therefore not only "did the helper build?" It is "did the target clients refresh onto the new tool surface?"
+
+### Release Truth
+
+For user-facing connector setup, one launch path should be the release truth.
+
+Preferred direction:
+
+- use a stable launcher path for local stdio clients
+- treat repo `.build` binaries and `swift run` as development-only lanes
+- point generated client config at the stable launcher instead of whichever source checkout happened to exist during setup
+
+That turns helper replacement into a release operation instead of a per-client cleanup task.
+
+### Release Requirements
+
+Every MCP release should include:
+
+- a version bump when exposed tool names or descriptions change
+- a bundled-helper `initialize` / `tools/list` smoke test that snapshots the real tool names and descriptions
+- a connector/config drift check that detects whether a client still points at a stale helper path
+- explicit reconnect or refresh guidance per client after schema changes
+
+### Branded Tool Naming
+
+Memory tools should be easier to summon from the product name alone.
+
+Direction:
+
+- expose branded Memory tool names such as `backtick_recall_document`, `backtick_propose_document_saves`, `backtick_save_document`, and `backtick_update_document`
+- keep the current generic names as compatibility aliases during migration
+- make the branded names the primary surface shown to clients so `Backtick` maps directly to the tool system, not only to the connector
+
+This keeps the useful part of the Muninn pattern without copying its whole product shape.
+
 ## Next Slices
 
 Latest repo-grounded eval result:
@@ -602,6 +661,11 @@ That shifts the next slice priority from generic proposal UX to durable update q
 7. ship chat-level review UX before any native review UI expansion
 8. add lint rules that flag noisy or overmixed save proposals
 9. clean up existing example docs and eval fixtures to use better topic naming
+10. define and ship an MCP update model:
+   - stable launcher path
+   - schema freshness smoke test
+   - client-specific refresh guidance
+   - branded Memory tool naming migration
 
 ## Success Criteria
 

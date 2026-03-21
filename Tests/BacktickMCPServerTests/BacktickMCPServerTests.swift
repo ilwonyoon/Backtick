@@ -624,7 +624,7 @@ final class BacktickMCPServerTests: XCTestCase {
 
                     ## Repo Grounding
 
-                    This contract is described in docs/MCP-Polish-Plan.md and docs/Warm-MCP-Eval-Plan.md, but those file references should not turn this into an execution plan.
+                    This contract is described in docs/MCP-Polish-Plan.md and docs/MCP-Polish-Eval-Plan.md, but those file references should not turn this into an execution plan.
                     """,
                 ],
             ]
@@ -681,7 +681,7 @@ final class BacktickMCPServerTests: XCTestCase {
                     "content": """
                     ## Amendment
 
-                    This adds one durable clarification from docs/MCP-Polish-Plan.md and docs/Warm-MCP-Eval-Plan.md.
+                    This adds one durable clarification from docs/MCP-Polish-Plan.md and docs/MCP-Polish-Eval-Plan.md.
 
                     ## Clarification
 

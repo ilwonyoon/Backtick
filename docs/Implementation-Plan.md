@@ -254,7 +254,7 @@ Why:
 - the intended AI workflow is: read the current Stack, summarize or classify what matters, then write condensed notes back into Backtick through MCP
 - repo `docs/` authoring is not the Backtick MCP surface itself; that remains a separate code-agent or manual follow-up after the AI has written the important memory back into `Stack`
 - the next memory layer after this Stack-first rollout is reviewed project documents: hours-long Claude Desktop / ChatGPT discussions should not be auto-saved blindly; the default flow should be propose what to keep, let the user confirm, then save reviewed typed docs with flat topic classification instead of raw transcripts
-- the concrete next-slice contract for this review-first lane now lives in `docs/MCP-Polish-Plan.md`, including `Prompt / Memory` terminology, `propose_document_saves`, and chat-first save review
+- the concrete next-slice contract for this review-first lane now lives in `docs/MCP-Polish-Plan.md`, and the paired eval runbook now lives in `docs/MCP-Polish-Eval-Plan.md`
 - an AI execution step should update copied state on the source Stack notes directly
 - intermediate board and work-item layers add complexity without helping the MCP bridge
 

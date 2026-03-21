@@ -1,4 +1,4 @@
-# Warm MCP Eval Plan
+# MCP Polish Eval Plan
 
 Purpose: dogfood the first Warm MCP tools against the way people actually ask for durable memory writes, not against storage internals.
 
@@ -89,7 +89,7 @@ Use these repo docs as the primary source corpus:
 - `docs/Execution-PRD.md`
 - `docs/Implementation-Plan.md`
 - `docs/MCP-Platform-Expansion-Research.md`
-- `docs/Warm-MCP-Eval-Plan.md`
+- `docs/MCP-Polish-Eval-Plan.md`
 
 When the eval needs the latest implemented Warm behavior, also inspect the current code:
 
@@ -119,7 +119,7 @@ Context:
   - docs/Execution-PRD.md
   - docs/Implementation-Plan.md
   - docs/MCP-Platform-Expansion-Research.md
-  - docs/Warm-MCP-Eval-Plan.md
+  - docs/MCP-Polish-Eval-Plan.md
 - Also inspect the current Warm implementation in:
   - Sources/BacktickMCPServer/BacktickMCPServerSession.swift
   - PromptCue/Services/ProjectDocumentStore.swift
@@ -207,7 +207,7 @@ Corpus for the run:
 - `docs/Execution-PRD.md`
 - `docs/Implementation-Plan.md`
 - `docs/MCP-Polish-Plan.md`
-- `docs/Warm-MCP-Eval-Plan.md`
+- `docs/MCP-Polish-Eval-Plan.md`
 - `Sources/BacktickMCPServer/BacktickMCPServerSession.swift`
 - `PromptCue/Services/ProjectDocumentStore.swift`
 
@@ -483,7 +483,7 @@ Primary source docs for this suite:
 - `docs/Implementation-Plan.md`
 - `docs/MCP-Polish-Plan.md`
 - `docs/MCP-Platform-Expansion-Research.md`
-- `docs/Warm-MCP-Eval-Plan.md`
+- `docs/MCP-Polish-Eval-Plan.md`
 
 For every case below:
 
@@ -540,7 +540,7 @@ Source docs:
 
 - `docs/MCP-Polish-Plan.md`
 - `docs/MCP-Platform-Expansion-Research.md`
-- `docs/Warm-MCP-Eval-Plan.md`
+- `docs/MCP-Polish-Eval-Plan.md`
 
 Prompt:
 
@@ -754,7 +754,7 @@ Current `inferredDocumentType` scoring is substring-based and too literal.
 
 That means repo-grounding text can accidentally bias the type:
 
-- file names like `docs/MCP-Polish-Plan.md` and `docs/Warm-MCP-Eval-Plan.md` contain `plan`
+- file names like `docs/MCP-Polish-Plan.md` and `docs/MCP-Polish-Eval-Plan.md` contain `plan`
 - the current scorer can treat those file references as execution-plan evidence even when the document itself is really a `decision` or `reference`
 
 This is why a semantically valid durable doc can still be stored under the weaker type.
@@ -1068,6 +1068,29 @@ Expected:
 - no save when the user only asked for recall or answer-time context
 - no unnecessary whole-doc rewrite for section-level deltas
 
+## Schema Freshness And Naming Eval
+
+This eval doc should also verify whether connected clients are actually seeing the latest MCP contract.
+
+What to verify:
+
+- the connected client is using the intended helper path, not an old repo build by accident
+- tool descriptions match the current bundled-helper `initialize` / `tools/list` output
+- after schema changes, the client-specific refresh step was actually performed
+- branded Backtick tool names improve summonability without making the tool list noisy
+
+Client-specific refresh checks:
+
+- `Claude Code`: reconnect or rely on `list_changed` only if the server explicitly supports it
+- `ChatGPT`: refresh the app in developer-mode settings to pull the newest tools and descriptions
+- `Codex`: start a fresh session after schema or tool-name changes
+
+Naming eval checks:
+
+- saying `Backtick` should be enough to reach the Memory tools in common save/recall prompts
+- saying `Backtick connector` should not be materially better than saying `Backtick`
+- branded tool names should outperform generic names when the model is choosing among overlapping tools
+
 ## Failure Patterns To Track
 
 - `plan` vs `reference` confusion
@@ -1077,6 +1100,9 @@ Expected:
 - creating duplicate topics
 - over-eager save on read-only asks
 - transcript-shaped content instead of reviewed markdown
+- stale tool descriptions after a helper update
+- client config still pointing to an old helper path
+- summonability that only improves when the user says `Backtick connector`
 
 ## Recorded Results
 

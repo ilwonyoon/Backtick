@@ -36,12 +36,12 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
         let executionPRD = try String(contentsOf: repoRootURL.appendingPathComponent("docs/Execution-PRD.md"))
         let implementationPlan = try String(contentsOf: repoRootURL.appendingPathComponent("docs/Implementation-Plan.md"))
         let mcpResearch = try String(contentsOf: repoRootURL.appendingPathComponent("docs/MCP-Platform-Expansion-Research.md"))
-        let warmEvalPlan = try String(contentsOf: repoRootURL.appendingPathComponent("docs/Warm-MCP-Eval-Plan.md"))
+        let mcpPolishEvalPlan = try String(contentsOf: repoRootURL.appendingPathComponent("docs/MCP-Polish-Eval-Plan.md"))
 
         XCTAssertTrue(executionPRD.contains("Backtick"))
         XCTAssertTrue(implementationPlan.contains("Warm"))
         XCTAssertTrue(mcpResearch.contains("ProjectDocument"))
-        XCTAssertTrue(warmEvalPlan.contains("list_documents"))
+        XCTAssertTrue(mcpPolishEvalPlan.contains("list_documents"))
 
         let project = "Backtick-eval-codex"
         let session = await makeSession()
