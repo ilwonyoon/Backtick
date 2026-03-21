@@ -156,6 +156,71 @@ struct MCPServerLaunchSpec: Equatable {
     }
 }
 
+enum BacktickMCPToolSurface {
+    static let canonicalNames = [
+        "list_notes",
+        "get_note",
+        "create_note",
+        "update_note",
+        "delete_note",
+        "mark_notes_executed",
+        "classify_notes",
+        "group_notes",
+        "get_started",
+        "list_documents",
+        "recall_document",
+        "propose_document_saves",
+        "save_document",
+        "update_document",
+        "delete_document",
+    ]
+
+    private static let exposedNamesByCanonical = [
+        "list_notes": "backtick_list_notes",
+        "get_note": "backtick_get_note",
+        "create_note": "backtick_create_note",
+        "update_note": "backtick_update_note",
+        "delete_note": "backtick_delete_note",
+        "mark_notes_executed": "backtick_complete_notes",
+        "classify_notes": "backtick_classify_notes",
+        "group_notes": "backtick_group_notes",
+        "get_started": "backtick_get_started",
+        "list_documents": "backtick_list_docs",
+        "recall_document": "backtick_recall_doc",
+        "propose_document_saves": "backtick_propose_save",
+        "save_document": "backtick_save_doc",
+        "update_document": "backtick_update_doc",
+        "delete_document": "backtick_delete_doc",
+    ]
+
+    static func exposedName(for canonicalName: String) -> String {
+        exposedNamesByCanonical[canonicalName] ?? "backtick_\(canonicalName)"
+    }
+
+    static let currentExposedToolNames = Set(canonicalNames.map(exposedName))
+
+    static let expectedCoreToolNames = [
+        exposedName(for: "list_notes"),
+        exposedName(for: "get_note"),
+        exposedName(for: "create_note"),
+        exposedName(for: "update_note"),
+        exposedName(for: "delete_note"),
+        exposedName(for: "mark_notes_executed"),
+    ]
+
+    static let verificationToolName = exposedName(for: "get_started")
+
+    static func isLegacyAlias(_ toolName: String) -> Bool {
+        canonicalNames.contains(toolName) || oldBrandedAliases.contains(toolName)
+    }
+
+    private static let oldBrandedAliases: Set<String> = Set(
+        canonicalNames
+            .map { "backtick_\($0)" }
+            .filter { !currentExposedToolNames.contains($0) }
+    )
+}
+
 struct MCPConnectorClientStatus: Equatable {
     let client: MCPConnectorClient
     let cliPath: String?
@@ -422,6 +487,17 @@ private struct ExperimentalMCPHTTPRemoteRequestActivity: Equatable {
         }
 
         return components.joined(separator: " · ")
+    }
+
+    var usesLegacyToolAlias: Bool {
+        guard rpcMethod == "tools/call",
+              targetKind == "tool",
+              let targetName,
+              !targetName.isEmpty else {
+            return false
+        }
+
+        return BacktickMCPToolSurface.isLegacyAlias(targetName)
     }
 }
 
@@ -1653,8 +1729,20 @@ final class MCPConnectorSettingsModel: ObservableObject {
     var experimentalRemoteIsConnected: Bool {
         experimentalRemoteLastOAuthFailure == nil
             && experimentalRemoteLastSuccessfulRequest != nil
+            && !experimentalRemoteNeedsSchemaRefresh
             && experimentalRemoteRuntimeState == .running
             && experimentalRemoteProbeIssue == nil
+    }
+
+    var experimentalRemoteNeedsSchemaRefresh: Bool {
+        guard experimentalRemoteLastOAuthFailure == nil,
+              experimentalRemoteRuntimeState == .running,
+              experimentalRemoteProbeIssue == nil,
+              let request = experimentalRemoteLastSuccessfulRequest else {
+            return false
+        }
+
+        return request.usesLegacyToolAlias
     }
 
     var experimentalRemoteShouldShowInlinePublicBaseURL: Bool {
@@ -1730,6 +1818,11 @@ final class MCPConnectorSettingsModel: ObservableObject {
         if let experimentalRemoteProbeIssue,
            experimentalRemoteRuntimeState == .running {
             return statusPresentationForProbeIssue(experimentalRemoteProbeIssue)
+        }
+
+        if experimentalRemoteNeedsSchemaRefresh,
+           let requestActivity = experimentalRemoteLastSuccessfulRequest {
+            return statusPresentationForSchemaRefresh(requestActivity)
         }
 
         if experimentalRemoteIsConnected {
@@ -2996,6 +3089,21 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
     }
 
+    private func statusPresentationForSchemaRefresh(
+        _ requestActivity: ExperimentalMCPHTTPRemoteRequestActivity
+    ) -> ExperimentalMCPHTTPStatusPresentation {
+        let surfaceTitle = requestActivity.surface.fullTitle
+        let toolName = requestActivity.targetName ?? "a legacy Backtick tool"
+
+        return ExperimentalMCPHTTPStatusPresentation(
+            title: "Refresh needed",
+            reason: "\(surfaceTitle) is still calling Backtick with the older tool name `\(toolName)`. Refresh the Backtick app in ChatGPT web, or recreate it there, so ChatGPT pulls the latest tool surface. ChatGPT macOS uses the same app as web.",
+            detail: "Recent request: \(requestActivity.summary).",
+            tone: .warning,
+            action: nil
+        )
+    }
+
     private func statusPresentationForRuntimeFailure(
         detail: String
     ) -> ExperimentalMCPHTTPStatusPresentation {
@@ -3208,36 +3316,8 @@ struct MCPConnectorTerminalLauncher: MCPConnectorTerminalLaunching {
 }
 
 struct MCPServerSelfTester: MCPServerConnectionTesting {
-    private static func brandedToolName(_ canonicalName: String) -> String {
-        switch canonicalName {
-        case "mark_notes_executed":
-            return "backtick_complete_notes"
-        case "list_documents":
-            return "backtick_list_docs"
-        case "recall_document":
-            return "backtick_recall_doc"
-        case "propose_document_saves":
-            return "backtick_propose_save"
-        case "save_document":
-            return "backtick_save_doc"
-        case "update_document":
-            return "backtick_update_doc"
-        case "delete_document":
-            return "backtick_delete_doc"
-        default:
-            return "backtick_\(canonicalName)"
-        }
-    }
-
-    private static let expectedToolNames = [
-        brandedToolName("list_notes"),
-        brandedToolName("get_note"),
-        brandedToolName("create_note"),
-        brandedToolName("update_note"),
-        brandedToolName("delete_note"),
-        brandedToolName("mark_notes_executed"),
-    ]
-    private static let verificationToolName = brandedToolName("get_started")
+    private static let expectedToolNames = BacktickMCPToolSurface.expectedCoreToolNames
+    private static let verificationToolName = BacktickMCPToolSurface.verificationToolName
 
     func run(launchSpec: MCPServerLaunchSpec) async -> MCPServerConnectionState {
         await Task.detached(priority: .utility) {

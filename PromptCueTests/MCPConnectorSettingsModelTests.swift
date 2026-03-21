@@ -6,6 +6,10 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     private var repositoryRootURL: URL!
     private var homeDirectoryURL: URL!
 
+    private func exposedToolName(_ canonicalName: String) -> String {
+        BacktickMCPToolSurface.exposedName(for: canonicalName)
+    }
+
     override func setUpWithError() throws {
         try super.setUpWithError()
         tempDirectoryURL = FileManager.default.temporaryDirectory
@@ -477,8 +481,15 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
 
         let expectedReport = MCPServerConnectionReport(
             protocolVersion: "2025-03-26",
-            toolNames: ["list_notes", "get_note", "create_note", "update_note", "delete_note", "mark_notes_executed"],
-            verifiedToolName: "get_started"
+            toolNames: [
+                exposedToolName("list_notes"),
+                exposedToolName("get_note"),
+                exposedToolName("create_note"),
+                exposedToolName("update_note"),
+                exposedToolName("delete_note"),
+                exposedToolName("mark_notes_executed"),
+            ],
+            verifiedToolName: exposedToolName("get_started")
         )
         let model = MCPConnectorSettingsModel(
             inspector: makeInspector(),
@@ -498,7 +509,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.clientSetupTitle(for: claude), "Set up")
         XCTAssertEqual(model.clientVerificationTitle(for: claude), "Configured")
         XCTAssertTrue(model.clientSummary(for: claude).contains("local check passed"))
-        XCTAssertTrue(model.serverTestDetail.contains("get_started"))
+        XCTAssertTrue(model.serverTestDetail.contains(exposedToolName("get_started")))
         XCTAssertEqual(model.connectedToolNames(for: claude), expectedReport.toolNames)
         XCTAssertEqual(model.clientNextStepTitle(for: claude), "Use Backtick in Claude Code")
         XCTAssertNil(model.primaryAction(for: claude))
@@ -592,8 +603,12 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
 
         let expectedReport = MCPServerConnectionReport(
             protocolVersion: "2025-03-26",
-            toolNames: ["list_notes", "get_note", "create_note"],
-            verifiedToolName: "get_started"
+            toolNames: [
+                exposedToolName("list_notes"),
+                exposedToolName("get_note"),
+                exposedToolName("create_note"),
+            ],
+            verifiedToolName: exposedToolName("get_started")
         )
         let model = MCPConnectorSettingsModel(
             inspector: makeInspector(),
@@ -663,8 +678,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         let tester = RecordingConnectionTester(state: .passed(
             MCPServerConnectionReport(
                 protocolVersion: "2025-03-26",
-                toolNames: ["list_notes"],
-                verifiedToolName: "get_started"
+                toolNames: [exposedToolName("list_notes")],
+                verifiedToolName: exposedToolName("get_started")
             )
         ))
         let model = MCPConnectorSettingsModel(
@@ -723,7 +738,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             clientName: "claude-code",
             clientVersion: "1.0.0",
             sessionID: "session-1",
-            toolName: "list_documents",
+            toolName: exposedToolName("list_documents"),
             recordedAt: Date(timeIntervalSinceNow: -3 * 24 * 60 * 60),
             configuredClientID: "claudeCode",
             launchCommand: executableURL.path,
@@ -739,7 +754,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.clientVerificationTitle(for: claude), "Connected")
         XCTAssertEqual(model.clientNextStepTitle(for: claude), "Backtick is connected")
         XCTAssertNil(model.primaryAction(for: claude))
-        XCTAssertEqual(model.actualConnectionActivity(for: claude)?.toolName, "list_documents")
+        XCTAssertEqual(model.actualConnectionActivity(for: claude)?.toolName, exposedToolName("list_documents"))
         XCTAssertTrue(model.clientSummary(for: claude).contains("Last used"))
         XCTAssertTrue(model.clientProgressSummary(for: claude).contains("Last used"))
         XCTAssertTrue(model.clientNextStepDetail(for: claude).contains("Last used"))
@@ -784,7 +799,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             clientName: "claude-code",
             clientVersion: "1.0.0",
             sessionID: "session-2",
-            toolName: "list_documents",
+            toolName: exposedToolName("list_documents"),
             recordedAt: Date(),
             configuredClientID: "claudeCode",
             launchCommand: "/tmp/other/BacktickMCP",
@@ -840,7 +855,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             clientName: "claude-code",
             clientVersion: "1.0.0",
             sessionID: "session-old",
-            toolName: "list_documents",
+            toolName: exposedToolName("list_documents"),
             recordedAt: Date(timeIntervalSinceNow: -45 * 24 * 60 * 60),
             configuredClientID: "claudeCode",
             launchCommand: executableURL.path,
@@ -858,7 +873,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertTrue(model.clientSummary(for: claude).contains("Last used"))
         XCTAssertTrue(model.clientProgressSummary(for: claude).contains("Last used"))
         XCTAssertTrue(model.clientNextStepDetail(for: claude).contains("Last used"))
-        XCTAssertEqual(model.actualConnectionActivity(for: claude)?.toolName, "list_documents")
+        XCTAssertEqual(model.actualConnectionActivity(for: claude)?.toolName, exposedToolName("list_documents"))
     }
 
     @MainActor
@@ -903,8 +918,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
 
         let report = MCPServerConnectionReport(
             protocolVersion: "2025-03-26",
-            toolNames: ["list_notes"],
-            verifiedToolName: "get_started"
+            toolNames: [exposedToolName("list_notes")],
+            verifiedToolName: exposedToolName("get_started")
         )
         let model = MCPConnectorSettingsModel(
             inspector: makeInspector(),
@@ -1010,7 +1025,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             clientName: "claude-code",
             clientVersion: "1.0.0",
             sessionID: "session-both",
-            toolName: "list_documents",
+            toolName: exposedToolName("list_documents"),
             recordedAt: Date(timeIntervalSinceNow: -2 * 24 * 60 * 60),
             configuredClientID: "claudeCode",
             launchCommand: homeExecutableURL.path,
@@ -1090,8 +1105,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
 
         let report = MCPServerConnectionReport(
             protocolVersion: "2025-03-26",
-            toolNames: ["list_notes"],
-            verifiedToolName: "get_started"
+            toolNames: [exposedToolName("list_notes")],
+            verifiedToolName: exposedToolName("get_started")
         )
         let tester = RecordingConnectionTester(state: .passed(report))
         let model = MCPConnectorSettingsModel(
@@ -1622,17 +1637,43 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
         model.setExperimentalRemoteRuntimeState(.running)
         model.recordExperimentalRemoteHelperLog(
-            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=312 rpcMethod=tools/call targetKind=tool targetName=list_documents"
+            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=312 rpcMethod=tools/call targetKind=tool targetName=backtick_list_docs"
         )
 
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Connected on Web")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .success)
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .copyPublicMCPURL)
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("ChatGPT web"))
-        XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("Web · tools/call · list_documents") == true)
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("Web · tools/call · backtick_list_docs") == true)
 
         _ = model.updateExperimentalRemotePublicBaseURL("https://new-backtick.test")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Ready to connect")
+    }
+
+    @MainActor
+    func testExperimentalRemoteStatusPresentationShowsRefreshNeededWhenRemoteUsesLegacyToolName() {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
+        model.setExperimentalRemoteRuntimeState(.running)
+        model.recordExperimentalRemoteHelperLog(
+            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=312 rpcMethod=tools/call targetKind=tool targetName=list_documents"
+        )
+
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Refresh needed")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)
+        XCTAssertNil(model.experimentalRemoteStatusPresentation.action)
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("older tool name `list_documents`"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("Refresh the Backtick app in ChatGPT web"))
+        XCTAssertTrue(model.experimentalRemoteShouldShowInlineChatGPTMCPURL)
+        XCTAssertFalse(model.experimentalRemoteIsConnected)
     }
 
     @MainActor
@@ -1655,14 +1696,14 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Reconnect needed")
 
         model.recordExperimentalRemoteHelperLog(
-            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=288 rpcMethod=tools/call targetKind=tool targetName=recall_document"
+            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=288 rpcMethod=tools/call targetKind=tool targetName=backtick_recall_doc"
         )
 
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Some ChatGPT surfaces need reconnect")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .resetLocalState)
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("another stays stale"))
-        XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("Web · tools/call · recall_document") == true)
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("Web · tools/call · backtick_recall_doc") == true)
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("iPhone · invalid_grant · refresh_token") == true)
     }
 
@@ -1686,7 +1727,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Reconnect needed")
 
         model.recordExperimentalRemoteHelperLog(
-            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=244 rpcMethod=tools/call targetKind=tool targetName=list_documents"
+            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=244 rpcMethod=tools/call targetKind=tool targetName=backtick_list_docs"
         )
 
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Connected on Web")
@@ -1735,7 +1776,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
         model.setExperimentalRemoteRuntimeState(.running)
         model.recordExperimentalRemoteHelperLog(
-            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=188 rpcMethod=tools/call targetKind=tool targetName=list_documents"
+            "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=188 rpcMethod=tools/call targetKind=tool targetName=backtick_list_docs"
         )
         model.refreshExperimentalRemoteProbe()
         try? await Task.sleep(nanoseconds: 50_000_000)
