@@ -1423,6 +1423,12 @@ struct PromptCueSettingsView: View {
                             message: failureDetail,
                             tone: .danger
                         )
+                    } else if let driftDetail = mcpConnectorSettingsModel.clientConfigDriftDetail(for: client) {
+                        connectorNotice(
+                            title: "Reconnect Backtick.",
+                            message: driftDetail,
+                            tone: .warning
+                        )
                     } else if client.hasOtherConfigFiles, !client.hasConfiguredScope {
                         connectorNotice(
                             title: "Backtick is missing from this config.",

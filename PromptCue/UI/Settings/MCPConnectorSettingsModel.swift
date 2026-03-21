@@ -2027,6 +2027,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return nil
         }
 
+        if hasConfiguredHelperDrift(for: client) {
+            return "Needs attention"
+        }
+
         switch readinessState(for: client) {
         case .connected:
             return "Connected"
@@ -2044,6 +2048,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func clientSummary(for client: MCPConnectorClientStatus) -> String {
         if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "Install \(client.client.title) on this Mac first, then come back to set up Backtick."
+        }
+
+        if hasConfiguredHelperDrift(for: client) {
+            return "This \(client.client.title) config still points to an older Backtick MCP helper. Click Connect to rewrite it to the current helper, then restart \(client.client.title)."
         }
 
         if !client.hasConfiguredScope {
@@ -2120,6 +2128,11 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return "\(client.client.title) is required before Backtick can connect here."
         }
 
+        if hasConfiguredHelperDrift(for: client) {
+            let location = client.configuredScope?.title ?? "Unknown"
+            return "Backtick is configured in \(location), but that config still points to an older helper."
+        }
+
         if !client.hasConfiguredScope {
             if client.hasOtherConfigFiles {
                 return "A config file already exists here, but Backtick has not been added yet."
@@ -2152,6 +2165,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func clientNextStepTitle(for client: MCPConnectorClientStatus) -> String {
         if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "Install \(client.client.title)"
+        }
+
+        if hasConfiguredHelperDrift(for: client) {
+            return "Reconnect to \(client.client.title)"
         }
 
         if !client.hasConfiguredScope {
@@ -2188,6 +2205,14 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func clientNextStepDetail(for client: MCPConnectorClientStatus) -> String {
         if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "Backtick works through \(client.client.title). Install it first, then come back here to finish setup."
+        }
+
+        if hasConfiguredHelperDrift(for: client) {
+            if client.client.usesDirectConfig {
+                return "Click Connect and Backtick will rewrite the config file to the current bundled helper. Restart \(client.client.title) after the rewrite."
+            }
+
+            return "Click Connect and Backtick will rerun the setup command so \(client.client.title) uses the current helper path. Restart \(client.client.title) after reconnecting."
         }
 
         if !client.hasConfiguredScope {
@@ -2259,11 +2284,11 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func primaryActionTitle(for client: MCPConnectorClientStatus) -> String? {
         switch primaryAction(for: client) {
         case .writeConfig:
-            return "Connect"
+            return hasConfiguredHelperDrift(for: client) ? "Reconnect" : "Connect"
         case .launchTerminalSetup:
-            return "Connect"
+            return hasConfiguredHelperDrift(for: client) ? "Reconnect" : "Connect"
         case .copyAddCommand:
-            return "Set Up"
+            return hasConfiguredHelperDrift(for: client) ? "Reconnect" : "Set Up"
         case .openDocumentation:
             return "Install \(client.client.title)"
         case .runServerTest:
@@ -2286,6 +2311,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     func troubleshootingTitle(for client: MCPConnectorClientStatus) -> String {
+        if hasConfiguredHelperDrift(for: client) {
+            return "Fix This"
+        }
+
         if clientFailureDetail(for: client) != nil {
             return "Fix This"
         }
@@ -2313,6 +2342,14 @@ final class MCPConnectorSettingsModel: ObservableObject {
         return failure.detail
     }
 
+    func clientConfigDriftDetail(for client: MCPConnectorClientStatus) -> String? {
+        guard hasConfiguredHelperDrift(for: client) else {
+            return nil
+        }
+
+        return "This config is still pointing at an older Backtick MCP helper path. Reconnect Backtick so this client picks up the current helper and tool descriptions."
+    }
+
     func connectedToolNames(for client: MCPConnectorClientStatus) -> [String] {
         guard client.hasConfiguredScope else {
             return []
@@ -2327,6 +2364,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     func primaryAction(for client: MCPConnectorClientStatus) -> MCPConnectorPrimaryAction? {
         if client.client.usesDirectConfig {
+            if hasConfiguredHelperDrift(for: client) {
+                return inspection.launchSpec == nil ? nil : .writeConfig
+            }
+
             if !client.hasConfiguredScope {
                 return inspection.launchSpec == nil ? nil : .writeConfig
             }
@@ -2346,6 +2387,18 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         if !client.hasDetectedCLI {
             return .openDocumentation
+        }
+
+        if hasConfiguredHelperDrift(for: client) {
+            guard inspection.status(for: client.client).addCommand != nil else {
+                return nil
+            }
+
+            if client.client.supportsTerminalSetupAutomation {
+                return .launchTerminalSetup
+            }
+
+            return .copyAddCommand
         }
 
         if !client.hasConfiguredScope {
@@ -2529,13 +2582,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         guard let launchSpec = inspection.launchSpec else { return }
-        let configuredLaunchSpec = MCPServerLaunchSpec(
-            command: launchSpec.command,
-            arguments: launchSpec.arguments,
-            environment: launchSpec.environment.merging(
-                [MCPConnectorInspector.connectorClientEnvironmentKey: client.rawValue]
-            ) { _, newValue in newValue }
-        )
+        let configuredLaunchSpec = configuredLaunchSpec(for: client, launchSpec: launchSpec)
 
         let configURL = URL(fileURLWithPath: inspection.status(for: client).homeConfig.path)
 
@@ -2695,6 +2742,33 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         return lhs.allSatisfy(rhs.contains)
+    }
+
+    private func configuredLaunchSpec(
+        for client: MCPConnectorClient,
+        launchSpec: MCPServerLaunchSpec
+    ) -> MCPServerLaunchSpec {
+        MCPServerLaunchSpec(
+            command: launchSpec.command,
+            arguments: launchSpec.arguments,
+            environment: launchSpec.environment.merging(
+                [MCPConnectorInspector.connectorClientEnvironmentKey: client.rawValue]
+            ) { _, newValue in newValue }
+        )
+    }
+
+    private func hasConfiguredHelperDrift(for client: MCPConnectorClientStatus) -> Bool {
+        guard let launchSpec = inspection.launchSpec else {
+            return false
+        }
+
+        let expectedLaunchSpec = configuredLaunchSpec(for: client.client, launchSpec: launchSpec)
+        let configuredLaunchSpecs = client.configuredLaunchSpecs
+        guard !configuredLaunchSpecs.isEmpty else {
+            return false
+        }
+
+        return !configuredLaunchSpecs.contains(expectedLaunchSpec)
     }
 
     private func resolvedVerificationClient(explicitClient: MCPConnectorClient?) -> MCPConnectorClient? {

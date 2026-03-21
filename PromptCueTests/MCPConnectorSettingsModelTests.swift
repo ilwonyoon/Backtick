@@ -161,6 +161,135 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertTrue(inspection.status(for: .codex).configSnippet?.contains("BacktickMCP") == true)
     }
 
+    @MainActor
+    func testClaudeCodeReconnectsWhenConfiguredHelperPathIsStale() throws {
+        let repoExecutableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: repoExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: repoExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: repoExecutableURL.path
+        )
+
+        let appBundleURL = tempDirectoryURL
+            .appendingPathComponent("Prompt Cue.app", isDirectory: true)
+        let bundledHelperURL = appBundleURL
+            .appendingPathComponent("Contents/Helpers", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: bundledHelperURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: bundledHelperURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: bundledHelperURL.path
+        )
+
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(repoExecutableURL.path)",
+              "args": [],
+              "env": {
+                "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+              }
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(applicationBundleURL: appBundleURL),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Needs attention")
+        XCTAssertTrue(model.clientSummary(for: claude).contains("older Backtick MCP helper"))
+        XCTAssertEqual(model.clientProgressSummary(for: claude), "Backtick is configured in Project, but that config still points to an older helper.")
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Reconnect to Claude Code")
+        XCTAssertTrue(model.clientNextStepDetail(for: claude).contains("current helper path"))
+        XCTAssertEqual(model.primaryAction(for: claude), .launchTerminalSetup)
+        XCTAssertEqual(model.primaryActionTitle(for: claude), "Reconnect")
+        XCTAssertEqual(model.troubleshootingTitle(for: claude), "Fix This")
+        XCTAssertNotNil(model.clientConfigDriftDetail(for: claude))
+    }
+
+    @MainActor
+    func testClaudeDesktopReconnectsWhenConfiguredHelperPathIsStale() throws {
+        let repoExecutableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: repoExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: repoExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: repoExecutableURL.path
+        )
+
+        let appBundleURL = tempDirectoryURL
+            .appendingPathComponent("Prompt Cue.app", isDirectory: true)
+        let bundledHelperURL = appBundleURL
+            .appendingPathComponent("Contents/Helpers", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: bundledHelperURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: bundledHelperURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: bundledHelperURL.path
+        )
+
+        let configURL = homeDirectoryURL
+            .appendingPathComponent(MCPConnectorClient.claudeDesktop.homeConfigRelativePath)
+        try FileManager.default.createDirectory(
+            at: configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(repoExecutableURL.path)",
+              "args": [],
+              "env": {
+                "BACKTICK_CONNECTOR_CLIENT": "claudeDesktop"
+              }
+            }
+          }
+        }
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(applicationBundleURL: appBundleURL),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+        let desktop = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeDesktop }))
+
+        XCTAssertEqual(model.clientVerificationTitle(for: desktop), "Needs attention")
+        XCTAssertEqual(model.clientNextStepTitle(for: desktop), "Reconnect to Claude Desktop")
+        XCTAssertTrue(model.clientNextStepDetail(for: desktop).contains("rewrite the config file"))
+        XCTAssertEqual(model.primaryAction(for: desktop), .writeConfig)
+        XCTAssertEqual(model.primaryActionTitle(for: desktop), "Reconnect")
+        XCTAssertNotNil(model.clientConfigDriftDetail(for: desktop))
+    }
+
     func testInspectorFallsBackToSwiftRunAndDetectsHomeConfigs() throws {
         let claudeHomeConfigURL = homeDirectoryURL.appendingPathComponent(".claude.json")
         try """
