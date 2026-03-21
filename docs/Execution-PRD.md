@@ -319,6 +319,19 @@ The App Sandbox introduces extra complexity around screenshot folder access and 
 - Stack mode is the place where saved thoughts become exportable execution material.
 - Very long cards do not break stack layout; overflow remains readable and discoverable.
 
+## Connector Verification Contract
+
+For Settings-based MCP connectors, product status must separate `Configured` from `Verified locally`.
+
+- `Configured` means Backtick found a client config entry that points that client at a Backtick MCP launch command.
+- `Verified locally` means Backtick launched that exact configured command in isolated temp storage and the server completed:
+  - `initialize`
+  - `notifications/initialized`
+  - `tools/list`
+  - one safe read-only `tools/call`
+- Settings must not imply a connector is verified based only on config presence, process launch, or `tools/list`.
+- Settings must not imply client-specific approval or automation flows are proven unless those flows were actually exercised from that client.
+
 ## Technical Risks
 
 - Global shortcut behavior can be brittle if implemented with the wrong system approach.

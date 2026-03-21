@@ -227,17 +227,24 @@ Current MCP scope split:
 Current MCP platform queue:
 
 1. keep stdio connectors stable for `Claude Desktop`, `Claude Code`, and `Codex`
-2. keep ChatGPT remote MCP clearly marked `experimental self-hosted`
-3. improve stale-app reset, reconnect, and health UX for the ChatGPT path, but keep the visible UX limited to current state, one-line reason, and one next action; then lock the failure matrix behind repeatable stress coverage instead of one-off fixes
-4. upgrade the ChatGPT connector from merely `Running` to `Connected` only after Backtick sees a successful remote `/mcp` call from the current app setup
-5. add a short access-token TTL lane so expiry + refresh recovery is proven in minutes, not after a full real-time wait
-6. keep the minimal sleep/wake + tunnel-drift lane active now: recheck helper health on foreground / wake and collapse any local/public endpoint failure back to one recovery state without adding more UI chrome
-7. return main product priority to the remaining non-tag `Phase R7` follow-up plus grouped export and stack-refactor validation work
-8. lock the post-launch Warm memory contract so long AI discussions save into reviewed project documents with explicit `documentType` plus topic classification
-9. do not blur shipped Stack MCP, experimental ChatGPT remote MCP, and post-launch Warm memory into one roadmap bucket
-10. keep ChatGPT distribution on the advanced-user self-hosted track; hosted relay / managed distribution is not in the active plan
-11. treat `docs/MCP-Platform-Expansion-Research.md` as the MCP execution reference and `docs/Mem0-Takeaways-for-Backtick.md` as the Warm-memory filter before starting any new MCP follow-on
-12. keep the first Warm slice narrow: `ProjectDocument` storage, two-tier retrieval (`list_documents` discovery vs `recall_document` full recall), proactive save/recall tool descriptions, and human-reviewed Hot -> Warm promotion
+2. upgrade shipped stdio verification so `Configured` and `Verified locally` are separate product states
+3. the stdio `Verified locally` contract should require:
+   - exact configured launch command
+   - `initialize`
+   - `notifications/initialized`
+   - `tools/list`
+   - one safe read-only `tools/call`
+4. keep ChatGPT remote MCP clearly marked `experimental self-hosted`
+5. improve stale-app reset, reconnect, and health UX for the ChatGPT path, but keep the visible UX limited to current state, one-line reason, and one next action; then lock the failure matrix behind repeatable stress coverage instead of one-off fixes
+6. upgrade the ChatGPT connector from merely `Running` to `Connected` only after Backtick sees a successful remote `/mcp` call from the current app setup
+7. add a short access-token TTL lane so expiry + refresh recovery is proven in minutes, not after a full real-time wait
+8. keep the minimal sleep/wake + tunnel-drift lane active now: recheck helper health on foreground / wake and collapse any local/public endpoint failure back to one recovery state without adding more UI chrome
+9. return main product priority to the remaining non-tag `Phase R7` follow-up plus grouped export and stack-refactor validation work
+10. lock the post-launch Warm memory contract so long AI discussions save into reviewed project documents with explicit `documentType` plus topic classification
+11. do not blur shipped Stack MCP, experimental ChatGPT remote MCP, and post-launch Warm memory into one roadmap bucket
+12. keep ChatGPT distribution on the advanced-user self-hosted track; hosted relay / managed distribution is not in the active plan
+13. treat `docs/MCP-Platform-Expansion-Research.md` as the MCP execution reference and `docs/Mem0-Takeaways-for-Backtick.md` as the Warm-memory filter before starting any new MCP follow-on
+14. keep the first Warm slice narrow: `ProjectDocument` storage, two-tier retrieval (`list_documents` discovery vs `recall_document` full recall), proactive save/recall tool descriptions, and human-reviewed Hot -> Warm promotion
 
 ChatGPT remote MCP reliability floor:
 
@@ -306,7 +313,8 @@ Landed `MCP6` gate:
 Landed `MCP7` gate:
 
 - Settings `Connectors` now shows `What It Does`, `Setup Flow`, `Launch Command`, and `Server Test`
-- the local server self-test validates `initialize` and `tools/list` directly from Settings and promotes a configured client to `Connected`
+- the local server self-test now uses the exact client-configured launch command from Settings instead of assuming the current app helper path
+- the current validation floor is `initialize` plus `tools/list`; this is setup validation, not yet a full `Verified locally` contract
 - failure states keep specific detail for launch failure, invalid response, missing tools, and other local validation issues
 - `Claude Code` now shows an automation lane for `--permission-mode dontAsk` with a copyable `--allowedTools` example
 - existing connector inspection actions remain intact while setup guidance moved into the same Settings surface
@@ -319,7 +327,8 @@ Post-`MCP5` rollout:
   - copyable config/install instructions
 - `MCP7` adds guided setup and validation so the user can connect a client and confirm the MCP handshake works
   - guided setup explains what MCP means in Backtick terms and walks the user through config plus validation
-  - initial validation is a Backtick-owned local self-test of the launch command and tool surface
+  - current validation is a Backtick-owned local self-test of the exact configured launch command plus the MCP tool surface
+  - follow-up contract: only call a connector `Verified locally` after `initialize`, `notifications/initialized`, `tools/list`, and one safe read-only `tools/call` succeed
   - Claude gets a separate automation lane for `--permission-mode dontAsk`
   - product error handling should separate `tool permission denied` from launch/connect failures
 - connector UX refinement keeps that surface terse and action-first
