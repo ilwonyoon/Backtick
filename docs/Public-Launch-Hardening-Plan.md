@@ -344,6 +344,7 @@ Current master-owned script entrypoints:
 
 - `scripts/archive_signed_release.sh`
 - `scripts/run_h6_verification.sh`
+- operator execution checklist: `docs/DMG-Launch-Checklist.md`
 
 | Step | Command Shape / Action | Required Output | Blocking |
 | --- | --- | --- | --- |
