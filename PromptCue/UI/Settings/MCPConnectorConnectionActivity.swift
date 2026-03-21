@@ -12,10 +12,47 @@ struct MCPConnectorConnectionActivity: Decodable, Equatable {
     let clientVersion: String?
     let sessionID: String?
     let toolName: String
+    let requestedToolName: String?
     let recordedAt: Date
     let configuredClientID: String?
     let launchCommand: String?
     let launchArguments: [String]?
+
+    init(
+        transport: Transport,
+        surface: String?,
+        clientName: String?,
+        clientVersion: String?,
+        sessionID: String?,
+        toolName: String,
+        requestedToolName: String? = nil,
+        recordedAt: Date,
+        configuredClientID: String?,
+        launchCommand: String?,
+        launchArguments: [String]?
+    ) {
+        self.transport = transport
+        self.surface = surface
+        self.clientName = clientName
+        self.clientVersion = clientVersion
+        self.sessionID = sessionID
+        self.toolName = toolName
+        self.requestedToolName = requestedToolName
+        self.recordedAt = recordedAt
+        self.configuredClientID = configuredClientID
+        self.launchCommand = launchCommand
+        self.launchArguments = launchArguments
+    }
+
+    var usesLegacyToolAlias: Bool {
+        let requestedName = requestedToolName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let requestedName, !requestedName.isEmpty {
+            return BacktickMCPToolSurface.isLegacyAlias(requestedName)
+        }
+
+        return BacktickMCPToolSurface.isLegacyAlias(toolName)
+    }
 }
 
 private struct MCPConnectorConnectionActivityState: Decodable {

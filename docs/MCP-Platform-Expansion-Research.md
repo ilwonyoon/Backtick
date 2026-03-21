@@ -378,7 +378,7 @@ Backtick should **not** add a separate tool for each phrase. The cross-client co
 
 **Cross-client rule:** keep the core contract tool-first. Claude-side MCP prompts may later expose explicit workflows like `/save-prd` or `/save-latest-decisions`, but ChatGPT Developer Mode currently relies more directly on tool descriptions and argument schemas. Prompt-style shortcuts should be an additive Claude optimization, not the baseline Warm-memory contract.
 
-For manual dogfooding and prompt-based evaluation, use `docs/Warm-MCP-Eval-Plan.md`.
+For manual dogfooding and prompt-based evaluation, use `docs/MCP-Polish-Eval-Plan.md`.
 
 #### Tool description design — making AI proactive
 

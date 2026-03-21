@@ -156,6 +156,71 @@ struct MCPServerLaunchSpec: Equatable {
     }
 }
 
+enum BacktickMCPToolSurface {
+    static let canonicalNames = [
+        "list_notes",
+        "get_note",
+        "create_note",
+        "update_note",
+        "delete_note",
+        "mark_notes_executed",
+        "classify_notes",
+        "group_notes",
+        "get_started",
+        "list_documents",
+        "recall_document",
+        "propose_document_saves",
+        "save_document",
+        "update_document",
+        "delete_document",
+    ]
+
+    private static let exposedNamesByCanonical = [
+        "list_notes": "backtick_list_notes",
+        "get_note": "backtick_get_note",
+        "create_note": "backtick_create_note",
+        "update_note": "backtick_update_note",
+        "delete_note": "backtick_delete_note",
+        "mark_notes_executed": "backtick_complete_notes",
+        "classify_notes": "backtick_classify_notes",
+        "group_notes": "backtick_group_notes",
+        "get_started": "backtick_get_started",
+        "list_documents": "backtick_list_docs",
+        "recall_document": "backtick_recall_doc",
+        "propose_document_saves": "backtick_propose_save",
+        "save_document": "backtick_save_doc",
+        "update_document": "backtick_update_doc",
+        "delete_document": "backtick_delete_doc",
+    ]
+
+    static func exposedName(for canonicalName: String) -> String {
+        exposedNamesByCanonical[canonicalName] ?? "backtick_\(canonicalName)"
+    }
+
+    static let currentExposedToolNames = Set(canonicalNames.map(exposedName))
+
+    static let expectedCoreToolNames = [
+        exposedName(for: "list_notes"),
+        exposedName(for: "get_note"),
+        exposedName(for: "create_note"),
+        exposedName(for: "update_note"),
+        exposedName(for: "delete_note"),
+        exposedName(for: "mark_notes_executed"),
+    ]
+
+    static let verificationToolName = exposedName(for: "get_started")
+
+    static func isLegacyAlias(_ toolName: String) -> Bool {
+        canonicalNames.contains(toolName) || oldBrandedAliases.contains(toolName)
+    }
+
+    private static let oldBrandedAliases: Set<String> = Set(
+        canonicalNames
+            .map { "backtick_\($0)" }
+            .filter { !currentExposedToolNames.contains($0) }
+    )
+}
+
 struct MCPConnectorClientStatus: Equatable {
     let client: MCPConnectorClient
     let cliPath: String?
@@ -423,6 +488,17 @@ private struct ExperimentalMCPHTTPRemoteRequestActivity: Equatable {
 
         return components.joined(separator: " · ")
     }
+
+    var usesLegacyToolAlias: Bool {
+        guard rpcMethod == "tools/call",
+              targetKind == "tool",
+              let targetName,
+              !targetName.isEmpty else {
+            return false
+        }
+
+        return BacktickMCPToolSurface.isLegacyAlias(targetName)
+    }
 }
 
 private struct ExperimentalMCPHTTPOAuthFailureActivity: Equatable {
@@ -646,6 +722,7 @@ enum MCPConnectorReadinessState: Equatable {
     case configured
     case checking
     case connected
+    case needsRefresh
     case needsAttention
 }
 
@@ -709,6 +786,7 @@ protocol MCPServerConnectionTesting {
 
 struct MCPConnectorInspector {
     static let connectorClientEnvironmentKey = "BACKTICK_CONNECTOR_CLIENT"
+    private static let stableLauncherRelativePath = "Library/Application Support/Backtick/bin/BacktickMCP"
 
     private let fileManager: FileManager
     private let environment: [String: String]
@@ -732,7 +810,11 @@ struct MCPConnectorInspector {
 
     func inspect() -> MCPConnectorInspection {
         let bundledHelperURL = bundledHelperURL()
-        let launchSpec = launchSpecification(bundledHelperURL: bundledHelperURL)
+        let stableLauncherURL = bundledHelperURL.flatMap(syncStableLauncher)
+        let launchSpec = launchSpecification(
+            stableLauncherURL: stableLauncherURL,
+            bundledHelperURL: bundledHelperURL
+        )
 
         return MCPConnectorInspection(
             repositoryRootPath: repositoryRootURL?.path,
@@ -765,7 +847,17 @@ struct MCPConnectorInspector {
         return nil
     }
 
-    private func launchSpecification(bundledHelperURL: URL?) -> MCPServerLaunchSpec? {
+    private func launchSpecification(
+        stableLauncherURL: URL?,
+        bundledHelperURL: URL?
+    ) -> MCPServerLaunchSpec? {
+        if let stableLauncherURL {
+            return MCPServerLaunchSpec(
+                command: stableLauncherURL.path,
+                arguments: []
+            )
+        }
+
         if let bundledHelperURL {
             return MCPServerLaunchSpec(
                 command: bundledHelperURL.path,
@@ -817,6 +909,46 @@ struct MCPConnectorInspector {
         }
 
         return nil
+    }
+
+    private func stableLauncherURL() -> URL {
+        homeDirectoryURL
+            .appendingPathComponent(Self.stableLauncherRelativePath, isDirectory: false)
+    }
+
+    private func syncStableLauncher(for bundledHelperURL: URL) -> URL? {
+        let launcherURL = stableLauncherURL()
+        let launcherContents = stableLauncherScript(targetPath: bundledHelperURL.path)
+
+        do {
+            try fileManager.createDirectory(
+                at: launcherURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+
+            if let existingContents = try? String(contentsOf: launcherURL),
+               existingContents == launcherContents,
+               isExecutableFile(launcherURL) {
+                return launcherURL.standardizedFileURL
+            }
+
+            try launcherContents.write(to: launcherURL, atomically: true, encoding: .utf8)
+            try fileManager.setAttributes(
+                [.posixPermissions: 0o755],
+                ofItemAtPath: launcherURL.path
+            )
+            return launcherURL.standardizedFileURL
+        } catch {
+            return nil
+        }
+    }
+
+    private func stableLauncherScript(targetPath: String) -> String {
+        let escapedTargetPath = targetPath.replacingOccurrences(of: "'", with: "'\"'\"'")
+        return """
+        #!/bin/sh
+        exec '\(escapedTargetPath)' "$@"
+        """
     }
 
     private func clientStatus(
@@ -1598,8 +1730,20 @@ final class MCPConnectorSettingsModel: ObservableObject {
     var experimentalRemoteIsConnected: Bool {
         experimentalRemoteLastOAuthFailure == nil
             && experimentalRemoteLastSuccessfulRequest != nil
+            && !experimentalRemoteNeedsSchemaRefresh
             && experimentalRemoteRuntimeState == .running
             && experimentalRemoteProbeIssue == nil
+    }
+
+    var experimentalRemoteNeedsSchemaRefresh: Bool {
+        guard experimentalRemoteLastOAuthFailure == nil,
+              experimentalRemoteRuntimeState == .running,
+              experimentalRemoteProbeIssue == nil,
+              let request = experimentalRemoteLastSuccessfulRequest else {
+            return false
+        }
+
+        return request.usesLegacyToolAlias
     }
 
     var experimentalRemoteShouldShowInlinePublicBaseURL: Bool {
@@ -1675,6 +1819,11 @@ final class MCPConnectorSettingsModel: ObservableObject {
         if let experimentalRemoteProbeIssue,
            experimentalRemoteRuntimeState == .running {
             return statusPresentationForProbeIssue(experimentalRemoteProbeIssue)
+        }
+
+        if experimentalRemoteNeedsSchemaRefresh,
+           let requestActivity = experimentalRemoteLastSuccessfulRequest {
+            return statusPresentationForSchemaRefresh(requestActivity)
         }
 
         if experimentalRemoteIsConnected {
@@ -1983,8 +2132,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return .needsSetup
         }
 
-        if case .failed = verificationState(for: client) {
-            return .needsAttention
+        if hasStaleLocalToolSurface(for: client) {
+            return .needsRefresh
         }
 
         if recentConnectionActivity(for: client) != nil {
@@ -1993,6 +2142,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         if verificationState(for: client).isRunning {
             return .checking
+        }
+
+        if case .failed = verificationState(for: client) {
+            return .needsAttention
         }
 
         return .configured
@@ -2027,6 +2180,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return nil
         }
 
+        if hasConfiguredHelperDrift(for: client) {
+            return "Needs attention"
+        }
+
         switch readinessState(for: client) {
         case .connected:
             return "Connected"
@@ -2034,6 +2191,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return "Checking"
         case .configured:
             return "Configured"
+        case .needsRefresh:
+            return "Needs refresh"
         case .needsAttention:
             return "Needs attention"
         case .unavailable, .installRequired, .needsSetup:
@@ -2044,6 +2203,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func clientSummary(for client: MCPConnectorClientStatus) -> String {
         if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "Install \(client.client.title) on this Mac first, then come back to set up Backtick."
+        }
+
+        if hasConfiguredHelperDrift(for: client) {
+            return "This \(client.client.title) config still points to an older Backtick MCP helper. Click Connect to rewrite it to the current helper, then restart \(client.client.title)."
         }
 
         if !client.hasConfiguredScope {
@@ -2108,6 +2271,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 }
                 return message
             }
+        case .needsRefresh:
+            return "This \(client.client.title) session is still calling an older Backtick tool name. Restart the client or begin a fresh session so it reloads the current Backtick tool surface."
         case .needsAttention:
             return "Backtick is set up, but the latest local server test failed. Fix the issue, then run the test again."
         case .unavailable, .installRequired, .needsSetup:
@@ -2118,6 +2283,11 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func clientProgressSummary(for client: MCPConnectorClientStatus) -> String {
         if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "\(client.client.title) is required before Backtick can connect here."
+        }
+
+        if hasConfiguredHelperDrift(for: client) {
+            let location = client.configuredScope?.title ?? "Unknown"
+            return "Backtick is configured in \(location), but that config still points to an older helper."
         }
 
         if !client.hasConfiguredScope {
@@ -2142,6 +2312,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return "Backtick is configured in \(location). The local setup check is running now."
         case .connected:
             return appendLastUsedDetail("Backtick is connected in \(location).", for: client)
+        case .needsRefresh:
+            return "Backtick is configured in \(location), but the most recent client session is still using an older Backtick tool name."
         case .needsAttention:
             return "Backtick is configured in \(location), but the last local check failed."
         case .unavailable, .installRequired, .needsSetup:
@@ -2152,6 +2324,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func clientNextStepTitle(for client: MCPConnectorClientStatus) -> String {
         if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "Install \(client.client.title)"
+        }
+
+        if hasConfiguredHelperDrift(for: client) {
+            return "Reconnect to \(client.client.title)"
         }
 
         if !client.hasConfiguredScope {
@@ -2178,6 +2354,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return "Checking setup"
         case .connected:
             return "Backtick is connected"
+        case .needsRefresh:
+            switch client.client {
+            case .claudeDesktop:
+                return "Restart Claude Desktop"
+            case .claudeCode:
+                return "Start a new Claude Code session"
+            case .codex:
+                return "Start a new Codex session"
+            }
         case .needsAttention:
             return "Fix the setup and check again"
         case .unavailable, .installRequired, .needsSetup:
@@ -2188,6 +2373,14 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func clientNextStepDetail(for client: MCPConnectorClientStatus) -> String {
         if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "Backtick works through \(client.client.title). Install it first, then come back here to finish setup."
+        }
+
+        if hasConfiguredHelperDrift(for: client) {
+            if client.client.usesDirectConfig {
+                return "Click Connect and Backtick will rewrite the config file to the current bundled helper. Restart \(client.client.title) after the rewrite."
+            }
+
+            return "Click Connect and Backtick will rerun the setup command so \(client.client.title) uses the current helper path. Restart \(client.client.title) after reconnecting."
         }
 
         if !client.hasConfiguredScope {
@@ -2245,6 +2438,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 "\(client.client.title) has already completed a Backtick tool call here.",
                 for: client
             )
+        case .needsRefresh:
+            switch client.client {
+            case .claudeDesktop:
+                return "Claude Desktop is still using an older Backtick tool name from the current session. Quit and reopen Claude Desktop so it reloads the latest Backtick tool surface."
+            case .claudeCode:
+                return "The current Claude Code session is still using an older Backtick tool name. Start a new Claude Code session so it reloads the latest Backtick tool surface."
+            case .codex:
+                return "The current Codex session is still using an older Backtick tool name. Start a new Codex session so it reloads the latest Backtick tool surface."
+            }
         case .needsAttention:
             return "Read the fix below, correct the issue, then run the local setup check again."
         case .unavailable, .installRequired, .needsSetup:
@@ -2259,11 +2461,11 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func primaryActionTitle(for client: MCPConnectorClientStatus) -> String? {
         switch primaryAction(for: client) {
         case .writeConfig:
-            return "Connect"
+            return hasConfiguredHelperDrift(for: client) ? "Reconnect" : "Connect"
         case .launchTerminalSetup:
-            return "Connect"
+            return hasConfiguredHelperDrift(for: client) ? "Reconnect" : "Connect"
         case .copyAddCommand:
-            return "Set Up"
+            return hasConfiguredHelperDrift(for: client) ? "Reconnect" : "Set Up"
         case .openDocumentation:
             return "Install \(client.client.title)"
         case .runServerTest:
@@ -2286,6 +2488,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     func troubleshootingTitle(for client: MCPConnectorClientStatus) -> String {
+        if hasConfiguredHelperDrift(for: client) {
+            return "Fix This"
+        }
+
         if clientFailureDetail(for: client) != nil {
             return "Fix This"
         }
@@ -2313,6 +2519,14 @@ final class MCPConnectorSettingsModel: ObservableObject {
         return failure.detail
     }
 
+    func clientConfigDriftDetail(for client: MCPConnectorClientStatus) -> String? {
+        guard hasConfiguredHelperDrift(for: client) else {
+            return nil
+        }
+
+        return "This config is still pointing at an older Backtick MCP helper path. Reconnect Backtick so this client picks up the current helper and tool descriptions."
+    }
+
     func connectedToolNames(for client: MCPConnectorClientStatus) -> [String] {
         guard client.hasConfiguredScope else {
             return []
@@ -2327,12 +2541,18 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     func primaryAction(for client: MCPConnectorClientStatus) -> MCPConnectorPrimaryAction? {
         if client.client.usesDirectConfig {
+            if hasConfiguredHelperDrift(for: client) {
+                return inspection.launchSpec == nil ? nil : .writeConfig
+            }
+
             if !client.hasConfiguredScope {
                 return inspection.launchSpec == nil ? nil : .writeConfig
             }
 
             switch readinessState(for: client) {
             case .connected:
+                return nil
+            case .needsRefresh:
                 return nil
             case .configured, .checking, .needsAttention:
                 if case .passed = verificationState(for: client) {
@@ -2346,6 +2566,18 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         if !client.hasDetectedCLI {
             return .openDocumentation
+        }
+
+        if hasConfiguredHelperDrift(for: client) {
+            guard inspection.status(for: client.client).addCommand != nil else {
+                return nil
+            }
+
+            if client.client.supportsTerminalSetupAutomation {
+                return .launchTerminalSetup
+            }
+
+            return .copyAddCommand
         }
 
         if !client.hasConfiguredScope {
@@ -2363,6 +2595,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
         switch readinessState(for: client) {
         case .connected:
             return nil
+        case .needsRefresh:
+            return nil
         case .configured, .checking, .needsAttention:
             if case .passed = verificationState(for: client) {
                 return nil
@@ -2371,6 +2605,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
         case .unavailable, .installRequired, .needsSetup:
             return nil
         }
+    }
+
+    private func hasStaleLocalToolSurface(for client: MCPConnectorClientStatus) -> Bool {
+        guard !hasConfiguredHelperDrift(for: client),
+              let activity = recentConnectionActivity(for: client) else {
+            return false
+        }
+
+        return activity.usesLegacyToolAlias
     }
 
     @discardableResult
@@ -2529,13 +2772,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         guard let launchSpec = inspection.launchSpec else { return }
-        let configuredLaunchSpec = MCPServerLaunchSpec(
-            command: launchSpec.command,
-            arguments: launchSpec.arguments,
-            environment: launchSpec.environment.merging(
-                [MCPConnectorInspector.connectorClientEnvironmentKey: client.rawValue]
-            ) { _, newValue in newValue }
-        )
+        let configuredLaunchSpec = configuredLaunchSpec(for: client, launchSpec: launchSpec)
 
         let configURL = URL(fileURLWithPath: inspection.status(for: client).homeConfig.path)
 
@@ -2695,6 +2932,50 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         return lhs.allSatisfy(rhs.contains)
+    }
+
+    private func configuredLaunchSpec(
+        for client: MCPConnectorClient,
+        launchSpec: MCPServerLaunchSpec
+    ) -> MCPServerLaunchSpec {
+        MCPServerLaunchSpec(
+            command: launchSpec.command,
+            arguments: launchSpec.arguments,
+            environment: launchSpec.environment.merging(
+                [MCPConnectorInspector.connectorClientEnvironmentKey: client.rawValue]
+            ) { _, newValue in newValue }
+        )
+    }
+
+    private func hasConfiguredHelperDrift(for client: MCPConnectorClientStatus) -> Bool {
+        guard inspection.bundledHelperPath != nil,
+              let launchSpec = inspection.launchSpec else {
+            return false
+        }
+
+        let expectedLaunchSpec = normalizedLaunchSpecForDriftComparison(
+            configuredLaunchSpec(for: client.client, launchSpec: launchSpec)
+        )
+        let configuredLaunchSpecs = client.configuredLaunchSpecs
+        guard !configuredLaunchSpecs.isEmpty else {
+            return false
+        }
+
+        return !configuredLaunchSpecs.contains { configuredLaunchSpec in
+            normalizedLaunchSpecForDriftComparison(configuredLaunchSpec) == expectedLaunchSpec
+        }
+    }
+
+    private func normalizedLaunchSpecForDriftComparison(
+        _ launchSpec: MCPServerLaunchSpec
+    ) -> MCPServerLaunchSpec {
+        var environment = launchSpec.environment
+        environment.removeValue(forKey: MCPConnectorInspector.connectorClientEnvironmentKey)
+        return MCPServerLaunchSpec(
+            command: launchSpec.command,
+            arguments: launchSpec.arguments,
+            environment: environment
+        )
     }
 
     private func resolvedVerificationClient(explicitClient: MCPConnectorClient?) -> MCPConnectorClient? {
@@ -2865,6 +3146,21 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 action: experimentalRemoteRecommendedTunnelPath == nil ? .installTunnel : .launchTunnel
             )
         }
+    }
+
+    private func statusPresentationForSchemaRefresh(
+        _ requestActivity: ExperimentalMCPHTTPRemoteRequestActivity
+    ) -> ExperimentalMCPHTTPStatusPresentation {
+        let surfaceTitle = requestActivity.surface.fullTitle
+        let toolName = requestActivity.targetName ?? "a legacy Backtick tool"
+
+        return ExperimentalMCPHTTPStatusPresentation(
+            title: "Refresh needed",
+            reason: "\(surfaceTitle) is still calling Backtick with the older tool name `\(toolName)`. Refresh the Backtick app in ChatGPT web, or recreate it there, so ChatGPT pulls the latest tool surface. ChatGPT macOS uses the same app as web.",
+            detail: "Recent request: \(requestActivity.summary).",
+            tone: .warning,
+            action: nil
+        )
     }
 
     private func statusPresentationForRuntimeFailure(
@@ -3079,15 +3375,8 @@ struct MCPConnectorTerminalLauncher: MCPConnectorTerminalLaunching {
 }
 
 struct MCPServerSelfTester: MCPServerConnectionTesting {
-    private static let expectedToolNames = [
-        "list_notes",
-        "get_note",
-        "create_note",
-        "update_note",
-        "delete_note",
-        "mark_notes_executed",
-    ]
-    private static let verificationToolName = "get_started"
+    private static let expectedToolNames = BacktickMCPToolSurface.expectedCoreToolNames
+    private static let verificationToolName = BacktickMCPToolSurface.verificationToolName
 
     func run(launchSpec: MCPServerLaunchSpec) async -> MCPServerConnectionState {
         await Task.detached(priority: .utility) {

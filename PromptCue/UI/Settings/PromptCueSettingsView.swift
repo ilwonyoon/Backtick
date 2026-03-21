@@ -608,7 +608,7 @@ struct PromptCueSettingsView: View {
                             } label: {
                                 HStack(spacing: PrimitiveTokens.Space.xs) {
                                     Image(systemName: isExperimentalRemoteAdvancedExpanded ? "chevron.down" : "chevron.right")
-                                        .font(.system(size: 11, weight: .semibold))
+                                        .font(SettingsTokens.Typography.supportingStrong)
                                         .foregroundStyle(SemanticTokens.Text.secondary)
 
                                     Text("Show technical details")
@@ -641,7 +641,10 @@ struct PromptCueSettingsView: View {
                                                 }
                                             }
                                             .pickerStyle(.segmented)
-                                            .frame(maxWidth: 260, alignment: .leading)
+                                            .frame(
+                                                maxWidth: PromptCueSettingsViewLayout.experimentalRemotePickerWidth,
+                                                alignment: .leading
+                                            )
                                         }
 
                                         advancedDetailPane(label: "ngrok") {
@@ -773,7 +776,7 @@ struct PromptCueSettingsView: View {
                                                         )
                                                     )
                                                     .textFieldStyle(.roundedBorder)
-                                                    .frame(width: 92)
+                                                    .frame(width: SettingsTokens.Layout.advancedLabelColumnWidth)
                                                     .onSubmit {
                                                         commitExperimentalRemotePortDraft()
                                                     }
@@ -1024,6 +1027,8 @@ struct PromptCueSettingsView: View {
                 return "Configured. Run Check Setup, then use Backtick once in \(client.client.title). \(lastUsedDetail)"
             }
             return "Configured. Run Check Setup, then use Backtick once in \(client.client.title)."
+        case .needsRefresh:
+            return mcpConnectorSettingsModel.clientNextStepDetail(for: client)
         case .connected:
             if case .passed(let report) = mcpConnectorSettingsModel.verificationState(for: client) {
                 if let lastUsedDetail = mcpConnectorSettingsModel.clientLastUsedDetail(for: client) {
@@ -1128,6 +1133,8 @@ struct PromptCueSettingsView: View {
         switch mcpConnectorSettingsModel.readinessState(for: client) {
         case .connected:
             return .success
+        case .needsRefresh:
+            return .warning
         case .needsAttention:
             return .danger
         case .configured, .checking, .needsSetup:
@@ -1170,6 +1177,8 @@ struct PromptCueSettingsView: View {
             return "Configured"
         case .checking:
             return "Checking"
+        case .needsRefresh:
+            return "Needs Refresh"
         case .connected:
             return "Connected"
         case .needsAttention:
@@ -1197,6 +1206,8 @@ struct PromptCueSettingsView: View {
         switch mcpConnectorSettingsModel.readinessState(for: client) {
         case .connected:
             return .success
+        case .needsRefresh:
+            return .warning
         case .needsAttention:
             return .danger
         case .configured, .checking, .needsSetup:
@@ -1422,6 +1433,12 @@ struct PromptCueSettingsView: View {
                             title: "Fix this first.",
                             message: failureDetail,
                             tone: .danger
+                        )
+                    } else if let driftDetail = mcpConnectorSettingsModel.clientConfigDriftDetail(for: client) {
+                        connectorNotice(
+                            title: "Reconnect Backtick.",
+                            message: driftDetail,
+                            tone: .warning
                         )
                     } else if client.hasOtherConfigFiles, !client.hasConfiguredScope {
                         connectorNotice(
@@ -1741,7 +1758,10 @@ struct PromptCueSettingsView: View {
                 .padding(.horizontal, PrimitiveTokens.Space.xl)
                 .padding(.vertical, PrimitiveTokens.Space.sm)
             }
-            .frame(width: 520, height: 420)
+            .frame(
+                width: PromptCueSettingsViewLayout.setupGuideSheetWidth,
+                height: PromptCueSettingsViewLayout.setupGuideSheetHeight
+            )
             .background(SemanticTokens.Surface.previewBackdropBottom)
             .onAppear {
                 didCopySetupCommand = false
@@ -1758,7 +1778,7 @@ struct PromptCueSettingsView: View {
                 .controlSize(.small)
             }
             .padding(PrimitiveTokens.Space.xl)
-            .frame(width: 420)
+            .frame(width: PromptCueSettingsViewLayout.fallbackSheetWidth)
         }
     }
 
@@ -1820,7 +1840,10 @@ struct PromptCueSettingsView: View {
                 .padding(.horizontal, PrimitiveTokens.Space.xl)
                 .padding(.vertical, PrimitiveTokens.Space.sm)
             }
-            .frame(width: 520, height: 360)
+            .frame(
+                width: PromptCueSettingsViewLayout.alternateSetupSheetWidth,
+                height: PromptCueSettingsViewLayout.alternateSetupSheetHeight
+            )
             .background(SemanticTokens.Surface.previewBackdropBottom)
             .onAppear {
                 didCopyConfigSnippet = false
@@ -1837,7 +1860,7 @@ struct PromptCueSettingsView: View {
                 .controlSize(.small)
             }
             .padding(PrimitiveTokens.Space.xl)
-            .frame(width: 420)
+            .frame(width: PromptCueSettingsViewLayout.fallbackSheetWidth)
         }
     }
 
@@ -1874,7 +1897,7 @@ struct PromptCueSettingsView: View {
             }
         }
         .padding(PrimitiveTokens.Space.xl)
-        .frame(width: 460)
+        .frame(width: PromptCueSettingsViewLayout.installGuideSheetWidth)
         .background(SemanticTokens.Surface.previewBackdropBottom)
     }
 
@@ -2333,7 +2356,7 @@ private struct SettingsConnectorClientRow<Badge: View, Accessory: View, Footer: 
             if showsDivider {
                 Rectangle()
                     .fill(SettingsSemanticTokens.Border.rowSeparator)
-                    .frame(height: 1)
+                    .frame(height: PrimitiveTokens.Stroke.subtle)
             }
         }
         .padding(.horizontal, SettingsTokens.Layout.groupInset)
@@ -2355,11 +2378,11 @@ private enum ConnectorChipTone {
         case .accent:
             return SemanticTokens.Accent.primary.opacity(0.12)
         case .success:
-            return Color(nsColor: .systemGreen).opacity(0.14)
+            return PromptCueSettingsViewColor.success.opacity(0.14)
         case .warning:
-            return Color(nsColor: .systemOrange).opacity(0.14)
+            return PromptCueSettingsViewColor.warning.opacity(0.14)
         case .danger:
-            return Color(nsColor: .systemRed).opacity(0.14)
+            return PromptCueSettingsViewColor.danger.opacity(0.14)
         }
     }
 
@@ -2370,11 +2393,11 @@ private enum ConnectorChipTone {
         case .accent:
             return SemanticTokens.Accent.primary.opacity(0.28)
         case .success:
-            return Color(nsColor: .systemGreen).opacity(0.34)
+            return PromptCueSettingsViewColor.success.opacity(0.34)
         case .warning:
-            return Color(nsColor: .systemOrange).opacity(0.34)
+            return PromptCueSettingsViewColor.warning.opacity(0.34)
         case .danger:
-            return Color(nsColor: .systemRed).opacity(0.34)
+            return PromptCueSettingsViewColor.danger.opacity(0.34)
         }
     }
 
@@ -2385,11 +2408,36 @@ private enum ConnectorChipTone {
         case .accent:
             return SemanticTokens.Accent.primary
         case .success:
-            return Color(nsColor: .systemGreen)
+            return PromptCueSettingsViewColor.success
         case .warning:
-            return Color(nsColor: .systemOrange)
+            return PromptCueSettingsViewColor.warning
         case .danger:
-            return Color(nsColor: .systemRed)
+            return PromptCueSettingsViewColor.danger
         }
     }
+}
+
+private enum PromptCueSettingsViewLayout {
+    static let experimentalRemotePickerWidth: CGFloat = 260
+    static let setupGuideSheetWidth: CGFloat = 520
+    static let setupGuideSheetHeight: CGFloat = 420
+    static let alternateSetupSheetWidth: CGFloat = 520
+    static let alternateSetupSheetHeight: CGFloat = 360
+    static let fallbackSheetWidth: CGFloat = 420
+    static let installGuideSheetWidth: CGFloat = 460
+}
+
+private enum PromptCueSettingsViewColor {
+    static let success = SemanticTokens.adaptiveColor(
+        light: NSColor.systemGreen,
+        dark: NSColor.systemGreen
+    )
+    static let warning = SemanticTokens.adaptiveColor(
+        light: NSColor.systemOrange,
+        dark: NSColor.systemOrange
+    )
+    static let danger = SemanticTokens.adaptiveColor(
+        light: NSColor.systemRed,
+        dark: NSColor.systemRed
+    )
 }
