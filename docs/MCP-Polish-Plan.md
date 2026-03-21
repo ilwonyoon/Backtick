@@ -606,6 +606,30 @@ Backtick should treat refresh behavior as client-specific:
 
 The release question is therefore not only "did the helper build?" It is "did the target clients refresh onto the new tool surface?"
 
+### Automation Boundary
+
+Backtick should optimize for the smallest user action that reliably gets clients onto the latest tool surface.
+
+That means:
+
+- local stdio clients should converge on one stable launcher path, then require only reconnect or a fresh session when the client process itself must reread the config or tool registry
+- `ChatGPT` should be treated as a refresh-or-recreate client because the app owns tool/app refresh behavior
+- "fully automatic" updates across already-running clients are not the target unless the client explicitly supports it
+
+This is an anti-overengineering boundary, not a limitation to fight blindly.
+
+Do:
+
+- automate helper-path drift away
+- detect stale grants or stale tool surfaces
+- tell the user exactly which client needs reconnect, restart, refresh, or recreate
+
+Do not assume Backtick can:
+
+- force ChatGPT to refresh an installed app
+- hot-swap an already-running stdio MCP process inside another client
+- justify complex live-update plumbing before the simpler reconnect path is solid
+
 ### Release Truth
 
 For user-facing connector setup, one launch path should be the release truth.
@@ -626,6 +650,19 @@ Every MCP release should include:
 - a bundled-helper `initialize` / `tools/list` smoke test that snapshots the real tool names and descriptions
 - a connector/config drift check that detects whether a client still points at a stale helper path
 - explicit reconnect or refresh guidance per client after schema changes
+
+### Highest-Value Remaining Automation
+
+The next useful automation is not "zero user action." It is better stale-state detection and better per-client instructions.
+
+Priorities:
+
+1. detect when a local client session is still using an older Backtick tool alias even though the config path is current
+2. show one-shot per-client post-update guidance such as `Restart Claude Desktop`, `Start a new Claude Code session`, or `Refresh Backtick in ChatGPT web`
+3. tighten the `ChatGPT` refresh and reconnect runbook so stale schema vs stale OAuth grant are clearly separated
+4. evaluate `tools/list_changed` only after the reconnect path is solid and only as an additive improvement for clients that support it
+
+This sequence keeps the work product-grade and avoids overbuilding a live-update layer that the clients may not honor consistently.
 
 ### Branded Tool Naming
 
@@ -666,6 +703,11 @@ That shifts the next slice priority from generic proposal UX to durable update q
    - schema freshness smoke test
    - client-specific refresh guidance
    - branded Memory tool naming migration
+11. improve post-release refresh behavior without chasing impossible full automation:
+   - local stale-session detection
+   - one-shot post-update restart guidance
+   - clearer ChatGPT refresh vs reconnect handling
+   - defer `list_changed` until the simpler lane is proven
 
 ## Success Criteria
 

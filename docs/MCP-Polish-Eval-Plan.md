@@ -1085,6 +1085,13 @@ Client-specific refresh checks:
 - `ChatGPT`: refresh the app in developer-mode settings to pull the newest tools and descriptions
 - `Codex`: start a fresh session after schema or tool-name changes
 
+Automation-boundary checks:
+
+- do not treat "the client still needs restart/refresh" as a product failure if Backtick clearly detects and explains the required action
+- do treat silent stale-schema behavior as a failure when Backtick could have detected it and surfaced reconnect or refresh guidance
+- prefer "one precise user action" over complex hidden automation that the client does not reliably honor
+- only score `list_changed` as meaningful if the target client actually benefits from it in practice
+
 Naming eval checks:
 
 - saying `Backtick` should be enough to reach the Memory tools in common save/recall prompts
