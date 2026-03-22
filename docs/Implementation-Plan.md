@@ -28,6 +28,7 @@
 - A bounded capture/stack design-polish plan now exists in `docs/Design-Polish-Execution-Plan.md`.
 - `Phase DS1`, `Phase DS2`, and `Phase DS3` are now implemented in the design-system strategy branch, and `Phase DS4` has started where reuse is already proven.
 - a dedicated performance remediation lane now exists in `docs/Performance-Remediation-Plan.md`
+- a dedicated post-launch capture-runtime follow-up now exists in `docs/Capture-Runtime-Post-Launch-Plan.md`
 
 ## Phase Summary
 
@@ -174,6 +175,7 @@ The current highest-priority work is tracked in:
 - `docs/Quality-Remediation-Plan.md`
 - `docs/Design-System-Architecture-Proposal.md` for design-system ownership boundaries
 - `docs/Design-System-Execution-Plan.md` for phased design-system execution
+- `docs/Capture-Runtime-Post-Launch-Plan.md` for the first post-launch structural capture-performance lane
 
 That remediation lane is now authoritative for:
 
@@ -200,6 +202,7 @@ The next main-product remediation work after the current MCP stabilization slice
 - close the remaining non-tag `Phase R7` input-system follow-up
 - keep grouped export validation green across target apps with different text/image paste behavior
 - continue the broader stack follow-up under `docs/Stack-Refactor-Execution-Plan.md`
+- after the first DMG ship, start the structural capture-runtime lane under `docs/Capture-Runtime-Post-Launch-Plan.md`
 
 Recently landed reference slices:
 

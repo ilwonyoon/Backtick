@@ -44,6 +44,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Launch readiness review lane | In progress | pre-DMG launch-risk review is tracked in `docs/Launch-Readiness-Review-Plan.md` and should drive the final blocker report before a signed DMG candidate is cut |
 | Remediation lane | In progress | Contract lock and phased closure tracked in `docs/Quality-Remediation-Plan.md` |
 | Performance remediation lane | Completed | `P1-P4`, the approved capture/stack visuals, the long-note overflow path, and the live stack-open trace harness are active in the merge-safe landing candidate; the historical `P5` compositor benchmark remains documented in `docs/Performance-Remediation-Plan.md` |
+| Capture runtime post-launch lane | Planned | after the first DMG, run the structural capture-runtime redesign in `docs/Capture-Runtime-Post-Launch-Plan.md`; keep launch-time capture changes bugfix-only until then |
 | Design polish lane | In progress | `DP0` review lock is complete; `DP1` capture elevation and `DP2` stack brightness are now in implementation and awaiting visual review packets |
 | Settings surface | In progress | Shortcut recorders and screenshot folder controls are now implemented |
 | MCP platform expansion | In progress | stdio connector rollout is shipped for `Claude Desktop`, `Claude Code`, and `Codex`; ChatGPT remote MCP is now an experimental self-hosted OAuth path on `main` |
@@ -110,6 +111,7 @@ This `Phase H` map supersedes the older Track A-E naming below for the public la
 8. DMG packaging, Gumroad release prep, and MAS compatibility review
 9. Continue design-system strategy execution in the strategy branch: finish DS3, expand DS4 conservatively, then run DS5 native-alignment pass
 10. Run the bounded capture/stack polish lane: `DP0 -> DP4`, with review packets per slice
+11. After the first DMG, run the capture-runtime redesign lane from `docs/Capture-Runtime-Post-Launch-Plan.md`
 
 ## Remediation Merge Order
 
