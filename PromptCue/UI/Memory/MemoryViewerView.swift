@@ -38,6 +38,9 @@ struct MemoryViewerView: View {
                     summaries: model.summaries(for: model.selectedProject),
                     selectedDocumentKey: model.selectedDocumentKey,
                     onSelect: { model.selectedDocumentKey = $0 },
+                    onCopyDocument: { copyDocument($0) },
+                    onEditDocument: { startEditingDocument($0) },
+                    onDeleteDocument: { deleteDocument($0) },
                     onCreateDocument: { openNewDocumentSheet() }
                 )
             }
@@ -152,6 +155,23 @@ struct MemoryViewerView: View {
         }
     }
 
+    private func copyDocument(_ key: ProjectDocumentKey) {
+        model.selectedDocumentKey = key
+        model.copySelectedDocument()
+        showCopiedFeedback()
+    }
+
+    private func startEditingDocument(_ key: ProjectDocumentKey) {
+        model.selectedDocumentKey = key
+        editorText = model.selectedDocument?.content ?? ""
+        isEditing = true
+    }
+
+    private func deleteDocument(_ key: ProjectDocumentKey) {
+        model.selectedDocumentKey = key
+        confirmDeleteSelectedDocument()
+    }
+
     private func openNewDocumentSheet() {
         newDocumentDraft = model.prepareNewDocumentDraft()
         newDocumentErrorMessage = nil
@@ -208,24 +228,11 @@ struct MemoryViewerView: View {
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = .warning
+        alert.icon = nil
         alert.addButton(withTitle: actionTitle)
         alert.addButton(withTitle: "Cancel")
         alert.buttons.first?.hasDestructiveAction = true
-        alert.icon = themedAlertIcon()
         return alert.runModal() == .alertFirstButtonReturn
-    }
-
-    private func themedAlertIcon() -> NSImage? {
-        guard let image = NSImage(named: "BacktickSidebarMark")?.copy() as? NSImage else {
-            return nil
-        }
-
-        image.isTemplate = true
-        image.size = NSSize(
-            width: PrimitiveTokens.Alert.iconSize,
-            height: PrimitiveTokens.Alert.iconSize
-        )
-        return image
     }
 
     private static var notesSidebarBackground: Color {
@@ -276,14 +283,27 @@ private struct MemoryProjectListPane: View {
                         isSelected: project == selectedProject,
                         action: { onSelect(project) }
                     ) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(project)
-                                .font(SettingsTokens.Typography.sidebarLabel)
-                                .foregroundStyle(SemanticTokens.Text.primary)
-                                .lineLimit(1)
-                            Text("\(documentCount(project)) docs")
-                                .font(.caption)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Image(systemName: "folder")
+                                .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(SemanticTokens.Text.secondary)
+
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Text(project)
+                                    .font(SettingsTokens.Typography.sidebarLabel)
+                                    .foregroundStyle(SemanticTokens.Text.primary)
+                                    .lineLimit(1)
+
+                                Text("·")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(SemanticTokens.Text.secondary)
+
+                                Text("\(documentCount(project))")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(SemanticTokens.Text.secondary)
+                            }
+
+                            Spacer(minLength: 0)
                         }
                     }
                     .contextMenu {
@@ -303,6 +323,9 @@ private struct MemoryDocumentListPane: View {
     let summaries: [ProjectDocumentSummary]
     let selectedDocumentKey: ProjectDocumentKey?
     let onSelect: (ProjectDocumentKey) -> Void
+    let onCopyDocument: (ProjectDocumentKey) -> Void
+    let onEditDocument: (ProjectDocumentKey) -> Void
+    let onDeleteDocument: (ProjectDocumentKey) -> Void
     let onCreateDocument: () -> Void
 
     var body: some View {
@@ -325,13 +348,22 @@ private struct MemoryDocumentListPane: View {
                             ) {
                                 MemoryDocumentSummaryRow(summary: summary)
                             }
+                            .contextMenu {
+                                Button("Copy") {
+                                    onCopyDocument(summary.key)
+                                }
+                                Button("Edit") {
+                                    onEditDocument(summary.key)
+                                }
+                                Button("Delete", role: .destructive) {
+                                    onDeleteDocument(summary.key)
+                                }
+                            }
                         }
                     }
                     .padding(10)
                 }
             }
-
-            Divider()
 
             MemorySelectableRowShell(
                 style: .content,
@@ -339,7 +371,7 @@ private struct MemoryDocumentListPane: View {
                 action: onCreateDocument
             ) {
                 HStack(spacing: 8) {
-                    Image(systemName: "doc.badge.plus")
+                    Image(systemName: "plus")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(SemanticTokens.Text.secondary)
 
@@ -484,81 +516,105 @@ private struct MemoryNewDocumentSheet: View {
     let onCancel: () -> Void
     let onCreate: () -> Void
 
+    private var canSubmit: Bool {
+        !draft.project.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !draft.topic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("New Document")
-                .font(.title3.weight(.semibold))
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("New Document")
+                        .font(.title3.weight(.semibold))
 
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Project")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("Project", text: $draft.project)
-                        .textFieldStyle(.roundedBorder)
-                }
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Project")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextField("Project", text: $draft.project)
+                                .textFieldStyle(.roundedBorder)
+                        }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Topic")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("Topic", text: $draft.topic)
-                        .textFieldStyle(.roundedBorder)
-                }
-            }
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Topic")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextField("Topic", text: $draft.topic)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Type")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Picker("Type", selection: $draft.documentType) {
-                    ForEach(ProjectDocumentType.allCases, id: \.self) { documentType in
-                        Text(documentType.rawValue.capitalized)
-                            .tag(documentType)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Type")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Picker("Type", selection: $draft.documentType) {
+                            ForEach(ProjectDocumentType.allCases, id: \.self) { documentType in
+                                Text(documentType.rawValue.capitalized)
+                                    .tag(documentType)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Content")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Paste Clipboard", action: onPasteClipboard)
+                                .keyboardShortcut("v", modifiers: [.command, .shift])
+                        }
+
+                        MemoryPlainTextEditor(
+                            text: $draft.content,
+                            contentInsets: NSSize(width: 12, height: 12)
+                        )
+                        .frame(minHeight: 260)
+                        .padding(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color(nsColor: .textBackgroundColor))
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 1)
+                        }
                     }
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
+                .padding(24)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Content")
+            Divider()
+
+            HStack(alignment: .center, spacing: 16) {
+                if let errorMessage {
+                    Text(errorMessage)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color(nsColor: .systemRed))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
                     Spacer()
-                    Button("Paste Clipboard", action: onPasteClipboard)
-                        .keyboardShortcut("v", modifiers: [.command, .shift])
+                        .frame(maxWidth: .infinity)
                 }
 
-                MemoryPlainTextEditor(text: $draft.content)
-                    .frame(minHeight: 280)
-                    .padding(10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color(nsColor: .textBackgroundColor))
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 1)
-                    }
+                HStack(spacing: 12) {
+                    Button("Cancel", action: onCancel)
+                    Button("Create", action: onCreate)
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(!canSubmit)
+                        .opacity(canSubmit ? 1 : 0.55)
+                }
             }
-
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack {
-                Spacer()
-                Button("Cancel", action: onCancel)
-                Button("Create", action: onCreate)
-                    .keyboardShortcut(.defaultAction)
-            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .background(Color(nsColor: .windowBackgroundColor))
         }
-        .padding(24)
-        .frame(minWidth: 580, minHeight: 500)
+        .frame(width: 620, height: 560)
     }
 }
 
@@ -567,6 +623,7 @@ private struct MemoryDetailPane: View {
     @Binding var isEditing: Bool
     @Binding var editorText: String
     @Binding var didCopy: Bool
+    @State private var isCopyHovered = false
     let onCopy: () -> Void
     let onStartEditing: () -> Void
     let onCancelEditing: () -> Void
@@ -592,21 +649,6 @@ private struct MemoryDetailPane: View {
                     Spacer()
 
                     HStack(spacing: 8) {
-                        if didCopy {
-                            Text("Copied")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(SemanticTokens.Text.secondary)
-                                .transition(.opacity)
-                        }
-
-                        StackRailControlButton(
-                            systemName: didCopy ? "checkmark" : "doc.on.doc",
-                            accessibilityLabel: didCopy ? "Copied document" : "Copy document",
-                            glyphSize: 13,
-                            controlSize: 24,
-                            isActive: didCopy,
-                            action: onCopy
-                        )
                         StackRailControlButton(
                             systemName: "trash",
                             accessibilityLabel: "Delete document",
@@ -640,22 +682,41 @@ private struct MemoryDetailPane: View {
                                 action: onStartEditing
                             )
                         }
+                        if didCopy {
+                            Text("Copied")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(SemanticTokens.Text.secondary)
+                                .transition(.opacity)
+                        }
+
+                        Button(action: onCopy) {
+                            Image(systemName: didCopy ? "checkmark" : isCopyHovered ? "doc.on.doc.fill" : "doc.on.doc")
+                                .symbolRenderingMode(.monochrome)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(didCopy || isCopyHovered
+                                    ? SemanticTokens.Text.primary
+                                    : SemanticTokens.Text.secondary)
+                                .frame(width: 24, height: 24)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { isCopyHovered = $0 }
+                        .accessibilityLabel(didCopy ? "Copied document" : "Copy document")
                     }
                 }
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+                .padding(.bottom, 18)
 
                 Divider()
-                    .padding(.top, 16)
 
                 if isEditing {
                     MemoryPlainTextEditor(text: $editorText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .padding(.top, 16)
                 } else {
                     MemoryRenderedDocumentView(markdown: document.content)
-                        .padding(.top, 16)
                 }
             }
-            .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Color(nsColor: .textBackgroundColor))
         } else {
@@ -679,76 +740,87 @@ private struct MemoryRenderedDocumentView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 30) {
                 ForEach(ParsedMemoryMarkdown.parse(markdown)) { section in
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 0) {
                         if let title = section.title {
                             Text(title)
                                 .font(.title3.weight(.semibold))
                                 .foregroundStyle(SemanticTokens.Text.primary)
+                                .padding(.bottom, 8)
                         }
 
-                        ForEach(Array(section.blocks.enumerated()), id: \.offset) { _, block in
-                            switch block {
-                            case .paragraph(let text):
-                                MemoryInlineMarkdownText(markdown: text)
-                                    .font(.body)
-                                    .foregroundStyle(SemanticTokens.Text.primary)
-                                    .fixedSize(horizontal: false, vertical: true)
+                        VStack(alignment: .leading, spacing: 24) {
+                            ForEach(Array(section.blocks.enumerated()), id: \.offset) { _, block in
+                                switch block {
+                                case .paragraph(let text):
+                                    MemoryInlineMarkdownText(markdown: text)
+                                        .font(.body)
+                                        .foregroundStyle(SemanticTokens.Text.primary)
+                                        .lineSpacing(6)
+                                        .fixedSize(horizontal: false, vertical: true)
 
-                            case .bullets(let items):
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(items, id: \.self) { item in
-                                        HStack(alignment: .top, spacing: 10) {
-                                            Circle()
-                                                .fill(SemanticTokens.Text.secondary.opacity(0.7))
-                                                .frame(width: 5, height: 5)
-                                                .padding(.top, 7)
+                                case .bullets(let items):
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        ForEach(items, id: \.self) { item in
+                                            HStack(alignment: .top, spacing: 10) {
+                                                Circle()
+                                                    .fill(SemanticTokens.Text.secondary.opacity(0.7))
+                                                    .frame(width: 5, height: 5)
+                                                    .padding(.top, 8)
 
-                                            MemoryInlineMarkdownText(markdown: item)
-                                                .font(.body)
-                                                .foregroundStyle(SemanticTokens.Text.primary)
-                                                .fixedSize(horizontal: false, vertical: true)
+                                                MemoryInlineMarkdownText(markdown: item)
+                                                    .font(.body)
+                                                    .foregroundStyle(SemanticTokens.Text.primary)
+                                                    .lineSpacing(6)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            }
                                         }
                                     }
-                                }
-                            case .codeBlock(let language, let code):
-                                MemoryCodeBlockView(language: language, code: code)
-                            case .table(let table):
-                                MemoryMarkdownTableView(table: table)
-                            case .numberedList(let items):
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
-                                        HStack(alignment: .top, spacing: 8) {
-                                            Text("\(idx + 1).")
-                                                .font(.body.monospacedDigit())
-                                                .foregroundStyle(SemanticTokens.Text.secondary)
-                                                .frame(minWidth: 24, alignment: .trailing)
 
-                                            MemoryInlineMarkdownText(markdown: item)
-                                                .font(.body)
-                                                .foregroundStyle(SemanticTokens.Text.primary)
-                                                .fixedSize(horizontal: false, vertical: true)
+                                case .codeBlock(let language, let code):
+                                    MemoryCodeBlockView(language: language, code: code)
+
+                                case .table(let table):
+                                    MemoryMarkdownTableView(table: table)
+
+                                case .numberedList(let items):
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
+                                            HStack(alignment: .top, spacing: 8) {
+                                                Text("\(idx + 1).")
+                                                    .font(.body.monospacedDigit())
+                                                    .foregroundStyle(SemanticTokens.Text.secondary)
+                                                    .frame(minWidth: 24, alignment: .trailing)
+
+                                                MemoryInlineMarkdownText(markdown: item)
+                                                    .font(.body)
+                                                    .foregroundStyle(SemanticTokens.Text.primary)
+                                                    .lineSpacing(6)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            }
                                         }
                                     }
-                                }
-                            case .nestedBullets(let items):
-                                VStack(alignment: .leading, spacing: 6) {
-                                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                                        HStack(alignment: .top, spacing: 8) {
-                                            Circle()
-                                                .fill(SemanticTokens.Text.secondary.opacity(
-                                                    item.indent == 0 ? 0.7 : 0.45
-                                                ))
-                                                .frame(width: 4, height: 4)
-                                                .padding(.top, 7)
 
-                                            MemoryInlineMarkdownText(markdown: item.text)
-                                                .font(.body)
-                                                .foregroundStyle(SemanticTokens.Text.primary)
-                                                .fixedSize(horizontal: false, vertical: true)
+                                case .nestedBullets(let items):
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                                            HStack(alignment: .top, spacing: 8) {
+                                                Circle()
+                                                    .fill(SemanticTokens.Text.secondary.opacity(
+                                                        item.indent == 0 ? 0.7 : 0.45
+                                                    ))
+                                                    .frame(width: 4, height: 4)
+                                                    .padding(.top, 8)
+
+                                                MemoryInlineMarkdownText(markdown: item.text)
+                                                    .font(.body)
+                                                    .foregroundStyle(SemanticTokens.Text.primary)
+                                                    .lineSpacing(6)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            }
+                                            .padding(.leading, CGFloat(item.indent) * PrimitiveTokens.Space.md)
                                         }
-                                        .padding(.leading, CGFloat(item.indent) * PrimitiveTokens.Space.md)
                                     }
                                 }
                             }
@@ -757,6 +829,9 @@ private struct MemoryRenderedDocumentView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 24)
+            .padding(.top, 14)
+            .padding(.bottom, 28)
         }
         .scrollIndicators(.automatic)
     }
@@ -1375,6 +1450,7 @@ private struct MemoryTag: View {
 
 private struct MemoryPlainTextEditor: NSViewRepresentable {
     @Binding var text: String
+    var contentInsets: NSSize = NSSize(width: 24, height: 18)
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -1387,6 +1463,7 @@ private struct MemoryPlainTextEditor: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .overlay
 
         let textView = NSTextView()
         textView.delegate = context.coordinator
@@ -1406,7 +1483,7 @@ private struct MemoryPlainTextEditor: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.autoresizingMask = [.width]
         textView.font = NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.body)
-        textView.textContainerInset = NSSize(width: 2, height: 2)
+        textView.textContainerInset = contentInsets
         textView.textContainer?.lineFragmentPadding = 0
         textView.string = text
 

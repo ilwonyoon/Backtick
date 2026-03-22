@@ -296,6 +296,15 @@ final class MemoryViewerModelTests: XCTestCase {
         XCTAssertTrue(draft.content.contains("## Overview"))
         XCTAssertTrue(draft.content.contains("Plain clipboard note for the memory panel."))
         XCTAssertTrue(draft.content.contains("## Details"))
+        XCTAssertNoThrow(try ProjectDocumentStore.validateContent(draft.content))
+        XCTAssertTrue(
+            model.createDocument(
+                project: draft.project,
+                topic: "clipboard-note",
+                documentType: draft.documentType,
+                content: draft.content
+            )
+        )
     }
 
     private func makeStore() throws -> ProjectDocumentStore {

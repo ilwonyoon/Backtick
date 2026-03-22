@@ -291,10 +291,18 @@ struct PromptCueSettingsView: View {
 
                 SettingsTwoColumnGroupRow(
                     "Show Stack",
-                    showsDivider: false,
                     contentAlignment: .trailing
                 ) {
                     KeyboardShortcuts.Recorder(for: .toggleStackPanel)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+
+                SettingsTwoColumnGroupRow(
+                    "Show Memory",
+                    showsDivider: false,
+                    contentAlignment: .trailing
+                ) {
+                    KeyboardShortcuts.Recorder(for: .toggleMemoryViewer)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }

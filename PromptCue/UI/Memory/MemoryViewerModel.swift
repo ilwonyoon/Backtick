@@ -47,6 +47,8 @@ final class MemoryViewerModel: ObservableObject {
 
             \(trimmed)
 
+            Summarize the durable context, why it matters, and the current state so a future session can understand this document without rereading raw notes.
+
             ## Details
 
             Capture the key supporting details, constraints, decisions, and follow-up context that should stay durable in Memory.

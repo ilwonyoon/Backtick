@@ -288,8 +288,12 @@ struct SettingsSimulationView: View {
                         simulationShortcutRecorder("⌘`")
                     }
 
-                    simulationGroupRow(title: "Show Stack", showsDivider: false) {
+                    simulationGroupRow(title: "Show Stack") {
                         simulationShortcutRecorder("⌘2")
+                    }
+
+                    simulationGroupRow(title: "Show Memory", showsDivider: false) {
+                        simulationShortcutRecorder("⌘3")
                     }
                 }
             }

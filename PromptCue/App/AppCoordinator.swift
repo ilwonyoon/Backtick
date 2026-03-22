@@ -365,6 +365,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
             }
 
             self.capturePanelController.close()
+            self.memoryWindowController.hide()
             if self.stackPanelController.isPresentedOrTransitioning {
                 self.stackPanelController.close()
             } else {
@@ -381,10 +382,16 @@ final class AppCoordinator: AppLifecycleCoordinating {
     }
 
     private func toggleMemoryWindow() {
+        pendingStackToggleTask?.cancel()
+        pendingStackToggleTask = nil
         capturePanelController.close()
         stackPanelController.close()
-        DispatchQueue.main.async { [weak self] in
-            self?.memoryWindowController.toggle()
+        // Keep the Memory toggle synchronous so a deferred show cannot race a
+        // later Stack shortcut and reopen the panel out of order.
+        if memoryWindowController.isVisible {
+            memoryWindowController.hide()
+        } else {
+            memoryWindowController.show()
         }
     }
 

@@ -6,6 +6,10 @@ final class MemoryWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private let model: MemoryViewerModel
 
+    var isVisible: Bool {
+        window?.isVisible == true
+    }
+
     init(model: MemoryViewerModel? = nil) {
         self.model = model ?? MemoryViewerModel()
         super.init()
@@ -18,6 +22,10 @@ final class MemoryWindowController: NSObject, NSWindowDelegate {
         }
 
         window.orderOut(nil)
+    }
+
+    func hide() {
+        window?.orderOut(nil)
     }
 
     func show() {
