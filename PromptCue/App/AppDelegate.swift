@@ -64,6 +64,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AnalyticsService.shared.configure()
+        AnalyticsService.shared.syncMCPActivitySignals()
+
         coordinator = coordinatorFactory()
         coordinator?.start()
 

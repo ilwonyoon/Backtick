@@ -243,6 +243,7 @@ final class AppModel: ObservableObject {
         ClipboardFormatter.copyToPasteboard(cards: [card])
         markCopied(orderedIDs: [card.id])
         exitMultiSelectMode()
+        AnalyticsService.shared.trackPromptCopied(copyMode: .single, cardCount: 1)
         return payload
     }
 
@@ -252,6 +253,7 @@ final class AppModel: ObservableObject {
         ClipboardFormatter.copyRawToPasteboard(card: card)
         markCopied(orderedIDs: [card.id])
         exitMultiSelectMode()
+        AnalyticsService.shared.trackPromptCopied(copyMode: .raw, cardCount: 1)
         return payload
     }
 
@@ -263,6 +265,7 @@ final class AppModel: ObservableObject {
         }
 
         markCopied(orderedIDs: deferredCopiedIDs)
+        AnalyticsService.shared.trackPromptCopied(copyMode: .multi, cardCount: deferredCopiedIDs.count)
         exitMultiSelectMode()
     }
 

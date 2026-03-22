@@ -192,6 +192,11 @@ extension AppModel {
             }
             self.syncRecentScreenshotState()
         }
+        AnalyticsService.shared.trackCaptureSubmitted(
+            hasScreenshot: importedScreenshotPath != nil,
+            isEdit: false,
+            textLength: trimmed.count
+        )
         return true
     }
 
@@ -340,6 +345,11 @@ extension AppModel {
             self.isSeedingCaptureFromCopiedCard = false
             self.syncRecentScreenshotState()
         }
+        AnalyticsService.shared.trackCaptureSubmitted(
+            hasScreenshot: updatedScreenshotPath != nil,
+            isEdit: true,
+            textLength: updatedText.count
+        )
         return true
     }
 

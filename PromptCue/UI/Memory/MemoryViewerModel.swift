@@ -190,6 +190,11 @@ final class MemoryViewerModel: ObservableObject {
                 documentType: documentType,
                 content: content
             )
+            AnalyticsService.shared.trackMemorySaved(
+                documentType: documentType,
+                saveMode: .create,
+                source: .app
+            )
             storageErrorMessage = nil
             refresh()
             selectedProject = savedDocument.project
@@ -218,6 +223,11 @@ final class MemoryViewerModel: ObservableObject {
                 topic: selectedDocumentKey.topic,
                 documentType: selectedDocumentKey.documentType,
                 content: content
+            )
+            AnalyticsService.shared.trackMemorySaved(
+                documentType: selectedDocumentKey.documentType,
+                saveMode: .update,
+                source: .app
             )
             storageErrorMessage = nil
             refresh()

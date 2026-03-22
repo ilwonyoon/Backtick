@@ -135,6 +135,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                AnalyticsService.shared.syncMCPActivitySignals()
                 self?.model.refreshCardsForExternalChanges()
                 self?.recheckExperimentalMCPHTTPHealth()
             }
@@ -373,6 +374,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
                     PerformanceTrace.beginStackOpenTrace()
                 }
                 self.stackPanelController.show()
+                AnalyticsService.shared.trackStackOpened(promptCount: self.model.cards.count)
             }
         }
     }

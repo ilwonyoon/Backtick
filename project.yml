@@ -16,6 +16,7 @@ configFiles:
   AppStore: Config/AppStore.xcconfig
 settings:
   base:
+    PROMPTCUE_TELEMETRYDECK_APP_ID: F4233BDD-165C-4AB1-A88A-E883D8201965
     SWIFT_VERSION: 5.0
 fileGroups:
   - Config
@@ -43,6 +44,9 @@ packages:
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts.git
     exactVersion: 2.3.0
+  TelemetryDeck:
+    url: https://github.com/TelemetryDeck/SwiftSDK.git
+    from: 2.0.0
 targets:
   PromptCue:
     type: application
@@ -84,12 +88,15 @@ targets:
         product: GRDB
       - package: KeyboardShortcuts
         product: KeyboardShortcuts
+      - package: TelemetryDeck
+        product: TelemetryDeck
       - sdk: AppIntents.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.promptcue.promptcue
         PRODUCT_NAME: Prompt Cue
         GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_BacktickTelemetryDeckAppID: $(PROMPTCUE_TELEMETRYDECK_APP_ID)
         INFOPLIST_KEY_CFBundleDisplayName: Prompt Cue
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         INFOPLIST_KEY_LSUIElement: YES
