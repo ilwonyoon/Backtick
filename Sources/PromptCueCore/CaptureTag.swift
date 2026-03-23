@@ -11,6 +11,10 @@ public struct CaptureTag: Codable, Hashable, Sendable, Comparable {
         self.name = normalized
     }
 
+    fileprivate init(normalizedName: String) {
+        self.name = normalizedName
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let rawValue = try container.decode(String.self)
@@ -216,12 +220,18 @@ public enum CaptureTagText {
             }
 
             let tokenRange = NSRange(location: tokenStart, length: cursor - tokenStart)
-            guard let tag = CaptureTag(rawValue: nsText.substring(with: tokenRange)) else {
+            let bodyRange = NSRange(location: tokenStart + 1, length: tokenRange.length - 1)
+            guard let normalizedName = normalizedTagBody(in: nsText, range: bodyRange) else {
                 cursor = tokenStart + 1
                 continue
             }
 
-            matches.append(CaptureTagInlineMatch(tag: tag, range: tokenRange))
+            matches.append(
+                CaptureTagInlineMatch(
+                    tag: CaptureTag(normalizedName: normalizedName),
+                    range: tokenRange
+                )
+            )
         }
 
         return matches
@@ -413,6 +423,26 @@ public enum CaptureTagText {
         }
 
         let normalized = trimmed.lowercased()
+        guard let firstScalar = normalized.unicodeScalars.first,
+              CaptureTag.isLeadingScalar(firstScalar),
+              normalized.unicodeScalars.dropFirst().allSatisfy(CaptureTag.isBodyScalar) else {
+            return nil
+        }
+
+        return normalized
+    }
+
+    private static func normalizedTagBody(
+        in text: NSString,
+        range: NSRange
+    ) -> String? {
+        guard range.location != NSNotFound,
+              range.length > 0,
+              NSMaxRange(range) <= text.length else {
+            return nil
+        }
+
+        let normalized = text.substring(with: range).lowercased()
         guard let firstScalar = normalized.unicodeScalars.first,
               CaptureTag.isLeadingScalar(firstScalar),
               normalized.unicodeScalars.dropFirst().allSatisfy(CaptureTag.isBodyScalar) else {
