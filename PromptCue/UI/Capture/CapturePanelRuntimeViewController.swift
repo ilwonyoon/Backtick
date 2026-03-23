@@ -96,6 +96,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private var inlineTagSuggestions: [String] = []
     private var selectedInlineTagSuggestionIndex = 0
     private var lastInlineTagQueryValue: String?
+    private var pendingSelectionRefreshSkipRange: NSRange?
 
     var onPreferredPanelHeightChange: ((CGFloat) -> Void)?
     var onSubmitSuccess: (() -> Void)?
@@ -655,8 +656,11 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             suffix: ghostSuffix,
             caretUTF16Offset: ghostSuffix == nil ? nil : selectedRange.location
         )
+        guard !inlineTagSuggestionView.isHidden else {
+            return
+        }
+
         inlineTagSuggestionView.rootView = makeInlineTagSuggestionView()
-        inlineTagSuggestionView.isHidden = true
         recomputePreferredPanelHeight()
     }
 
@@ -838,6 +842,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         }
 
         refreshInlineTagStateForHotPath()
+        pendingSelectionRefreshSkipRange = textView.selectedRange()
 
         guard !shouldSkipMeasurement else {
             return
@@ -858,6 +863,14 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
               textView === editorHost.textView else {
             return
         }
+
+        let selectedRange = textView.selectedRange()
+        if pendingSelectionRefreshSkipRange == selectedRange {
+            pendingSelectionRefreshSkipRange = nil
+            return
+        }
+
+        pendingSelectionRefreshSkipRange = nil
 
         refreshInlineTagStateForHotPath()
     }

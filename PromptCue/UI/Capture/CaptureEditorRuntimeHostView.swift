@@ -210,17 +210,23 @@ final class CaptureEditorRuntimeHostView: NSView {
         suffix: String?,
         caretUTF16Offset: Int?
     ) {
+        let nextState: InlineCompletionState?
         if let suffix,
            suffix.isEmpty == false,
            let caretUTF16Offset {
-            inlineCompletionState = InlineCompletionState(
+            nextState = InlineCompletionState(
                 suffix: suffix,
                 caretUTF16Offset: caretUTF16Offset
             )
         } else {
-            inlineCompletionState = nil
+            nextState = nil
         }
 
+        guard nextState != inlineCompletionState else {
+            return
+        }
+
+        inlineCompletionState = nextState
         updateInlineCompletionPresentation()
     }
 
