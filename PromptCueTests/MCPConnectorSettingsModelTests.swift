@@ -1287,6 +1287,84 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testClaudeDesktopIgnoresRecentActivityFromDifferentBundledHelper() throws {
+        let currentAppBundleURL = tempDirectoryURL
+            .appendingPathComponent("Prompt Cue.app", isDirectory: true)
+        let currentBundledHelperURL = currentAppBundleURL
+            .appendingPathComponent("Contents/Helpers", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: currentBundledHelperURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: currentBundledHelperURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: currentBundledHelperURL.path
+        )
+
+        let otherAppBundleURL = tempDirectoryURL
+            .appendingPathComponent("Other Prompt Cue.app", isDirectory: true)
+        let otherBundledHelperURL = otherAppBundleURL
+            .appendingPathComponent("Contents/Helpers", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: otherBundledHelperURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: otherBundledHelperURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: otherBundledHelperURL.path
+        )
+
+        let inspection = makeInspector(applicationBundleURL: currentAppBundleURL).inspect()
+        let stableLauncherURL = try XCTUnwrap(inspection.launchSpec?.command)
+        let configURL = homeDirectoryURL
+            .appendingPathComponent(MCPConnectorClient.claudeDesktop.homeConfigRelativePath)
+        try FileManager.default.createDirectory(
+            at: configURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(stableLauncherURL)",
+              "args": [],
+              "env": {
+                "BACKTICK_CONNECTOR_CLIENT": "claudeDesktop"
+              }
+            }
+          }
+        }
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+
+        let activity = MCPConnectorConnectionActivity(
+            transport: .stdio,
+            surface: nil,
+            clientName: "claude-ai",
+            clientVersion: "0.1.0",
+            sessionID: "desktop-session",
+            toolName: exposedToolName("list_saved_items"),
+            recordedAt: Date(),
+            configuredClientID: "claudeDesktop",
+            launchCommand: otherBundledHelperURL.path,
+            launchArguments: []
+        )
+
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(applicationBundleURL: currentAppBundleURL),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            connectionActivityReader: TestConnectionActivityReader(activities: [activity])
+        )
+        let desktop = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeDesktop }))
+
+        XCTAssertEqual(model.clientVerificationTitle(for: desktop), "Configured")
+        XCTAssertNil(model.actualConnectionActivity(for: desktop))
+    }
+
+    @MainActor
     func testClaudeAutomationExampleIncludesAllowList() {
         let model = MCPConnectorSettingsModel(
             inspector: makeInspector(),

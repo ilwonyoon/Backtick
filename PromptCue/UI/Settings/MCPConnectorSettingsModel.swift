@@ -1666,20 +1666,30 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return true
         }
 
-        let lhsKind = backtickManagedLaunchCommandKind(normalizedLHS)
-        let rhsKind = backtickManagedLaunchCommandKind(normalizedRHS)
-        return lhsKind != nil && rhsKind != nil
+        guard let managedPair = currentBacktickManagedLaunchCommandPair() else {
+            return false
+        }
+
+        return Set([normalizedLHS, normalizedRHS]) == managedPair
     }
 
-    private func backtickManagedLaunchCommandKind(_ command: String) -> String? {
-        if command.hasSuffix("/Library/Application Support/Backtick/bin/BacktickMCP") {
-            return "stable-launcher"
-        }
-        if command.hasSuffix(".app/Contents/Helpers/BacktickMCP") {
-            return "bundled-helper"
+    private func currentBacktickManagedLaunchCommandPair() -> Set<String>? {
+        guard let bundledHelperPath = inspection.bundledHelperPath else {
+            return nil
         }
 
-        return nil
+        let normalizedBundledHelper = URL(fileURLWithPath: bundledHelperPath).standardizedFileURL.path
+        guard let launchSpec = inspection.launchSpec else {
+            return nil
+        }
+
+        let normalizedLaunchCommand = URL(fileURLWithPath: launchSpec.command).standardizedFileURL.path
+        guard normalizedLaunchCommand.hasSuffix("/Library/Application Support/Backtick/bin/BacktickMCP")
+           || normalizedLaunchCommand.hasSuffix(".app/Contents/Helpers/BacktickMCP") else {
+            return nil
+        }
+
+        return [normalizedLaunchCommand, normalizedBundledHelper]
     }
 
     private func inferredClient(from clientName: String?) -> MCPConnectorClient? {
