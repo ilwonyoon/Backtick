@@ -50,22 +50,26 @@
 
 ## Current Hot Slice
 
-The immediate implementation slice is:
+The immediate implementation slice is now release-facing:
 
-- `MCP platform track: stabilize shipped stdio connectors and the experimental self-hosted ChatGPT remote-MCP path`
-- main-product follow-up: close the remaining non-tag `Phase R7` input-system hardening work
+- run the final pre-DMG launch-readiness review on current `main`
+- execute `docs/DMG-Launch-Checklist.md` on the signed release lane
+- validate the installed DMG build, including capture/stack smoke and connector smoke
+
+This slice exists because the latest feature lane is now merged:
+
+- FSRS-inspired Memory vividness is landed on `main`
 - `Phase R7C`, `Phase R8`, and `Phase R9` are already landed on `main`
-- in parallel planning/visual lane: `Phase DP0 -> DP4` from `docs/Design-Polish-Execution-Plan.md`
-
-This slice exists because the performance lane is complete, the major Capture/Stack follow-up slices (`R7C`, `R8`, `R9`) are now landed, and the active work has shifted to MCP-platform stabilization plus the remaining `Phase R7` input-system cleanup.
+- the connector stabilization follow-up is already on `main`
+- branch and worktree cleanup is complete enough that release work can proceed from clean `main`
 
 That means current work is prioritized in this order:
 
-1. keep shipped MCP connectors stable for `Claude Desktop`, `Claude Code`, and `Codex`
-2. tighten stale-app reset, reconnect, and health UX for the experimental ChatGPT path
-3. close the remaining non-tag `Phase R7` input-system follow-up without reopening layout churn
-4. keep grouped export validation and broader regression coverage green
-5. continue bounded visual/design follow-up without reopening landed overflow/export/tag contracts
+1. refresh the launch blocker report against current `main`
+2. run the signed DMG lane and produce a notarized DMG candidate
+3. smoke the installed DMG build, including at least one stdio connector and one remote-MCP client path
+4. prepare the release packet and checksum records
+5. defer any new feature work unless it reopens a true launch blocker
 
 Important planning split:
 

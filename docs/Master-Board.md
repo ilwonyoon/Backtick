@@ -48,6 +48,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Design polish lane | In progress | `DP0` review lock is complete; `DP1` capture elevation and `DP2` stack brightness are now in implementation and awaiting visual review packets |
 | Settings surface | In progress | Shortcut recorders and screenshot folder controls are now implemented |
 | MCP platform expansion | In progress | stdio connector rollout is shipped for `Claude Desktop`, `Claude Code`, and `Codex`; ChatGPT remote MCP is now an experimental self-hosted OAuth path on `main` |
+| Memory vividness | Completed | FSRS-inspired document vividness, dormant filtering, Memory-panel sorting, and recall-only scoring are landed on `main` via PR `#71` |
 | Warm memory / project documents | Planned | post-launch MCP follow-on: save long Claude Desktop / ChatGPT discussions as reviewed project documents with explicit `documentType` plus flat topic classification |
 | Stack sync and light-mode readability | In progress | `Phase R6` now uses tracked capture submission plus a stronger light-mode veil; real-device QA is still the gate |
 | Capture input system hardening | In progress | `Phase R7A` contract lock and QA harness are complete; `Phase R7B` now rewrites the live capture panel around an AppKit-owned sizing host, and the suggested-target selector is fully fixed with the v2 replacement contract locked in `docs/Capture-Suggested-Target-Selector-Repair-Plan.md` |
@@ -60,6 +61,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Stack header rail, filter, and TTL ring | Planned | the next stack UX follow-up is locked in `docs/Stack-Header-Rail-Plan.md`, including a persistent header rail, launch-facing queue terminology, stack filtering, per-card TTL rings, and theme-adaptive Backtick logo rules |
 | Design-system architecture alignment | In progress in strategy branch | `docs/Design-System-Architecture-Proposal.md` defines a five-layer model that preserves runtime and pattern ownership |
 | Design-system execution planning | In progress in strategy branch | `docs/Design-System-Execution-Plan.md` breaks the strategy into DS1-DS5; DS1, DS2, and DS3 are implemented, DS4 has started, and DS5 remains pending |
+| Release workspace hygiene | Completed | feature branches and temp worktrees used for launch prep have been folded back; local repo is back on clean `main` |
 
 ## Current File Ownership
 
@@ -113,6 +115,16 @@ This `Phase H` map supersedes the older Track A-E naming below for the public la
 9. Continue design-system strategy execution in the strategy branch: finish DS3, expand DS4 conservatively, then run DS5 native-alignment pass
 10. Run the bounded capture/stack polish lane: `DP0 -> DP4`, with review packets per slice
 11. After the first DMG, run the capture-runtime redesign lane from `docs/Capture-Runtime-Post-Launch-Plan.md`
+
+## Current Launch Gate
+
+As of `2026-03-23`, the remaining pre-ship work is narrow:
+
+1. rerun the final launch-readiness review on current `main`
+2. execute `docs/DMG-Launch-Checklist.md` end-to-end on the signed DMG lane
+3. smoke the installed DMG build, including at least one shipped MCP connector and one remote-MCP client path
+
+Current `main` is now the launch-prep baseline: major feature work is merged, PR backlog is clear, and the next meaningful output is a signed DMG candidate rather than another large product slice.
 
 ## Remediation Merge Order
 

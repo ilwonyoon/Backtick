@@ -173,6 +173,21 @@ The launch review is considered complete when:
 5. the repo is ready to resume the signed DMG lane as soon as local credentials
    are available
 
+## Current Snapshot
+
+As of `2026-03-23`:
+
+- the major feature backlog intended for the first DMG candidate is merged on `main`
+- FSRS-inspired Memory vividness is landed, including recall-only scoring and dormant filtering
+- connector stabilization and reconnect UX are landed on `main`
+- the local repo baseline is back on clean `main`
+
+The remaining review work is now a final refresh pass:
+
+1. confirm no new `Blocking` findings exist on current `main`
+2. refresh the short blocker report against the merged release scope
+3. hand off directly into `docs/DMG-Launch-Checklist.md`
+
 ## Required Verification
 
 Minimum verification for findings that lead to code or config changes:
