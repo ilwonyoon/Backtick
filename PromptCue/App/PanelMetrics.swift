@@ -22,7 +22,19 @@ enum PanelMetrics {
     static let settingsPanelHeight: CGFloat = 660
     static let memoryWindowWidth: CGFloat = 1_040
     static let memoryWindowHeight: CGFloat = 680
-    static let memoryWindowMinimumWidth: CGFloat = 860
+    static let memoryProjectColumnMinWidth: CGFloat = 200
+    static let memoryProjectColumnWidth: CGFloat = 220
+    static let memoryProjectColumnMaxWidth: CGFloat = 260
+    static let memoryDocumentColumnDefaultWidth: CGFloat = 196
+    static let memoryDocumentColumnMinWidth: CGFloat = 176
+    static let memoryDocumentColumnMaxWidth: CGFloat = 280
+    static let memoryDetailMinimumWidth: CGFloat = 360
+    static let memoryWindowChromeAllowance: CGFloat = 104
+    static let memoryWindowMinimumWidth: CGFloat =
+        memoryProjectColumnMinWidth +
+        memoryDocumentColumnMinWidth +
+        memoryDetailMinimumWidth +
+        memoryWindowChromeAllowance
     static let memoryWindowMinimumHeight: CGFloat = 540
     static let settingsSidebarWidth: CGFloat = 220
     static let settingsLabelColumnWidth: CGFloat = 168

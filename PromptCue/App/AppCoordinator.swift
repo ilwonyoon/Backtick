@@ -386,13 +386,10 @@ final class AppCoordinator: AppLifecycleCoordinating {
         pendingStackToggleTask = nil
         capturePanelController.close()
         stackPanelController.close()
-        // Keep the Memory toggle synchronous so a deferred show cannot race a
-        // later Stack shortcut and reopen the panel out of order.
-        if memoryWindowController.isVisible {
-            memoryWindowController.hide()
-        } else {
-            memoryWindowController.show()
-        }
+        // Memory is a regular window inside a status-item app, so hiding the
+        // frontmost window makes the app appear to quit. Treat cmd+3 as a
+        // reveal/focus shortcut instead of a hide toggle.
+        memoryWindowController.reveal()
     }
 
     private func showSettingsWindow() {
