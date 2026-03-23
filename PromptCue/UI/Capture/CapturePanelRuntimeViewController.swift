@@ -516,6 +516,8 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     private func handleSubmit() {
+        PerformanceTrace.beginCaptureSubmitCloseTrace()
+        PerformanceTrace.markCaptureSubmitClosePhase("submit_handler_enter")
         flushDraftSyncIfNeeded(forceText: editorHost.textView.string)
         model.beginCaptureSubmission { [weak self] in
             self?.onSubmitSuccess?()
@@ -873,6 +875,10 @@ extension CapturePanelRuntimeViewController {
         set { editorHost.textView.string = newValue }
     }
 
+    var debugIsEditorFirstResponder: Bool {
+        view.window?.firstResponder === editorHost.textView
+    }
+
     var debugInlineCompletionSuffix: String? {
         editorHost.debugInlineCompletionSuffix
     }
@@ -921,6 +927,10 @@ extension CapturePanelRuntimeViewController {
 
     func debugMakeEditorFirstResponder() {
         _ = view.window?.makeFirstResponder(editorHost.textView)
+    }
+
+    func debugTriggerSubmit() {
+        handleSubmit()
     }
 
     func debugSetMarkedText(_ text: String, selectedLocation: Int? = nil) {

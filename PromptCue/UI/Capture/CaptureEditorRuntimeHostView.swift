@@ -145,17 +145,42 @@ final class CaptureEditorRuntimeHostView: NSView {
     }
 
     func focusIfPossible() {
+        attemptFocus(remainingAttempts: 8)
+    }
+
+    private func attemptFocus(remainingAttempts: Int) {
         DispatchQueue.main.async {
             guard let window = self.window else {
                 return
             }
 
-            guard NSApp.isActive, window.isKeyWindow else {
+            if !NSApp.isActive || !window.isKeyWindow {
+                guard remainingAttempts > 0 else {
+                    return
+                }
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.025) {
+                    self.attemptFocus(remainingAttempts: remainingAttempts - 1)
+                }
                 return
             }
 
             if window.firstResponder !== self.textView {
                 window.makeFirstResponder(self.textView)
+            }
+
+            if window.firstResponder === self.textView {
+                PerformanceTrace.markCaptureOpenPhase("focused_editor")
+                PerformanceTrace.completeCaptureOpenTraceIfNeeded()
+                return
+            }
+
+            guard remainingAttempts > 0 else {
+                return
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.025) {
+                self.attemptFocus(remainingAttempts: remainingAttempts - 1)
             }
         }
     }

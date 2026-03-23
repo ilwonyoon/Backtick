@@ -231,6 +231,22 @@ final class AppCoordinator: AppLifecycleCoordinating {
                 self?.showCapturePanel()
             }
         }
+
+        if PerformanceTrace.shouldTraceCaptureToggleOnStart {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: PerformanceTrace.captureToggleDelayNanoseconds)
+                self?.showCapturePanel()
+            }
+        }
+
+#if DEBUG
+        if PerformanceTrace.shouldTraceCaptureSubmitCloseOnStart {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: PerformanceTrace.captureSubmitCloseDelayNanoseconds)
+                await self?.runCaptureSubmitCloseTraceAutomation()
+            }
+        }
+#endif
     }
 
     func stop() {
@@ -311,6 +327,9 @@ final class AppCoordinator: AppLifecycleCoordinating {
     private func showCapturePanel() {
         pendingStackToggleTask?.cancel()
         pendingStackToggleTask = nil
+        if !capturePanelController.isPresented, PerformanceTrace.shouldMeasureCaptureOpen {
+            PerformanceTrace.beginCaptureOpenTrace()
+        }
         stackPanelController.close()
         capturePanelController.toggle()
     }
@@ -450,6 +469,42 @@ final class AppCoordinator: AppLifecycleCoordinating {
             return nil
         }
     }
+
+#if DEBUG
+    private func runCaptureSubmitCloseTraceAutomation() async {
+        showCapturePanel()
+
+        let timeoutNanoseconds: UInt64 = 2_000_000_000
+        let pollIntervalNanoseconds: UInt64 = 25_000_000
+        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
+
+        while DispatchTime.now().uptimeNanoseconds < deadline {
+            guard let runtimeController = capturePanelController.debugRuntimeViewController else {
+                try? await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+                continue
+            }
+
+            guard runtimeController.debugIsEditorFirstResponder else {
+                try? await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+                continue
+            }
+
+            let currentDraft = runtimeController.debugEditorText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if currentDraft.isEmpty {
+                let fallbackText = model.draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "Capture trace seed"
+                    : model.draftText
+                runtimeController.debugApplyEditorText(
+                    fallbackText,
+                    selectedLocation: fallbackText.utf16.count
+                )
+            }
+
+            runtimeController.debugTriggerSubmit()
+            return
+        }
+    }
+#endif
 
     private func syncExperimentalMCPHTTPConfiguration() {
         guard let desiredConfiguration = desiredExperimentalMCPHTTPLaunchConfiguration() else {

@@ -97,22 +97,31 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     }
 
     func show() {
+        PerformanceTrace.markCaptureOpenPhase("show_enter")
         model.beginCaptureSession()
         let runtimeViewController = runtimeViewController ?? makeRuntimeViewController()
         runtimeViewController.prepareForPresentation()
+        PerformanceTrace.markCaptureOpenPhase("presentation_prepared")
         preferredPanelHeight = runtimeViewController.currentPreferredPanelHeight
         let panel = panel ?? makePanel(contentViewController: runtimeViewController)
+        PerformanceTrace.markCaptureOpenPhase("panel_ready")
         primePanelLayout(panel)
+        PerformanceTrace.markCaptureOpenPhase("layout_primed")
         let frame = initialPanelFrame()
         anchoredTopY = frame.maxY
         anchoredOriginX = frame.minX
         applyFrameIfNeeded(frame, to: panel, display: true, animate: false)
+        PerformanceTrace.markCaptureOpenPhase("frame_applied")
         panel.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
+        PerformanceTrace.markCaptureOpenPhase("app_activated")
         panel.makeKeyAndOrderFront(nil)
+        PerformanceTrace.markCaptureOpenPhase("made_key_and_ordered_front")
         runtimeViewController.refreshAppearance()
         runtimeViewController.focusEditorIfPossible()
+        PerformanceTrace.markCaptureOpenPhase("focus_requested")
         installDismissMonitors()
+        PerformanceTrace.markCaptureOpenPhase("dismiss_monitors_installed")
     }
 
     func close(persistDraft: Bool = true) {
@@ -122,6 +131,13 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
             runtimeViewController?.discardPendingDraftSync()
         }
         panel?.orderOut(nil)
+        if !persistDraft {
+            PerformanceTrace.markCaptureSubmitClosePhase("panel_ordered_out")
+            PerformanceTrace.completeCaptureSubmitCloseTraceIfNeeded()
+        } else {
+            PerformanceTrace.cancelCaptureSubmitCloseTraceIfNeeded()
+        }
+        PerformanceTrace.cancelCaptureOpenTraceIfNeeded()
         model.endCaptureSession()
         removeDismissMonitors()
         anchoredTopY = nil
@@ -160,6 +176,10 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
 
     private var isVisible: Bool {
         panel?.isVisible == true
+    }
+
+    var isPresented: Bool {
+        isVisible
     }
 
     private func makeRuntimeViewController() -> CapturePanelRuntimeViewController {
@@ -399,6 +419,18 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         parentWindow.removeChildWindow(auxiliaryPanel)
     }
 }
+
+#if DEBUG
+extension CapturePanelController {
+    var debugIsVisible: Bool {
+        isVisible
+    }
+
+    var debugRuntimeViewController: CapturePanelRuntimeViewController? {
+        runtimeViewController
+    }
+}
+#endif
 
 private class CaptureFloatingPanel: NSPanel {
     var onCancel: (() -> Void)?
