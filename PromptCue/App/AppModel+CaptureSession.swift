@@ -3,6 +3,11 @@ import Foundation
 import PromptCueCore
 
 extension AppModel {
+    enum CaptureSubmissionSuccessBehavior {
+        case cleanupBeforeReturn
+        case closeBeforeCleanup(@MainActor () -> Void)
+    }
+
     var hasSeededCaptureSession: Bool {
         isEditingCaptureCard || isSeedingCaptureFromCopiedCard
     }
@@ -69,9 +74,11 @@ extension AppModel {
                 self.isSubmittingCapture = false
             }
 
-            let didSubmit = await self.submitCapture()
+            let didSubmit = await self.submitCapture(
+                successBehavior: .closeBeforeCleanup(onSuccess)
+            )
             if didSubmit {
-                onSuccess()
+                return true
             }
             return didSubmit
         }
@@ -80,7 +87,9 @@ extension AppModel {
     }
 
     @discardableResult
-    func submitCapture() async -> Bool {
+    func submitCapture(
+        successBehavior: CaptureSubmissionSuccessBehavior = .cleanupBeforeReturn
+    ) async -> Bool {
         let managesSubmittingState = !isSubmittingCapture
         if managesSubmittingState {
             isSubmittingCapture = true
@@ -119,7 +128,8 @@ extension AppModel {
                 editingCard,
                 trimmedText: trimmed,
                 tags: tags,
-                attachment: attachment
+                attachment: attachment,
+                successBehavior: successBehavior
             )
         }
 
@@ -165,15 +175,23 @@ extension AppModel {
         }
 
         cards = updatedCards
-        draftText = ""
-        draftEditorMetrics = .empty
-        draftRecentScreenshotStateOverride = nil
-        isSeedingCaptureFromCopiedCard = false
-        if attachment != nil {
-            recentScreenshotCoordinator.consumeCurrent()
+        completeSuccessfulCaptureSubmission(
+            successBehavior: successBehavior,
+            cardForCloudSync: newCard
+        ) { [weak self] in
+            guard let self else {
+                return
+            }
+
+            self.draftText = ""
+            self.draftEditorMetrics = .empty
+            self.draftRecentScreenshotStateOverride = nil
+            self.isSeedingCaptureFromCopiedCard = false
+            if attachment != nil {
+                self.recentScreenshotCoordinator.consumeCurrent()
+            }
+            self.syncRecentScreenshotState()
         }
-        syncRecentScreenshotState()
-        cloudSyncEngine?.pushLocalChange(card: newCard)
         return true
     }
 
@@ -252,7 +270,8 @@ extension AppModel {
         _ card: CaptureCard,
         trimmedText: String,
         tags: [CaptureTag],
-        attachment: ScreenshotAttachment?
+        attachment: ScreenshotAttachment?,
+        successBehavior: CaptureSubmissionSuccessBehavior
     ) -> Bool {
         let updatedText = trimmedText.isEmpty ? "Screenshot attached" : trimmedText
         let existingScreenshotURL = card.screenshotURL?.standardizedFileURL
@@ -305,14 +324,40 @@ extension AppModel {
         }
 
         cards = updatedCards
-        cleanupManagedAttachments(removedCards: [card], remainingCards: updatedCards)
-        draftText = ""
-        draftEditorMetrics = .empty
-        draftRecentScreenshotStateOverride = nil
-        editingCaptureCardID = nil
-        isSeedingCaptureFromCopiedCard = false
-        syncRecentScreenshotState()
-        cloudSyncEngine?.pushLocalChange(card: updatedCard)
+        completeSuccessfulCaptureSubmission(
+            successBehavior: successBehavior,
+            cardForCloudSync: updatedCard
+        ) { [weak self] in
+            guard let self else {
+                return
+            }
+
+            self.cleanupManagedAttachments(removedCards: [card], remainingCards: updatedCards)
+            self.draftText = ""
+            self.draftEditorMetrics = .empty
+            self.draftRecentScreenshotStateOverride = nil
+            self.editingCaptureCardID = nil
+            self.isSeedingCaptureFromCopiedCard = false
+            self.syncRecentScreenshotState()
+        }
         return true
+    }
+
+    private func completeSuccessfulCaptureSubmission(
+        successBehavior: CaptureSubmissionSuccessBehavior,
+        cardForCloudSync card: CaptureCard,
+        cleanup: @escaping @MainActor () -> Void
+    ) {
+        switch successBehavior {
+        case .cleanupBeforeReturn:
+            cleanup()
+        case .closeBeforeCleanup(let onSuccess):
+            onSuccess()
+            DispatchQueue.main.async {
+                cleanup()
+            }
+        }
+
+        cloudSyncEngine?.pushLocalChange(card: card)
     }
 }

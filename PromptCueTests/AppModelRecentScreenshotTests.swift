@@ -166,6 +166,7 @@ final class AppModelRecentScreenshotTests: XCTestCase {
         coordinator.nextPreparedState = .detected(sessionID: UUID(), detectedAt: Date())
         coordinator.resolvedAttachmentURL = cacheURL
         model.beginCaptureSession()
+        model.draftText = "Submit after close"
 
         model.beginCaptureSubmission()
 
@@ -175,6 +176,7 @@ final class AppModelRecentScreenshotTests: XCTestCase {
 
         XCTAssertFalse(model.isSubmittingCapture)
         XCTAssertEqual(model.cards.count, 1)
+        XCTAssertEqual(model.draftText, "")
     }
 
     func testBeginCaptureSessionShowsSlotImmediatelyAndSubmitWaitsForAsyncReadablePromotion() async throws {

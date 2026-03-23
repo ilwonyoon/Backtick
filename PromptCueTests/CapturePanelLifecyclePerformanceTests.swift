@@ -87,6 +87,12 @@ final class CapturePanelLifecyclePerformanceTests: XCTestCase {
             },
             "Capture panel should close after a successful submit."
         )
+        XCTAssertTrue(
+            waitUntil(seconds: 0.5) {
+                fixture.model.draftText.isEmpty
+            },
+            "Successful submit should still clear the draft shortly after the panel closes."
+        )
         XCTAssertEqual(fixture.model.cards.count, 1)
         XCTAssertEqual(fixture.model.cards.first?.text, draftText)
     }
