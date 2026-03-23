@@ -105,7 +105,7 @@ enum PanelBackdropFamily {
     }
 
     static var stackShellBlurOpacityDark: Double {
-        0.94
+        0.98
     }
 
     static var stackShellTintOpacityLight: Double {
@@ -113,6 +113,6 @@ enum PanelBackdropFamily {
     }
 
     static var stackShellTintOpacityDark: Double {
-        0.79
+        0.0
     }
 }
