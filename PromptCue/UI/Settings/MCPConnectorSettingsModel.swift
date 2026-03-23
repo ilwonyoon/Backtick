@@ -1640,7 +1640,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         launchSpec: MCPServerLaunchSpec
     ) -> Bool {
         if let launchCommand = activity.launchCommand,
-           launchCommand != launchSpec.command {
+           !equivalentBacktickManagedLaunchCommands(launchCommand, launchSpec.command) {
             return false
         }
 
@@ -1654,6 +1654,32 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         return inferredClient(from: activity.clientName) == client
+    }
+
+    private func equivalentBacktickManagedLaunchCommands(
+        _ lhs: String,
+        _ rhs: String
+    ) -> Bool {
+        let normalizedLHS = URL(fileURLWithPath: lhs).standardizedFileURL.path
+        let normalizedRHS = URL(fileURLWithPath: rhs).standardizedFileURL.path
+        if normalizedLHS == normalizedRHS {
+            return true
+        }
+
+        let lhsKind = backtickManagedLaunchCommandKind(normalizedLHS)
+        let rhsKind = backtickManagedLaunchCommandKind(normalizedRHS)
+        return lhsKind != nil && rhsKind != nil
+    }
+
+    private func backtickManagedLaunchCommandKind(_ command: String) -> String? {
+        if command.hasSuffix("/Library/Application Support/Backtick/bin/BacktickMCP") {
+            return "stable-launcher"
+        }
+        if command.hasSuffix(".app/Contents/Helpers/BacktickMCP") {
+            return "bundled-helper"
+        }
+
+        return nil
     }
 
     private func inferredClient(from clientName: String?) -> MCPConnectorClient? {
