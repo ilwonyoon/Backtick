@@ -149,6 +149,7 @@
 		EBE542C16D91284387C23A12 /* RecentScreenshotDirectoryObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F15E70490C98C163CB52780 /* RecentScreenshotDirectoryObserver.swift */; };
 		EDD8142E6E57D70B3270212B /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B9CDCE0290CBC1B005127A /* GlassPanel.swift */; };
 		EE76F86A0B4911812D2E4A3E /* CaptureShellChromeRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD4260DC605F38E47233FB0 /* CaptureShellChromeRecipe.swift */; };
+		EE884B79C5772462A94900A4 /* CaptureTypingPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1485D7BEF641BA7134F97E0E /* CaptureTypingPerformanceTests.swift */; };
 		EF6900D8010810BCFE9A3011 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 11F11A0DF7C48E6630E17838 /* KeyboardShortcuts */; };
 		F14864F9658354DF6E5906BB /* StackWriteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1FABC33B332039515080670 /* StackWriteService.swift */; };
 		F31D9C369432E23265705FD8 /* SettingsGroupDivider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6DB42BC146CA3B8533D1C3 /* SettingsGroupDivider.swift */; };
@@ -189,6 +190,7 @@
 		0F15E70490C98C163CB52780 /* RecentScreenshotDirectoryObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotDirectoryObserver.swift; sourceTree = "<group>"; };
 		10947BDEFD2C412BCD880069 /* StackCardOverflowPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackCardOverflowPolicy.swift; sourceTree = "<group>"; };
 		13EA46B416CD64C91D1031C3 /* PanelMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelMetrics.swift; sourceTree = "<group>"; };
+		1485D7BEF641BA7134F97E0E /* CaptureTypingPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureTypingPerformanceTests.swift; sourceTree = "<group>"; };
 		18D1A25B39DB01DF38666D0C /* AppStartupPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStartupPerformanceTests.swift; sourceTree = "<group>"; };
 		19509EEED1658575B46ED8F4 /* CaptureEditorRuntimeHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorRuntimeHostView.swift; sourceTree = "<group>"; };
 		19E7982703EC6D0302F17A37 /* CapturePanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePanelController.swift; sourceTree = "<group>"; };
@@ -580,6 +582,7 @@
 				838FAC8FE4F5AE11EC0D8DBC /* CapturePanelResizePerformanceTests.swift */,
 				C343F2CAC571F12332D46BBA /* CapturePanelRuntimeViewControllerTests.swift */,
 				5DF6888EDB742C96FC15D391 /* CapturePreviewImagePerformanceTests.swift */,
+				1485D7BEF641BA7134F97E0E /* CaptureTypingPerformanceTests.swift */,
 				3823DFD1C47FC69FFB8F69A9 /* CardRetentionSettingsTests.swift */,
 				D22FB45DBB32F2BBE0BA3218 /* CardStorePerformanceTests.swift */,
 				E16CD05EC799CA93CBD0B5E5 /* CloudSyncApplyPerformanceTests.swift */,
@@ -860,6 +863,7 @@
 				7D08AB5229231B548CAEE181 /* CapturePanelResizePerformanceTests.swift in Sources */,
 				D89222A2A16923B28CA23834 /* CapturePanelRuntimeViewControllerTests.swift in Sources */,
 				15B0CE14628AAE363F0CF6CE /* CapturePreviewImagePerformanceTests.swift in Sources */,
+				EE884B79C5772462A94900A4 /* CaptureTypingPerformanceTests.swift in Sources */,
 				9F7F5E10AE0C2AE85FAD85EC /* CardRetentionSettingsTests.swift in Sources */,
 				309D752A14018F735EDF2D6F /* CardStorePerformanceTests.swift in Sources */,
 				83AC7EC81CD09E2844383B34 /* CloudSyncApplyPerformanceTests.swift in Sources */,
