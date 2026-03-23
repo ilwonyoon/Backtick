@@ -214,7 +214,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         panel.titlebarAppearsTransparent = true
         panel.isFloatingPanel = true
         panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
         panel.backgroundColor = .clear

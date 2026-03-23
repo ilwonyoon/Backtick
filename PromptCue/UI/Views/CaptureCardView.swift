@@ -592,6 +592,11 @@ struct CaptureCardView: View {
             return
         }
 
+        if isOptionClickEvent {
+            onCopyRaw()
+            return
+        }
+
         withAnimation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick)) {
             isShowingCopyFeedback = true
         }

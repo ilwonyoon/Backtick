@@ -304,7 +304,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.titlebarAppearsTransparent = true
         panel.isFloatingPanel = true
         panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = true
         panel.backgroundColor = .clear

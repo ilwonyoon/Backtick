@@ -2369,7 +2369,7 @@ private struct SettingsConnectorClientRow<Badge: View, Accessory: View, Footer: 
 
                     Text(detail)
                         .font(SettingsTokens.Typography.supporting)
-                        .foregroundStyle(SemanticTokens.Text.secondary)
+                        .foregroundStyle(SettingsSemanticTokens.Text.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
