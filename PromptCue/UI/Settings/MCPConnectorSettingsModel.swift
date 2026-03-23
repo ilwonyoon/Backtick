@@ -420,7 +420,7 @@ enum ExperimentalMCPHTTPProbeIssue: Equatable {
     case publicEndpointUnreachable
 }
 
-private enum ExperimentalMCPHTTPRemoteClientSurface: String, Equatable {
+private enum ExperimentalMCPHTTPRemoteClientSurface: String, Codable, Equatable {
     case web
     case macos
     case iphone
@@ -463,7 +463,7 @@ private enum ExperimentalMCPHTTPRemoteClientSurface: String, Equatable {
     }
 }
 
-private struct ExperimentalMCPHTTPRemoteRequestActivity: Equatable {
+private struct ExperimentalMCPHTTPRemoteRequestActivity: Codable, Equatable {
     let surface: ExperimentalMCPHTTPRemoteClientSurface
     let rpcMethod: String?
     let targetKind: String?
@@ -501,7 +501,7 @@ private struct ExperimentalMCPHTTPRemoteRequestActivity: Equatable {
     }
 }
 
-private struct ExperimentalMCPHTTPOAuthFailureActivity: Equatable {
+private struct ExperimentalMCPHTTPOAuthFailureActivity: Codable, Equatable {
     let errorCode: String
     let surface: ExperimentalMCPHTTPRemoteClientSurface
     let grantType: String?
@@ -1371,6 +1371,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
         static let authMode = "Backtick.ExperimentalMCPHTTP.AuthMode"
         static let apiKey = "Backtick.ExperimentalMCPHTTP.APIKey"
         static let publicBaseURL = "Backtick.ExperimentalMCPHTTP.PublicBaseURL"
+        static let lastSuccessfulRequest = "Backtick.ExperimentalMCPHTTP.LastSuccessfulRequest"
+        static let lastOAuthFailure = "Backtick.ExperimentalMCPHTTP.LastOAuthFailure"
     }
 
     @Published private(set) var inspection: MCPConnectorInspection
@@ -1444,6 +1446,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
         self.inspection = initialInspection
         self.experimentalRemoteSettings = initialExperimentalRemoteSettings
         self.clientConnectionActivities = resolvedClientConnectionActivities(from: initialInspection)
+        self.experimentalRemoteLastSuccessfulRequest = Self.loadPersistedRemoteRequestActivity(from: userDefaults)
+        self.experimentalRemoteLastOAuthFailure = Self.loadPersistedRemoteOAuthFailure(from: userDefaults)
         ensureExperimentalRemoteAPIKeyIfNeeded()
         refreshExperimentalRemoteTunnelDetection()
     }
@@ -1729,7 +1733,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     var experimentalRemoteIsConnected: Bool {
         experimentalRemoteLastOAuthFailure == nil
-            && experimentalRemoteLastSuccessfulRequest != nil
+            && recentExperimentalRemoteRequestActivity != nil
             && !experimentalRemoteNeedsSchemaRefresh
             && experimentalRemoteRuntimeState == .running
             && experimentalRemoteProbeIssue == nil
@@ -1739,7 +1743,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         guard experimentalRemoteLastOAuthFailure == nil,
               experimentalRemoteRuntimeState == .running,
               experimentalRemoteProbeIssue == nil,
-              let request = experimentalRemoteLastSuccessfulRequest else {
+              let request = recentExperimentalRemoteRequestActivity else {
             return false
         }
 
@@ -1822,16 +1826,16 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         if experimentalRemoteNeedsSchemaRefresh,
-           let requestActivity = experimentalRemoteLastSuccessfulRequest {
+           let requestActivity = recentExperimentalRemoteRequestActivity {
             return statusPresentationForSchemaRefresh(requestActivity)
         }
 
         if experimentalRemoteIsConnected {
-            let connectedSurface = experimentalRemoteLastSuccessfulRequest?.surface
+            let connectedSurface = recentExperimentalRemoteRequestActivity?.surface
             return ExperimentalMCPHTTPStatusPresentation(
                 title: connectedSurface.map(connectedTitle(for:)) ?? "Connected",
                 reason: connectedSurface.map(connectedReason(for:)) ?? "ChatGPT has already reached this Backtick endpoint with your current app setup.",
-                detail: experimentalRemoteLastSuccessfulRequest.map { "Recent request: \($0.summary)." },
+                detail: recentExperimentalRemoteRequestActivity.map { "Recent request: \($0.summary)." },
                 tone: .success,
                 action: .copyPublicMCPURL
             )
@@ -2088,6 +2092,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
             if let failureActivity = experimentalRemoteOAuthFailureActivity(from: line) {
                 experimentalRemoteLastOAuthFailure = failureActivity
+                persistExperimentalRemoteDiagnostics()
                 experimentalRemoteProbeIssue = nil
                 continue
             }
@@ -2098,6 +2103,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
                    shouldClearRemoteOAuthFailure(failureActivity, after: requestActivity) {
                     experimentalRemoteLastOAuthFailure = nil
                 }
+                persistExperimentalRemoteDiagnostics()
                 experimentalRemoteProbeIssue = nil
             }
         }
@@ -2928,6 +2934,58 @@ final class MCPConnectorSettingsModel: ObservableObject {
         activity.recordedAt >= Date().addingTimeInterval(-Self.connectedActivityFreshnessWindow)
     }
 
+    private var recentExperimentalRemoteRequestActivity: ExperimentalMCPHTTPRemoteRequestActivity? {
+        guard let activity = experimentalRemoteLastSuccessfulRequest,
+              isFreshExperimentalRemoteRequestActivity(activity) else {
+            return nil
+        }
+
+        return activity
+    }
+
+    private func isFreshExperimentalRemoteRequestActivity(
+        _ activity: ExperimentalMCPHTTPRemoteRequestActivity
+    ) -> Bool {
+        activity.recordedAt >= Date().addingTimeInterval(-Self.connectedActivityFreshnessWindow)
+    }
+
+    private func persistExperimentalRemoteDiagnostics() {
+        if let requestData = try? JSONEncoder().encode(experimentalRemoteLastSuccessfulRequest) {
+            userDefaults.set(requestData, forKey: ExperimentalRemoteDefaultsKey.lastSuccessfulRequest)
+        } else {
+            userDefaults.removeObject(forKey: ExperimentalRemoteDefaultsKey.lastSuccessfulRequest)
+        }
+
+        if let failureData = try? JSONEncoder().encode(experimentalRemoteLastOAuthFailure) {
+            userDefaults.set(failureData, forKey: ExperimentalRemoteDefaultsKey.lastOAuthFailure)
+        } else {
+            userDefaults.removeObject(forKey: ExperimentalRemoteDefaultsKey.lastOAuthFailure)
+        }
+    }
+
+    private static func loadPersistedRemoteRequestActivity(
+        from userDefaults: UserDefaults
+    ) -> ExperimentalMCPHTTPRemoteRequestActivity? {
+        guard let data = userDefaults.data(forKey: ExperimentalRemoteDefaultsKey.lastSuccessfulRequest),
+              let activity = try? JSONDecoder().decode(ExperimentalMCPHTTPRemoteRequestActivity.self, from: data),
+              activity.recordedAt >= Date().addingTimeInterval(-connectedActivityFreshnessWindow) else {
+            return nil
+        }
+
+        return activity
+    }
+
+    private static func loadPersistedRemoteOAuthFailure(
+        from userDefaults: UserDefaults
+    ) -> ExperimentalMCPHTTPOAuthFailureActivity? {
+        guard let data = userDefaults.data(forKey: ExperimentalRemoteDefaultsKey.lastOAuthFailure),
+              let activity = try? JSONDecoder().decode(ExperimentalMCPHTTPOAuthFailureActivity.self, from: data) else {
+            return nil
+        }
+
+        return activity
+    }
+
     private func sameLaunchSpecs(_ lhs: [MCPServerLaunchSpec], _ rhs: [MCPServerLaunchSpec]) -> Bool {
         guard lhs.count == rhs.count else {
             return false
@@ -3098,6 +3156,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
     private func resetExperimentalRemoteDiagnostics() {
         experimentalRemoteLastOAuthFailure = nil
         experimentalRemoteLastSuccessfulRequest = nil
+        persistExperimentalRemoteDiagnostics()
     }
 
     private func statusPresentationForOAuthFailure(
@@ -3105,7 +3164,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
     ) -> ExperimentalMCPHTTPStatusPresentation {
         let detail = failureStatusDetail(for: failureActivity)
 
-        if let successActivity = experimentalRemoteLastSuccessfulRequest,
+        if let successActivity = recentExperimentalRemoteRequestActivity,
            successActivity.surface != .unknown,
            failureActivity.surface != .unknown,
            successActivity.surface != failureActivity.surface {
@@ -3202,7 +3261,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
     private func failureStatusDetail(
         for failureActivity: ExperimentalMCPHTTPOAuthFailureActivity
     ) -> String {
-        if let successActivity = experimentalRemoteLastSuccessfulRequest {
+        if let successActivity = recentExperimentalRemoteRequestActivity {
             return "Recent success: \(successActivity.summary). Latest rejected OAuth exchange: \(failureActivity.summary)."
         }
 

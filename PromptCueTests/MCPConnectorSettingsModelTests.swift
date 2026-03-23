@@ -1791,6 +1791,37 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testExperimentalRemoteStatusPresentationRestoresConnectedStateAfterReload() {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
+        model.setExperimentalRemoteRuntimeState(.running)
+        model.recordExperimentalRemoteHelperLog(
+            "Backtick MCP HTTP served protected remote request surface=macos path=/mcp bodyBytes=188 rpcMethod=tools/call targetKind=tool targetName=backtick_list_saved_items"
+        )
+
+        let reloadedModel = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults
+        )
+        reloadedModel.setExperimentalRemoteRuntimeState(.running)
+
+        XCTAssertEqual(reloadedModel.experimentalRemoteStatusPresentation.title, "Connected on macOS")
+        XCTAssertEqual(reloadedModel.experimentalRemoteStatusPresentation.tone, .success)
+        XCTAssertTrue(
+            reloadedModel.experimentalRemoteStatusPresentation.detail?.contains("macOS · tools/call · backtick_list_saved_items") == true
+        )
+    }
+
+    @MainActor
     func testExperimentalRemoteStatusPresentationShowsRefreshNeededWhenRemoteUsesLegacyToolName() {
         let userDefaults = makeUserDefaults()
         let model = MCPConnectorSettingsModel(
