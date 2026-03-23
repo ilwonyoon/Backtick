@@ -25,13 +25,11 @@ struct PromptCueChip<Content: View>: View {
         content
             .padding(.horizontal, horizontalPadding)
             .frame(height: height)
-            .background(
+            .background {
                 Capsule(style: .continuous)
                     .fill(fill)
-            )
-            .overlay {
                 Capsule(style: .continuous)
-                    .stroke(border)
+                    .strokeBorder(border)
             }
     }
 }

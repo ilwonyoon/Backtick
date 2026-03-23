@@ -365,6 +365,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
             }
 
             self.capturePanelController.close()
+            self.memoryWindowController.hide()
             if self.stackPanelController.isPresentedOrTransitioning {
                 self.stackPanelController.close()
             } else {
@@ -381,11 +382,14 @@ final class AppCoordinator: AppLifecycleCoordinating {
     }
 
     private func toggleMemoryWindow() {
+        pendingStackToggleTask?.cancel()
+        pendingStackToggleTask = nil
         capturePanelController.close()
         stackPanelController.close()
-        DispatchQueue.main.async { [weak self] in
-            self?.memoryWindowController.toggle()
-        }
+        // Memory is a regular window inside a status-item app, so hiding the
+        // frontmost window makes the app appear to quit. Treat cmd+3 as a
+        // reveal/focus shortcut instead of a hide toggle.
+        memoryWindowController.reveal()
     }
 
     private func showSettingsWindow() {
