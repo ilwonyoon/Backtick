@@ -171,7 +171,6 @@ final class ProjectDocumentStore {
                 }
 
                 let existingDoc = existing?.projectDocument
-                let recalled = existingDoc?.recordingRecall(now: now)
 
                 let nextDocument = ProjectDocument(
                     project: project,
@@ -180,9 +179,9 @@ final class ProjectDocumentStore {
                     content: content,
                     createdAt: existingDoc?.createdAt ?? now,
                     updatedAt: now,
-                    stability: recalled?.stability ?? DocumentVividness.defaultStability,
-                    recallCount: recalled?.recallCount ?? 0,
-                    lastRecalledAt: recalled?.lastRecalledAt
+                    stability: existingDoc?.stability ?? DocumentVividness.defaultStability,
+                    recallCount: existingDoc?.recallCount ?? 0,
+                    lastRecalledAt: existingDoc?.lastRecalledAt
                 )
 
                 if let existing {
