@@ -193,6 +193,9 @@ private final class BenchmarkCloudSyncEngine: CloudSyncControlling {
 
     func pushAllLocalCards(cards: [CaptureCard]) {}
 
+    func pushLocalChange(document: ProjectDocument) {}
+    func pushDocumentDeletion(id: UUID) {}
+
     func resetMetrics() {
         localPushCount = 0
         batchPushCount = 0

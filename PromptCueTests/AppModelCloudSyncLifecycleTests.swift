@@ -121,6 +121,9 @@ private final class RecordingCloudSyncEngine: CloudSyncControlling {
     }
 
     func pushAllLocalCards(cards: [CaptureCard]) {}
+
+    func pushLocalChange(document: ProjectDocument) {}
+    func pushDocumentDeletion(id: UUID) {}
 }
 
 @MainActor

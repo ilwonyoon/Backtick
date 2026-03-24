@@ -318,11 +318,11 @@ final class CloudSyncApplyPerformanceTests: XCTestCase {
                     : Date(timeIntervalSinceReferenceDate: 1_000 + Double(index)),
                 sortOrder: localCard.sortOrder
             )
-            changes.append(.upsert(remoteCard, screenshotAssetURL: assetFileURL))
+            changes.append(.upsertCard(remoteCard, screenshotAssetURL: assetFileURL))
         }
 
         for index in (fixtureCardCount - deleteCount)..<fixtureCardCount {
-            changes.append(.delete(localCards[index].id))
+            changes.append(.deleteCard(localCards[index].id))
         }
 
         return changes
@@ -397,7 +397,7 @@ final class CloudSyncApplyPerformanceTests: XCTestCase {
     ) throws -> [SyncChange] {
         try changes.map { change in
             switch change {
-            case .upsert(let remoteCard, let screenshotAssetURL):
+            case .upsertCard(let remoteCard, let screenshotAssetURL):
                 guard let screenshotAssetURL,
                       FileManager.default.fileExists(atPath: screenshotAssetURL.path)
                 else {
@@ -408,7 +408,7 @@ final class CloudSyncApplyPerformanceTests: XCTestCase {
                     from: screenshotAssetURL,
                     ownerID: remoteCard.id
                 )
-                return .upsert(
+                return .upsertCard(
                     CaptureCard(
                         id: remoteCard.id,
                         text: remoteCard.text,
@@ -420,7 +420,7 @@ final class CloudSyncApplyPerformanceTests: XCTestCase {
                     screenshotAssetURL: nil
                 )
 
-            case .delete:
+            case .deleteCard, .upsertDocument, .deleteDocument:
                 return change
             }
         }
@@ -526,7 +526,7 @@ private final class LegacyRemoteApplyHarness {
 
         for change in changes {
             switch change {
-            case .upsert(let remoteCard, let screenshotAssetURL):
+            case .upsertCard(let remoteCard, let screenshotAssetURL):
                 let cardWithScreenshot = importRemoteScreenshotIfNeeded(
                     card: remoteCard,
                     assetURL: screenshotAssetURL
@@ -539,11 +539,14 @@ private final class LegacyRemoteApplyHarness {
                     updatedCards.append(cardWithScreenshot)
                 }
 
-            case .delete(let id):
+            case .deleteCard(let id):
                 if let index = updatedCards.firstIndex(where: { $0.id == id }) {
                     removedCards.append(updatedCards[index])
                     updatedCards.remove(at: index)
                 }
+
+            case .upsertDocument, .deleteDocument:
+                break
             }
         }
 

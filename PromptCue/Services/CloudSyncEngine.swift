@@ -7,8 +7,10 @@ import PromptCueCore
 private let syncLog = Logger(subsystem: "com.promptcue.promptcue", category: "CloudSync")
 
 enum SyncChange: Sendable {
-    case upsert(CaptureCard, screenshotAssetURL: URL?)
-    case delete(UUID)
+    case upsertCard(CaptureCard, screenshotAssetURL: URL?)
+    case deleteCard(UUID)
+    case upsertDocument(ProjectDocument)
+    case deleteDocument(UUID)
 }
 
 enum CloudSyncAccountStatus: Sendable {
@@ -30,6 +32,7 @@ protocol CloudSyncDelegate: AnyObject {
 final class CloudSyncEngine: CloudSyncControlling {
     private static let zoneName = "Cards"
     private static let recordType = "CaptureCard"
+    private static let documentRecordType = "ProjectDocument"
     private static let serverChangeTokenKey = "CloudSyncEngine.serverChangeToken"
     private static let maxRetryAttempts = 3
 
@@ -344,7 +347,7 @@ final class CloudSyncEngine: CloudSyncControlling {
         )
 
         var upsertedRecords: [CKRecord] = []
-        var deletedRecordIDs: [CKRecord.ID] = []
+        var deletedRecords: [(CKRecord.ID, String)] = []
 
         operation.recordWasChangedBlock = { _, result in
             switch result {
@@ -355,8 +358,8 @@ final class CloudSyncEngine: CloudSyncControlling {
             }
         }
 
-        operation.recordWithIDWasDeletedBlock = { recordID, _ in
-            deletedRecordIDs.append(recordID)
+        operation.recordWithIDWasDeletedBlock = { recordID, recordType in
+            deletedRecords.append((recordID, recordType ?? ""))
         }
 
         operation.recordZoneChangeTokensUpdatedBlock = { [weak self] _, token, _ in
@@ -376,7 +379,7 @@ final class CloudSyncEngine: CloudSyncControlling {
                     self.serverChangeToken = token
                     self.processRemoteChanges(
                         upserted: upsertedRecords,
-                        deleted: deletedRecordIDs
+                        deleted: deletedRecords
                     )
                     self.delegate?.cloudSyncDidComplete(self)
                 case .failure(let error):
@@ -418,22 +421,39 @@ final class CloudSyncEngine: CloudSyncControlling {
 
     // MARK: - Private
 
-    private func processRemoteChanges(upserted: [CKRecord], deleted: [CKRecord.ID]) {
+    private func processRemoteChanges(upserted: [CKRecord], deleted: [(CKRecord.ID, String)]) {
         pruneExpiredEchoEntries()
 
         var changes: [SyncChange] = []
 
         for record in upserted {
-            guard let card = captureCard(from: record) else { continue }
-            guard !isRecentlyPushed(card.id) else { continue }
-            let assetURL = (record["screenshot"] as? CKAsset)?.fileURL
-            changes.append(.upsert(card, screenshotAssetURL: assetURL))
+            let id = UUID(uuidString: record.recordID.recordName)
+            guard let id, !isRecentlyPushed(id) else { continue }
+
+            switch record.recordType {
+            case Self.recordType:
+                guard let card = captureCard(from: record) else { continue }
+                let assetURL = (record["screenshot"] as? CKAsset)?.fileURL
+                changes.append(.upsertCard(card, screenshotAssetURL: assetURL))
+            case Self.documentRecordType:
+                guard let doc = projectDocument(from: record) else { continue }
+                changes.append(.upsertDocument(doc))
+            default:
+                break
+            }
         }
 
-        for recordID in deleted {
+        for (recordID, recordType) in deleted {
             guard let uuid = UUID(uuidString: recordID.recordName) else { continue }
             guard !isRecentlyPushed(uuid) else { continue }
-            changes.append(.delete(uuid))
+            switch recordType {
+            case Self.recordType:
+                changes.append(.deleteCard(uuid))
+            case Self.documentRecordType:
+                changes.append(.deleteDocument(uuid))
+            default:
+                changes.append(.deleteCard(uuid))
+            }
         }
 
         guard !changes.isEmpty else { return }
@@ -530,6 +550,114 @@ final class CloudSyncEngine: CloudSyncControlling {
             return false
         }
     }
+
+    // MARK: - ProjectDocument Push
+
+    func pushLocalChange(document: ProjectDocument) {
+        insertRecentlyPushedID(document.id)
+
+        guard isNetworkAvailable else {
+            NSLog("CloudSync document push skipped (offline) for %@", document.id.uuidString)
+            return
+        }
+
+        Task {
+            do {
+                try await retryOnTransientError {
+                    let recordID = CKRecord.ID(recordName: document.id.uuidString, zoneID: self.zoneID)
+                    let record: CKRecord
+                    do {
+                        record = try await self.database.record(for: recordID)
+                    } catch let error as CKError where error.code == .unknownItem {
+                        record = CKRecord(recordType: Self.documentRecordType, recordID: recordID)
+                    }
+                    self.applyDocumentFields(document, to: record)
+                    _ = try await self.database.save(record)
+                }
+                delegate?.cloudSyncDidComplete(self)
+            } catch {
+                NSLog("CloudSync document push failed for %@: %@", document.id.uuidString, String(describing: error))
+                delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
+            }
+        }
+    }
+
+    func pushDocumentDeletion(id: UUID) {
+        insertRecentlyPushedID(id)
+
+        guard isNetworkAvailable else {
+            NSLog("CloudSync document delete skipped (offline) for %@", id.uuidString)
+            return
+        }
+
+        let recordID = CKRecord.ID(recordName: id.uuidString, zoneID: zoneID)
+
+        Task {
+            do {
+                try await retryOnTransientError {
+                    try await self.database.deleteRecord(withID: recordID)
+                }
+                delegate?.cloudSyncDidComplete(self)
+            } catch let error as CKError where error.code == .unknownItem {
+                delegate?.cloudSyncDidComplete(self)
+            } catch {
+                NSLog("CloudSync document delete failed for %@: %@", id.uuidString, String(describing: error))
+                delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
+            }
+        }
+    }
+
+    // MARK: - ProjectDocument CKRecord Mapping
+
+    private func applyDocumentFields(_ doc: ProjectDocument, to record: CKRecord) {
+        record["project"] = doc.project as NSString
+        record["topic"] = doc.topic as NSString
+        record["documentType"] = doc.documentType.rawValue as NSString
+        record["content"] = doc.content as NSString
+        record["createdAt"] = doc.createdAt as NSDate
+        record["updatedAt"] = doc.updatedAt as NSDate
+        record["supersededByID"] = doc.supersededByID?.uuidString as NSString?
+        record["stability"] = NSNumber(value: doc.stability)
+        record["recallCount"] = NSNumber(value: doc.recallCount)
+        record["lastRecalledAt"] = doc.lastRecalledAt as NSDate?
+    }
+
+    private func newDocumentRecord(from doc: ProjectDocument) -> CKRecord {
+        let recordID = CKRecord.ID(recordName: doc.id.uuidString, zoneID: zoneID)
+        let record = CKRecord(recordType: Self.documentRecordType, recordID: recordID)
+        applyDocumentFields(doc, to: record)
+        return record
+    }
+
+    private func projectDocument(from record: CKRecord) -> ProjectDocument? {
+        guard let project = record["project"] as? String,
+              let topic = record["topic"] as? String,
+              let documentTypeRaw = record["documentType"] as? String,
+              let documentType = ProjectDocumentType(rawValue: documentTypeRaw),
+              let content = record["content"] as? String,
+              let createdAt = record["createdAt"] as? Date,
+              let updatedAt = record["updatedAt"] as? Date,
+              let uuid = UUID(uuidString: record.recordID.recordName)
+        else {
+            return nil
+        }
+
+        return ProjectDocument(
+            id: uuid,
+            project: project,
+            topic: topic,
+            documentType: documentType,
+            content: content,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            supersededByID: (record["supersededByID"] as? String).flatMap(UUID.init(uuidString:)),
+            stability: (record["stability"] as? Double) ?? DocumentVividness.defaultStability,
+            recallCount: (record["recallCount"] as? Int) ?? 0,
+            lastRecalledAt: record["lastRecalledAt"] as? Date
+        )
+    }
+
+    // MARK: - CaptureCard CKRecord Mapping
 
     private func captureCard(from record: CKRecord) -> CaptureCard? {
         guard let text = record["text"] as? String,

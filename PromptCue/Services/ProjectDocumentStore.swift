@@ -2,6 +2,11 @@ import Foundation
 import GRDB
 import PromptCueCore
 
+extension Notification.Name {
+    static let projectDocumentDidChange = Notification.Name("projectDocumentDidChange")
+    static let projectDocumentDidDelete = Notification.Name("projectDocumentDidDelete")
+}
+
 enum ProjectDocumentStoreError: LocalizedError {
     case unavailable(underlying: Error?)
     case loadFailed(Error)
@@ -151,7 +156,7 @@ final class ProjectDocumentStore {
         }
 
         do {
-            return try dbQueue.write { db in
+            let result = try dbQueue.write { db -> ProjectDocument in
                 let existing = try ProjectDocumentRecord.fetchOne(
                     db,
                     sql: """
@@ -199,6 +204,12 @@ final class ProjectDocumentStore {
 
                 return nextDocument
             }
+            NotificationCenter.default.post(
+                name: .projectDocumentDidChange,
+                object: nil,
+                userInfo: ["document": result]
+            )
+            return result
         } catch {
             NSLog("ProjectDocumentStore saveDocument failed: %@", error.localizedDescription)
             throw ProjectDocumentStoreError.saveFailed(error)
@@ -211,7 +222,7 @@ final class ProjectDocumentStore {
         }
 
         do {
-            return try dbQueue.write { db in
+            let result = try dbQueue.write { db -> Int in
                 let deletedCount = try Int.fetchOne(
                     db,
                     sql: """
@@ -239,6 +250,14 @@ final class ProjectDocumentStore {
 
                 return deletedCount
             }
+            if result > 0 {
+                NotificationCenter.default.post(
+                    name: .projectDocumentDidDelete,
+                    object: nil,
+                    userInfo: ["project": project]
+                )
+            }
+            return result
         } catch {
             NSLog("ProjectDocumentStore deleteProject failed: %@", error.localizedDescription)
             throw ProjectDocumentStoreError.deleteFailed(error)
@@ -316,7 +335,7 @@ final class ProjectDocumentStore {
         }
 
         do {
-            return try dbQueue.write { db in
+            let result = try dbQueue.write { db -> ProjectDocument in
                 let existing = try ProjectDocumentRecord.fetchOne(
                     db,
                     sql: """
@@ -352,6 +371,12 @@ final class ProjectDocumentStore {
 
                 return existing.projectDocument
             }
+            NotificationCenter.default.post(
+                name: .projectDocumentDidDelete,
+                object: nil,
+                userInfo: ["id": result.id.uuidString]
+            )
+            return result
         } catch {
             NSLog("ProjectDocumentStore deleteDocument failed: %@", error.localizedDescription)
             throw ProjectDocumentStoreError.deleteFailed(error)
@@ -372,7 +397,7 @@ final class ProjectDocumentStore {
         }
 
         do {
-            return try dbQueue.write { db in
+            let result = try dbQueue.write { db -> ProjectDocument? in
                 guard let existing = try ProjectDocumentRecord.fetchOne(
                     db,
                     sql: """
@@ -408,6 +433,14 @@ final class ProjectDocumentStore {
 
                 return recalled
             }
+            if let result {
+                NotificationCenter.default.post(
+                    name: .projectDocumentDidChange,
+                    object: nil,
+                    userInfo: ["document": result]
+                )
+            }
+            return result
         } catch {
             NSLog("ProjectDocumentStore recordRecall failed: %@", error.localizedDescription)
             return nil
@@ -425,7 +458,7 @@ final class ProjectDocumentStore {
         }
 
         do {
-            return try dbQueue.write { db in
+            let result = try dbQueue.write { db -> ProjectDocument? in
                 guard let existing = try ProjectDocumentRecord.fetchOne(
                     db,
                     sql: """
@@ -458,9 +491,103 @@ final class ProjectDocumentStore {
 
                 return recalled
             }
+            if let result {
+                NotificationCenter.default.post(
+                    name: .projectDocumentDidChange,
+                    object: nil,
+                    userInfo: ["document": result]
+                )
+            }
+            return result
         } catch {
             NSLog("ProjectDocumentStore recordRecall by ID failed: %@", error.localizedDescription)
             return nil
+        }
+    }
+
+    // MARK: - Cloud Sync
+
+    func upsertFromSync(_ document: ProjectDocument) throws {
+        guard let dbQueue = database.dbQueue else {
+            throw ProjectDocumentStoreError.unavailable(underlying: database.setupError)
+        }
+
+        do {
+            try dbQueue.write { db in
+                try ProjectDocumentRecord(projectDocument: document).save(db)
+            }
+        } catch {
+            NSLog("ProjectDocumentStore upsertFromSync failed: %@", error.localizedDescription)
+            throw ProjectDocumentStoreError.saveFailed(error)
+        }
+    }
+
+    func deleteFromSync(id: UUID) throws {
+        guard let dbQueue = database.dbQueue else {
+            throw ProjectDocumentStoreError.unavailable(underlying: database.setupError)
+        }
+
+        do {
+            try dbQueue.write { db in
+                try db.execute(
+                    sql: """
+                    DELETE FROM \(ProjectDocumentRecord.databaseTableName)
+                    WHERE id = ?
+                    """,
+                    arguments: [id.uuidString]
+                )
+            }
+        } catch {
+            NSLog("ProjectDocumentStore deleteFromSync failed: %@", error.localizedDescription)
+            throw ProjectDocumentStoreError.deleteFailed(error)
+        }
+    }
+
+    func allCurrentDocuments() throws -> [ProjectDocument] {
+        guard let dbQueue = database.dbQueue else {
+            throw ProjectDocumentStoreError.unavailable(underlying: database.setupError)
+        }
+
+        do {
+            return try dbQueue.read { db in
+                let records = try ProjectDocumentRecord.fetchAll(
+                    db,
+                    sql: """
+                    SELECT *
+                    FROM \(ProjectDocumentRecord.databaseTableName)
+                    WHERE supersededByID IS NULL
+                    ORDER BY updatedAt DESC
+                    """
+                )
+                return records.map(\.projectDocument)
+            }
+        } catch {
+            NSLog("ProjectDocumentStore allCurrentDocuments failed: %@", error.localizedDescription)
+            throw ProjectDocumentStoreError.loadFailed(error)
+        }
+    }
+
+    func documentByID(_ id: UUID) throws -> ProjectDocument? {
+        guard let dbQueue = database.dbQueue else {
+            throw ProjectDocumentStoreError.unavailable(underlying: database.setupError)
+        }
+
+        do {
+            return try dbQueue.read { db in
+                try ProjectDocumentRecord.fetchOne(
+                    db,
+                    sql: """
+                    SELECT *
+                    FROM \(ProjectDocumentRecord.databaseTableName)
+                    WHERE id = ?
+                    LIMIT 1
+                    """,
+                    arguments: [id.uuidString]
+                )?.projectDocument
+            }
+        } catch {
+            NSLog("ProjectDocumentStore documentByID failed: %@", error.localizedDescription)
+            throw ProjectDocumentStoreError.loadFailed(error)
         }
     }
 }

@@ -31,7 +31,7 @@ final class CloudSyncMergeTests: XCTestCase {
         let remoteCard = CaptureCard(text: "Remote note", createdAt: Date())
 
         model.applyRemoteChanges([
-            .upsert(remoteCard, screenshotAssetURL: nil)
+            .upsertCard(remoteCard, screenshotAssetURL: nil)
         ])
 
         XCTAssertEqual(model.cards.count, 1)
@@ -44,7 +44,7 @@ final class CloudSyncMergeTests: XCTestCase {
         model.reloadCards()
 
         model.applyRemoteChanges([
-            .delete(card.id)
+            .deleteCard(card.id)
         ])
 
         XCTAssertTrue(model.cards.isEmpty)
@@ -71,7 +71,7 @@ final class CloudSyncMergeTests: XCTestCase {
         )
 
         model.applyRemoteChanges([
-            .upsert(remoteCard, screenshotAssetURL: nil)
+            .upsertCard(remoteCard, screenshotAssetURL: nil)
         ])
 
         XCTAssertEqual(model.cards.first?.text, "Local")
@@ -97,7 +97,7 @@ final class CloudSyncMergeTests: XCTestCase {
         )
 
         model.applyRemoteChanges([
-            .upsert(remoteCard, screenshotAssetURL: nil)
+            .upsertCard(remoteCard, screenshotAssetURL: nil)
         ])
 
         XCTAssertEqual(model.cards.first?.text, "Remote")
@@ -126,7 +126,7 @@ final class CloudSyncMergeTests: XCTestCase {
         )
 
         model.applyRemoteChanges([
-            .upsert(remoteCard, screenshotAssetURL: nil)
+            .upsertCard(remoteCard, screenshotAssetURL: nil)
         ])
 
         XCTAssertEqual(model.cards.first?.text, "Remote")
@@ -149,7 +149,7 @@ final class CloudSyncMergeTests: XCTestCase {
         )
 
         model.applyRemoteChanges([
-            .upsert(remoteCard, screenshotAssetURL: nil)
+            .upsertCard(remoteCard, screenshotAssetURL: nil)
         ])
 
         XCTAssertEqual(model.cards.first?.text, "Local")
@@ -185,7 +185,7 @@ final class CloudSyncMergeTests: XCTestCase {
         )
 
         model.applyRemoteChanges([
-            .upsert(remoteCard, screenshotAssetURL: nil)
+            .upsertCard(remoteCard, screenshotAssetURL: nil)
         ])
 
         let merged = model.cards.first
@@ -222,7 +222,7 @@ final class CloudSyncMergeTests: XCTestCase {
         )
 
         model.applyRemoteChanges([
-            .upsert(remoteCard, screenshotAssetURL: nil)
+            .upsertCard(remoteCard, screenshotAssetURL: nil)
         ])
 
         let merged = model.cards.first
@@ -239,7 +239,7 @@ final class CloudSyncMergeTests: XCTestCase {
         let remoteCard = CaptureCard(text: "With screenshot", createdAt: Date())
 
         model.applyRemoteChanges([
-            .upsert(remoteCard, screenshotAssetURL: assetFile)
+            .upsertCard(remoteCard, screenshotAssetURL: assetFile)
         ])
 
         let card = model.cards.first
@@ -252,7 +252,7 @@ final class CloudSyncMergeTests: XCTestCase {
         let remoteCard = CaptureCard(text: "No file", createdAt: Date())
 
         model.applyRemoteChanges([
-            .upsert(remoteCard, screenshotAssetURL: missingURL)
+            .upsertCard(remoteCard, screenshotAssetURL: missingURL)
         ])
 
         let card = model.cards.first
@@ -268,7 +268,7 @@ final class CloudSyncMergeTests: XCTestCase {
         )
 
         model.applyRemoteChanges([
-            .upsert(remoteCard, screenshotAssetURL: nil)
+            .upsertCard(remoteCard, screenshotAssetURL: nil)
         ])
 
         let card = model.cards.first
@@ -300,7 +300,7 @@ final class CloudSyncMergeTests: XCTestCase {
         )
 
         model.applyRemoteChanges([
-            .upsert(remoteCard, screenshotAssetURL: assetFile)
+            .upsertCard(remoteCard, screenshotAssetURL: assetFile)
         ])
 
         XCTAssertEqual(attachmentStore.importCallCount, 0)
@@ -332,7 +332,7 @@ final class CloudSyncMergeTests: XCTestCase {
         )
 
         model.applyRemoteChanges([
-            .upsert(remoteCard, screenshotAssetURL: assetFile)
+            .upsertCard(remoteCard, screenshotAssetURL: assetFile)
         ])
 
         XCTAssertEqual(attachmentStore.importCallCount, 1)
@@ -344,7 +344,7 @@ final class CloudSyncMergeTests: XCTestCase {
         let remoteCard = CaptureCard(text: "Queued remote note", createdAt: Date())
 
         model.scheduleRemoteChangesForApply([
-            .upsert(remoteCard, screenshotAssetURL: nil)
+            .upsertCard(remoteCard, screenshotAssetURL: nil)
         ])
         await model.waitForRemoteApplyToDrain()
 
@@ -376,7 +376,7 @@ final class CloudSyncMergeTests: XCTestCase {
         )
 
         model.scheduleRemoteChangesForApply([
-            .upsert(remoteCard, screenshotAssetURL: assetFile)
+            .upsertCard(remoteCard, screenshotAssetURL: assetFile)
         ])
         await model.waitForRemoteApplyToDrain()
 
@@ -409,7 +409,7 @@ final class CloudSyncMergeTests: XCTestCase {
         )
 
         model.scheduleRemoteChangesForApply([
-            .upsert(remoteCard, screenshotAssetURL: assetFile)
+            .upsertCard(remoteCard, screenshotAssetURL: assetFile)
         ])
         await model.waitForRemoteApplyToDrain()
 
@@ -428,7 +428,7 @@ final class CloudSyncMergeTests: XCTestCase {
         XCTAssertTrue(model.selectedCardIDs.contains(card.id))
 
         model.applyRemoteChanges([
-            .delete(card.id)
+            .deleteCard(card.id)
         ])
 
         XCTAssertFalse(model.selectedCardIDs.contains(card.id))

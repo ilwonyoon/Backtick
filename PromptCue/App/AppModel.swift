@@ -60,6 +60,7 @@ final class AppModel: ObservableObject {
     let cardStore: CardStore
     let attachmentStore: AttachmentStoring
     let recentScreenshotCoordinator: RecentScreenshotCoordinating
+    let documentStore: ProjectDocumentStore
     private let cloudSyncEngineFactory: @MainActor () -> any CloudSyncControlling
     private let cleanupInterval: TimeInterval
     private let requiresCloudEntitlements: Bool
@@ -69,6 +70,8 @@ final class AppModel: ObservableObject {
     var hasStartedRecentScreenshotCoordinator = false
     private var retentionSettingsObserver: NSObjectProtocol?
     private var syncToggleObserver: NSObjectProtocol?
+    private var documentChangeObserver: NSObjectProtocol?
+    private var documentDeleteObserver: NSObjectProtocol?
     private var deferredStartupMaintenanceTask: Task<Void, Never>?
     private var deferredCloudSyncFetchTask: Task<Void, Never>?
     private var remoteApplyTask: Task<Void, Never>?
@@ -80,6 +83,7 @@ final class AppModel: ObservableObject {
         cardStore: CardStore,
         attachmentStore: AttachmentStoring,
         recentScreenshotCoordinator: RecentScreenshotCoordinating,
+        documentStore: ProjectDocumentStore? = nil,
         cloudSyncEngine: (any CloudSyncControlling)? = nil,
         cloudSyncEngineFactory: @escaping @MainActor () -> any CloudSyncControlling = { CloudSyncEngine() },
         cleanupInterval: TimeInterval = 60,
@@ -88,6 +92,7 @@ final class AppModel: ObservableObject {
         self.cardStore = cardStore
         self.attachmentStore = attachmentStore
         self.recentScreenshotCoordinator = recentScreenshotCoordinator
+        self.documentStore = documentStore ?? ProjectDocumentStore()
         self.cloudSyncEngine = cloudSyncEngine
         self.cloudSyncEngineFactory = cloudSyncEngineFactory
         self.cleanupInterval = cleanupInterval
@@ -185,6 +190,14 @@ final class AppModel: ObservableObject {
             NotificationCenter.default.removeObserver(syncToggleObserver)
         }
         syncToggleObserver = nil
+        if let documentChangeObserver {
+            NotificationCenter.default.removeObserver(documentChangeObserver)
+        }
+        documentChangeObserver = nil
+        if let documentDeleteObserver {
+            NotificationCenter.default.removeObserver(documentDeleteObserver)
+        }
+        documentDeleteObserver = nil
         stopCloudSyncEngine()
     }
 
@@ -695,6 +708,7 @@ final class AppModel: ObservableObject {
     private func startCloudSync(initialFetchMode: CloudSyncInitialFetchMode = .immediate) {
         guard let cloudSyncEngine else { return }
         cloudSyncEngine.delegate = self
+        startDocumentSyncObservers()
 
         Task {
             await cloudSyncEngine.setup()
@@ -707,6 +721,35 @@ final class AppModel: ObservableObject {
             let allCards = cards
             if !allCards.isEmpty {
                 cloudSyncEngine.pushAllLocalCards(cards: allCards)
+            }
+            let allDocs = (try? documentStore.allCurrentDocuments()) ?? []
+            for doc in allDocs {
+                cloudSyncEngine.pushLocalChange(document: doc)
+            }
+        }
+    }
+
+    private func startDocumentSyncObservers() {
+        documentChangeObserver = NotificationCenter.default.addObserver(
+            forName: .projectDocumentDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            Task { @MainActor [weak self] in
+                guard let doc = notification.userInfo?["document"] as? ProjectDocument else { return }
+                self?.cloudSyncEngine?.pushLocalChange(document: doc)
+            }
+        }
+
+        documentDeleteObserver = NotificationCenter.default.addObserver(
+            forName: .projectDocumentDidDelete,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            Task { @MainActor [weak self] in
+                if let id = notification.userInfo?["id"] as? String, let uuid = UUID(uuidString: id) {
+                    self?.cloudSyncEngine?.pushDocumentDeletion(id: uuid)
+                }
             }
         }
     }
@@ -952,6 +995,16 @@ extension AppModel: CloudSyncDelegate {
     }
 
     private func buildRemoteApplyPlan(_ changes: [SyncChange]) -> RemoteApplyPlan {
+        // Handle document changes first (directly, outside card plan)
+        for change in changes {
+            switch change {
+            case .upsertDocument, .deleteDocument:
+                applyRemoteDocumentChange(change)
+            default:
+                break
+            }
+        }
+
         let originalCardsByID = Dictionary(uniqueKeysWithValues: cards.map { ($0.id, $0) })
         var updatedCardsByID = originalCardsByID
         var changedCardsByID: [UUID: CaptureCard] = [:]
@@ -960,7 +1013,7 @@ extension AppModel: CloudSyncDelegate {
 
         for change in changes {
             switch change {
-            case .upsert(let remoteCard, let screenshotAssetURL):
+            case .upsertCard(let remoteCard, let screenshotAssetURL):
                 let mergedCard = mergeRemoteChange(
                     local: updatedCardsByID[remoteCard.id],
                     remote: remoteCard,
@@ -975,7 +1028,7 @@ extension AppModel: CloudSyncDelegate {
                     changedCardsByID.removeValue(forKey: mergedCard.id)
                 }
 
-            case .delete(let id):
+            case .deleteCard(let id):
                 if let removedCard = updatedCardsByID.removeValue(forKey: id) {
                     removedCardsByID[id] = removedCard
                     if originalCardsByID[id] != nil {
@@ -983,6 +1036,9 @@ extension AppModel: CloudSyncDelegate {
                     }
                 }
                 changedCardsByID.removeValue(forKey: id)
+
+            case .upsertDocument, .deleteDocument:
+                break
             }
         }
 
@@ -995,6 +1051,28 @@ extension AppModel: CloudSyncDelegate {
             survivingIDs: survivingIDs,
             removedCards: Array(removedCardsByID.values)
         )
+    }
+
+    private func applyRemoteDocumentChange(_ change: SyncChange) {
+        switch change {
+        case .upsertDocument(let remote):
+            guard remote.supersededByID == nil else { return }
+            do {
+                let local = try documentStore.documentByID(remote.id)
+                if let local, local.updatedAt >= remote.updatedAt { return }
+                try documentStore.upsertFromSync(remote)
+            } catch {
+                NSLog("CloudSync document apply failed: %@", error.localizedDescription)
+            }
+        case .deleteDocument(let id):
+            do {
+                try documentStore.deleteFromSync(id: id)
+            } catch {
+                NSLog("CloudSync document delete failed: %@", error.localizedDescription)
+            }
+        default:
+            break
+        }
     }
 
     private func applyRemoteApplyPlan(_ plan: RemoteApplyPlan) {
