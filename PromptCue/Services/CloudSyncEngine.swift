@@ -1,7 +1,10 @@
 import CloudKit
 import Foundation
 import Network
+import os.log
 import PromptCueCore
+
+private let syncLog = Logger(subsystem: "com.promptcue.promptcue", category: "CloudSync")
 
 enum SyncChange: Sendable {
     case upsert(CaptureCard, screenshotAssetURL: URL?)
@@ -76,9 +79,11 @@ final class CloudSyncEngine: CloudSyncControlling {
     // MARK: - Setup
 
     func setup() async {
+        syncLog.info("CloudSync setup starting")
         startNetworkMonitor()
 
         let status = await checkAccountStatus()
+        syncLog.info("CloudSync account status: \(String(describing: status))")
         accountStatus = status
         delegate?.cloudSync(self, accountStatusChanged: status)
 
@@ -98,9 +103,11 @@ final class CloudSyncEngine: CloudSyncControlling {
 
         do {
             try await createZoneIfNeeded()
+            syncLog.info("CloudSync zone created/verified")
             try await subscribeToChanges()
+            syncLog.info("CloudSync subscription created/verified")
         } catch {
-            NSLog("CloudSyncEngine setup failed: %@", String(describing: error))
+            syncLog.error("CloudSync setup failed: \(String(describing: error))")
             delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
         }
     }

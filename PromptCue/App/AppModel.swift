@@ -2,6 +2,7 @@ import AppKit
 import CloudKit
 import Combine
 import Foundation
+import os.log
 import PromptCueCore
 
 enum CardSection {
@@ -96,11 +97,17 @@ final class AppModel: ObservableObject {
     convenience init() {
         let isTestEnvironment = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
         let syncEnabled = !isTestEnvironment && CloudSyncPreferences.load()
+        let hasProfile = Self.hasCloudEntitlements
+        let willCreateEngine = syncEnabled && hasProfile
+        if !isTestEnvironment {
+            Logger(subsystem: "com.promptcue.promptcue", category: "CloudSync")
+                .info("AppModel init: syncEnabled=\(syncEnabled) hasProfile=\(hasProfile) willCreateEngine=\(willCreateEngine)")
+        }
         self.init(
             cardStore: CardStore(),
             attachmentStore: AttachmentStore(),
             recentScreenshotCoordinator: RecentScreenshotCoordinator(),
-            cloudSyncEngine: syncEnabled && Self.hasCloudEntitlements ? CloudSyncEngine() : nil
+            cloudSyncEngine: willCreateEngine ? CloudSyncEngine() : nil
         )
     }
 

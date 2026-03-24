@@ -1234,6 +1234,8 @@ struct MCPConnectorInspector {
                     "/usr/local/bin",
                     "/usr/bin",
                     homeDirectoryURL.appendingPathComponent(".local/bin").path,
+                    homeDirectoryURL.appendingPathComponent(".npm-global/bin").path,
+                    homeDirectoryURL.appendingPathComponent(".nvm/current/bin").path,
                 ]
             )
         )
