@@ -443,24 +443,36 @@ case "${PACKAGE_FORMAT}" in
     PRIMARY_ARTIFACT_PATH="${FINAL_ZIP_PATH}"
     ;;
   dmg)
+    DMG_APP_NAME="${ARTIFACT_BASENAME}.app"
+    DMG_STAGE_DIR="${OUTPUT_ROOT}/dmg-stage"
+    rm -rf "${DMG_STAGE_DIR}"
+    mkdir -p "${DMG_STAGE_DIR}"
+    ditto "${EXPORTED_APP_PATH}" "${DMG_STAGE_DIR}/${DMG_APP_NAME}"
     run hdiutil create \
       -quiet \
       -volname "${ARTIFACT_VOLUME_NAME}" \
-      -srcfolder "${EXPORTED_APP_PATH}" \
+      -srcfolder "${DMG_STAGE_DIR}" \
       -format UDZO \
       -imagekey zlib-level=9 \
       "${FINAL_DMG_PATH}"
+    rm -rf "${DMG_STAGE_DIR}"
     PRIMARY_ARTIFACT_PATH="${FINAL_DMG_PATH}"
     ;;
   both)
     run ditto -c -k --sequesterRsrc --keepParent "${EXPORTED_APP_PATH}" "${FINAL_ZIP_PATH}"
+    DMG_APP_NAME="${ARTIFACT_BASENAME}.app"
+    DMG_STAGE_DIR="${OUTPUT_ROOT}/dmg-stage"
+    rm -rf "${DMG_STAGE_DIR}"
+    mkdir -p "${DMG_STAGE_DIR}"
+    ditto "${EXPORTED_APP_PATH}" "${DMG_STAGE_DIR}/${DMG_APP_NAME}"
     run hdiutil create \
       -quiet \
       -volname "${ARTIFACT_VOLUME_NAME}" \
-      -srcfolder "${EXPORTED_APP_PATH}" \
+      -srcfolder "${DMG_STAGE_DIR}" \
       -format UDZO \
       -imagekey zlib-level=9 \
       "${FINAL_DMG_PATH}"
+    rm -rf "${DMG_STAGE_DIR}"
     PRIMARY_ARTIFACT_PATH="${FINAL_DMG_PATH}"
     ;;
 esac
