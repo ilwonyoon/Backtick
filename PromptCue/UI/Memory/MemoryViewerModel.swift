@@ -85,6 +85,8 @@ final class MemoryViewerModel: ObservableObject {
 
     private let store: ProjectDocumentStore
     private let pasteboard: NSPasteboard
+    private var syncChangeObserver: NSObjectProtocol?
+    private var syncDeleteObserver: NSObjectProtocol?
 
     init(
         store: ProjectDocumentStore? = nil,
@@ -93,6 +95,35 @@ final class MemoryViewerModel: ObservableObject {
         self.store = store ?? ProjectDocumentStore()
         self.pasteboard = pasteboard
         refresh()
+        observeSyncChanges()
+    }
+
+    private func observeSyncChanges() {
+        syncChangeObserver = NotificationCenter.default.addObserver(
+            forName: .projectDocumentDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard notification.userInfo?["fromSync"] as? Bool == true else { return }
+            Task { @MainActor [weak self] in
+                self?.refresh()
+            }
+        }
+        syncDeleteObserver = NotificationCenter.default.addObserver(
+            forName: .projectDocumentDidDelete,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard notification.userInfo?["fromSync"] as? Bool == true else { return }
+            Task { @MainActor [weak self] in
+                self?.refresh()
+            }
+        }
+    }
+
+    deinit {
+        if let syncChangeObserver { NotificationCenter.default.removeObserver(syncChangeObserver) }
+        if let syncDeleteObserver { NotificationCenter.default.removeObserver(syncDeleteObserver) }
     }
 
     func refresh() {

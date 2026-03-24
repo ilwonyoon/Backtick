@@ -516,6 +516,11 @@ final class ProjectDocumentStore {
             try dbQueue.write { db in
                 try ProjectDocumentRecord(projectDocument: document).save(db)
             }
+            NotificationCenter.default.post(
+                name: .projectDocumentDidChange,
+                object: nil,
+                userInfo: ["document": document, "fromSync": true]
+            )
         } catch {
             NSLog("ProjectDocumentStore upsertFromSync failed: %@", error.localizedDescription)
             throw ProjectDocumentStoreError.saveFailed(error)
@@ -537,6 +542,11 @@ final class ProjectDocumentStore {
                     arguments: [id.uuidString]
                 )
             }
+            NotificationCenter.default.post(
+                name: .projectDocumentDidDelete,
+                object: nil,
+                userInfo: ["id": id.uuidString, "fromSync": true]
+            )
         } catch {
             NSLog("ProjectDocumentStore deleteFromSync failed: %@", error.localizedDescription)
             throw ProjectDocumentStoreError.deleteFailed(error)

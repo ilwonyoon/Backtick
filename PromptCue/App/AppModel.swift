@@ -736,7 +736,8 @@ final class AppModel: ObservableObject {
             queue: .main
         ) { [weak self] notification in
             Task { @MainActor [weak self] in
-                guard let doc = notification.userInfo?["document"] as? ProjectDocument else { return }
+                guard notification.userInfo?["fromSync"] as? Bool != true,
+                      let doc = notification.userInfo?["document"] as? ProjectDocument else { return }
                 self?.cloudSyncEngine?.pushLocalChange(document: doc)
             }
         }
@@ -747,6 +748,7 @@ final class AppModel: ObservableObject {
             queue: .main
         ) { [weak self] notification in
             Task { @MainActor [weak self] in
+                guard notification.userInfo?["fromSync"] as? Bool != true else { return }
                 if let id = notification.userInfo?["id"] as? String, let uuid = UUID(uuidString: id) {
                     self?.cloudSyncEngine?.pushDocumentDeletion(id: uuid)
                 }
