@@ -27,7 +27,9 @@ final class AppCoordinator: AppLifecycleCoordinating {
         }
     )
     private lazy var designSystemWindowController = DesignSystemWindowController()
-    private lazy var memoryWindowController = MemoryWindowController()
+    private lazy var memoryWindowController = MemoryWindowController(
+        model: MemoryViewerModel(store: model.documentStore)
+    )
     private lazy var settingsWindowController = SettingsWindowController(
         screenshotSettingsModel: screenshotSettingsModel,
         exportTailSettingsModel: exportTailSettingsModel,

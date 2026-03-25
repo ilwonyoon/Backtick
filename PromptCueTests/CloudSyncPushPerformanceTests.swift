@@ -195,6 +195,7 @@ private final class BenchmarkCloudSyncEngine: CloudSyncControlling {
 
     func pushLocalChange(document: ProjectDocument) {}
     func pushDocumentDeletion(id: UUID) {}
+    func pushAllLocalDocuments(documents: [ProjectDocument]) {}
 
     func resetMetrics() {
         localPushCount = 0

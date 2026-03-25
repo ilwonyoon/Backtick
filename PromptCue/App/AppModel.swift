@@ -723,8 +723,8 @@ final class AppModel: ObservableObject {
                 cloudSyncEngine.pushAllLocalCards(cards: allCards)
             }
             let allDocs = (try? documentStore.allCurrentDocuments()) ?? []
-            for doc in allDocs {
-                cloudSyncEngine.pushLocalChange(document: doc)
+            if !allDocs.isEmpty {
+                cloudSyncEngine.pushAllLocalDocuments(documents: allDocs)
             }
         }
     }
@@ -818,6 +818,16 @@ extension AppModel: CloudSyncDelegate {
     }
 
     func applyRemoteChanges(_ changes: [SyncChange]) {
+        // Apply document changes first (directly to store)
+        for change in changes {
+            switch change {
+            case .upsertDocument, .deleteDocument:
+                applyRemoteDocumentChange(change)
+            default:
+                break
+            }
+        }
+
         let plan = buildRemoteApplyPlan(changes)
         applyRemoteApplyPlan(plan)
     }
@@ -997,16 +1007,6 @@ extension AppModel: CloudSyncDelegate {
     }
 
     private func buildRemoteApplyPlan(_ changes: [SyncChange]) -> RemoteApplyPlan {
-        // Handle document changes first (directly, outside card plan)
-        for change in changes {
-            switch change {
-            case .upsertDocument, .deleteDocument:
-                applyRemoteDocumentChange(change)
-            default:
-                break
-            }
-        }
-
         let originalCardsByID = Dictionary(uniqueKeysWithValues: cards.map { ($0.id, $0) })
         var updatedCardsByID = originalCardsByID
         var changedCardsByID: [UUID: CaptureCard] = [:]

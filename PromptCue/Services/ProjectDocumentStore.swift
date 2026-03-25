@@ -222,20 +222,18 @@ final class ProjectDocumentStore {
         }
 
         do {
-            let result = try dbQueue.write { db -> Int in
-                let deletedCount = try Int.fetchOne(
+            let (deletedCount, documentIDs) = try dbQueue.write { db -> (Int, [String]) in
+                let documentIDs = try String.fetchAll(
                     db,
                     sql: """
-                    SELECT COUNT(*)
-                    FROM \(ProjectDocumentRecord.databaseTableName)
-                    WHERE supersededByID IS NULL
-                      AND project = ?
+                    SELECT id FROM \(ProjectDocumentRecord.databaseTableName)
+                    WHERE supersededByID IS NULL AND project = ?
                     """,
                     arguments: [project]
-                ) ?? 0
+                )
 
-                guard deletedCount > 0 else {
-                    return 0
+                guard !documentIDs.isEmpty else {
+                    return (0, [])
                 }
 
                 try db.execute(
@@ -248,16 +246,16 @@ final class ProjectDocumentStore {
                     arguments: [project]
                 )
 
-                return deletedCount
+                return (documentIDs.count, documentIDs)
             }
-            if result > 0 {
+            for docID in documentIDs {
                 NotificationCenter.default.post(
                     name: .projectDocumentDidDelete,
                     object: nil,
-                    userInfo: ["project": project]
+                    userInfo: ["id": docID]
                 )
             }
-            return result
+            return deletedCount
         } catch {
             NSLog("ProjectDocumentStore deleteProject failed: %@", error.localizedDescription)
             throw ProjectDocumentStoreError.deleteFailed(error)

@@ -157,15 +157,14 @@ final class CloudSyncEngine: CloudSyncControlling {
     }
 
     private func startPeriodicFetch() {
-        periodicFetchTimer = Timer.scheduledTimer(
-            withTimeInterval: 300,
-            repeats: true
-        ) { [weak self] _ in
+        let timer = Timer(timeInterval: 300, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.fetchRemoteChanges()
             }
         }
-        periodicFetchTimer?.tolerance = 60
+        timer.tolerance = 60
+        RunLoop.main.add(timer, forMode: .common)
+        periodicFetchTimer = timer
     }
 
     func stopNetworkMonitor() {
@@ -205,12 +204,11 @@ final class CloudSyncEngine: CloudSyncControlling {
     // MARK: - Push
 
     func pushLocalChange(card: CaptureCard) {
-        insertRecentlyPushedID(card.id)
-
         guard isNetworkAvailable else {
             NSLog("CloudSync push skipped (offline) for %@", card.id.uuidString)
             return
         }
+        insertRecentlyPushedID(card.id)
 
         Task {
             do {
@@ -230,12 +228,11 @@ final class CloudSyncEngine: CloudSyncControlling {
     }
 
     func pushDeletion(id: UUID) {
-        insertRecentlyPushedID(id)
-
         guard isNetworkAvailable else {
             NSLog("CloudSync delete skipped (offline) for %@", id.uuidString)
             return
         }
+        insertRecentlyPushedID(id)
 
         let recordID = CKRecord.ID(recordName: id.uuidString, zoneID: zoneID)
 
@@ -311,7 +308,7 @@ final class CloudSyncEngine: CloudSyncControlling {
                 recordsToSave: chunk,
                 recordIDsToDelete: nil
             )
-            operation.savePolicy = .changedKeys
+            operation.savePolicy = .ifServerRecordUnchanged
             operation.qualityOfService = .utility
 
             operation.modifyRecordsResultBlock = { [weak self] result in
@@ -322,6 +319,43 @@ final class CloudSyncEngine: CloudSyncControlling {
                         syncLog.error("CloudSync initial push batch complete (\(chunk.count, privacy: .public) records)")
                     case .failure(let error):
                         NSLog("CloudSync initial push batch failed: %@", String(describing: error))
+                        self.delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
+                    }
+                }
+            }
+
+            database.add(operation)
+        }
+    }
+
+    func pushAllLocalDocuments(documents: [ProjectDocument]) {
+        guard !documents.isEmpty else { return }
+        guard isNetworkAvailable else {
+            NSLog("CloudSync initial document push skipped (offline), %d documents", documents.count)
+            return
+        }
+
+        let records = documents.map { newDocumentRecord(from: $0) }
+        let chunks = stride(from: 0, to: records.count, by: 400).map {
+            Array(records[$0..<min($0 + 400, records.count)])
+        }
+
+        for chunk in chunks {
+            let operation = CKModifyRecordsOperation(
+                recordsToSave: chunk,
+                recordIDsToDelete: nil
+            )
+            operation.savePolicy = .ifServerRecordUnchanged
+            operation.qualityOfService = .utility
+
+            operation.modifyRecordsResultBlock = { [weak self] result in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    switch result {
+                    case .success:
+                        syncLog.error("CloudSync initial document push batch complete (\(chunk.count, privacy: .public) records)")
+                    case .failure(let error):
+                        NSLog("CloudSync initial document push batch failed: %@", String(describing: error))
                         self.delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
                     }
                 }
@@ -452,7 +486,7 @@ final class CloudSyncEngine: CloudSyncControlling {
             case Self.documentRecordType:
                 changes.append(.deleteDocument(uuid))
             default:
-                changes.append(.deleteCard(uuid))
+                break
             }
         }
 
@@ -554,12 +588,11 @@ final class CloudSyncEngine: CloudSyncControlling {
     // MARK: - ProjectDocument Push
 
     func pushLocalChange(document: ProjectDocument) {
-        insertRecentlyPushedID(document.id)
-
         guard isNetworkAvailable else {
             NSLog("CloudSync document push skipped (offline) for %@", document.id.uuidString)
             return
         }
+        insertRecentlyPushedID(document.id)
 
         Task {
             do {
@@ -583,12 +616,11 @@ final class CloudSyncEngine: CloudSyncControlling {
     }
 
     func pushDocumentDeletion(id: UUID) {
-        insertRecentlyPushedID(id)
-
         guard isNetworkAvailable else {
             NSLog("CloudSync document delete skipped (offline) for %@", id.uuidString)
             return
         }
+        insertRecentlyPushedID(id)
 
         let recordID = CKRecord.ID(recordName: id.uuidString, zoneID: zoneID)
 

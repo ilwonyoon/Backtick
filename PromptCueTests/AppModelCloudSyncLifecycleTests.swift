@@ -124,6 +124,7 @@ private final class RecordingCloudSyncEngine: CloudSyncControlling {
 
     func pushLocalChange(document: ProjectDocument) {}
     func pushDocumentDeletion(id: UUID) {}
+    func pushAllLocalDocuments(documents: [ProjectDocument]) {}
 }
 
 @MainActor
