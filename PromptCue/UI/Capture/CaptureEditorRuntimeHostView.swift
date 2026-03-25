@@ -333,10 +333,16 @@ final class CaptureEditorRuntimeHostView: NSView {
                 self.textView.scrollRangeToVisible(self.textView.selectedRange())
                 self.flashScrollIndicatorIfNeeded()
             }
-        } else if scrollView.contentView.bounds.origin.y > 0.5 || scrollView.contentView.bounds.origin.x > 0.5 {
+        } else if !measurement.isScrollable
+                    && (scrollView.contentView.bounds.origin.y > 0.5 || scrollView.contentView.bounds.origin.x > 0.5) {
             scrollView.contentView.scroll(to: .zero)
             scrollView.reflectScrolledClipView(scrollView.contentView)
             updateScrollIndicatorFrame()
+        } else if measurement.isScrollable {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.textView.scrollRangeToVisible(self.textView.selectedRange())
+            }
         }
     }
 
