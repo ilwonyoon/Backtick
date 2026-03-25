@@ -801,6 +801,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
             self.experimentalMCPHTTPHealthRefreshWorkItem = nil
             self.mcpConnectorSettingsModel.refresh()
             self.mcpConnectorSettingsModel.refreshExperimentalRemoteProbe()
+            self.mcpConnectorSettingsModel.startPeriodicRemoteProbe()
         }
 
         experimentalMCPHTTPHealthRefreshWorkItem = workItem

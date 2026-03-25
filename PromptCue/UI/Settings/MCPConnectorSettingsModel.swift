@@ -1409,6 +1409,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
     private var connectionTaskClient: MCPConnectorClient?
     private var setupRefreshTask: Task<Void, Never>?
     private var experimentalRemoteProbeTask: Task<Void, Never>?
+    private var experimentalRemotePeriodicProbeTimer: Timer?
     private var experimentalRemoteTunnelDetectionTask: Task<Void, Never>?
     private var experimentalRemoteProbeIssue: ExperimentalMCPHTTPProbeIssue?
     private var experimentalRemoteDetectedPublicBaseURL: URL?
@@ -1991,7 +1992,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     @discardableResult
     func launchExperimentalRemoteRecommendedTunnelInTerminal() -> Bool {
-        terminalLauncher.launchInTerminal(command: experimentalRemoteRecommendedTunnelCommand)
+        terminalLauncher.launchInTerminal(command: "killall ngrok 2>/dev/null; sleep 1; \(experimentalRemoteRecommendedTunnelCommand)")
     }
 
     func openExperimentalRemoteTunnelDocumentation() {
@@ -2071,6 +2072,25 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 self.experimentalRemoteProbeIssue = issue
             }
         }
+    }
+
+    func startPeriodicRemoteProbe() {
+        stopPeriodicRemoteProbe()
+        guard experimentalRemoteSettings.isEnabled,
+              experimentalRemotePublicBaseURL != nil else { return }
+        let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshExperimentalRemoteProbe()
+            }
+        }
+        timer.tolerance = 10
+        RunLoop.main.add(timer, forMode: .common)
+        experimentalRemotePeriodicProbeTimer = timer
+    }
+
+    func stopPeriodicRemoteProbe() {
+        experimentalRemotePeriodicProbeTimer?.invalidate()
+        experimentalRemotePeriodicProbeTimer = nil
     }
 
     func refreshExperimentalRemoteTunnelDetection() {

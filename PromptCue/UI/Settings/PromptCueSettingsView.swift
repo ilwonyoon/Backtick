@@ -549,8 +549,12 @@ struct PromptCueSettingsView: View {
                             }
                         }
                     } actions: {
+                        // Status-specific action (copy URL, reset state, retry)
+                        // Tunnel actions (.launchTunnel, .installTunnel) are handled
+                        // by the dedicated ngrok button below.
                         if shouldShowExperimentalRemoteStatusAction,
-                           let action = mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.action {
+                           let action = mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.action,
+                           action != .launchTunnel, action != .installTunnel {
                             Button(action.title) {
                                 mcpConnectorSettingsModel.performExperimentalRemoteStatusAction(action)
                                 if action == .copyPublicMCPURL
@@ -559,8 +563,25 @@ struct PromptCueSettingsView: View {
                                     showExperimentalRemotePublicEndpointCopiedFeedback()
                                 }
                             }
-                            .disabled(action == .launchTunnel && experimentalRemoteHasPendingPortChange)
                             .controlSize(.small)
+                        }
+
+                        // Dedicated ngrok launch / install button.
+                        // Always visible when feature is enabled so user can
+                        // (re)start ngrok at any time.
+                        if mcpConnectorSettingsModel.experimentalRemoteSettings.isEnabled {
+                            if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath != nil {
+                                Button("Launch ngrok") {
+                                    mcpConnectorSettingsModel.performExperimentalRemoteStatusAction(.launchTunnel)
+                                }
+                                .disabled(experimentalRemoteHasPendingPortChange)
+                                .controlSize(.small)
+                            } else {
+                                Button("Install & Launch ngrok") {
+                                    mcpConnectorSettingsModel.performExperimentalRemoteStatusAction(.installTunnel)
+                                }
+                                .controlSize(.small)
+                            }
                         }
                     }
 
@@ -2217,7 +2238,31 @@ struct PromptCueSettingsView: View {
         return true
     }
 
+    /// The public tunnel is confirmed active: a URL is saved AND the status
+    /// presentation does not indicate a probe failure or missing URL.
+    /// When true the dedicated "Launch ngrok" button is hidden.
+    private var experimentalRemoteIsTunnelActive: Bool {
+        let presentation = mcpConnectorSettingsModel.experimentalRemoteStatusPresentation
+        // Tunnel-related actions (.launchTunnel / .installTunnel) are set by
+        // the model only when the URL is missing or the probe failed.
+        // Their absence — combined with having a public URL — means the tunnel
+        // is confirmed alive.
+        guard mcpConnectorSettingsModel.experimentalRemotePublicBaseURL != nil else {
+            return false
+        }
+        switch presentation.action {
+        case .launchTunnel, .installTunnel:
+            return false
+        default:
+            return true
+        }
+    }
+
     private var shouldShowExperimentalRemoteTunnelActions: Bool {
+        if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath != nil {
+            return true
+        }
+
         guard let action = mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.action else {
             return false
         }
