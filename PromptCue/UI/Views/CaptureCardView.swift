@@ -241,23 +241,8 @@ struct CaptureCardView: View {
             .accessibilityAddTraits(isSelected ? .isSelected : [])
         }
         .contentShape(Rectangle())
-        .contextMenu {
-            if let onTogglePin {
-                Button {
-                    onTogglePin()
-                } label: {
-                    Label(
-                        card.isPinned ? "Unpin" : "Pin",
-                        systemImage: card.isPinned ? "pin.slash" : "pin"
-                    )
-                }
-                Divider()
-            }
-            Button("Copy Raw", action: onCopyRaw)
-            Button("Edit", action: onEdit)
-            if !card.isCopied {
-                Button("Mark as Copied  ⌥ click", action: onMarkCopied)
-            }
+        .overlay {
+            CardContextMenuTrigger(menuItems: makeContextMenuItems())
         }
         .onTapGesture {
             if isCommandClickEvent {
@@ -623,6 +608,56 @@ struct CaptureCardView: View {
 
     private func accessibilityLabel(displayText: String) -> String {
         "Cue: \(displayText)"
+    }
+
+    private func makeContextMenuItems() -> [CardContextMenuItem] {
+        var items: [CardContextMenuItem] = []
+        var tag = 0
+
+        if let onTogglePin {
+            items.append(CardContextMenuItem(
+                title: card.isPinned ? "Unpin" : "Pin",
+                shortcutHint: nil,
+                systemImage: card.isPinned ? "pin.slash" : "pin",
+                tag: tag,
+                isSeparator: false,
+                action: onTogglePin
+            ))
+            tag += 1
+            items.append(.separator())
+        }
+
+        items.append(CardContextMenuItem(
+            title: "Copy Raw",
+            shortcutHint: nil,
+            systemImage: nil,
+            tag: tag,
+            isSeparator: false,
+            action: onCopyRaw
+        ))
+        tag += 1
+        items.append(CardContextMenuItem(
+            title: "Edit",
+            shortcutHint: nil,
+            systemImage: nil,
+            tag: tag,
+            isSeparator: false,
+            action: onEdit
+        ))
+        tag += 1
+
+        if !card.isCopied {
+            items.append(CardContextMenuItem(
+                title: "Mark as Copied",
+                shortcutHint: "⌥ click",
+                systemImage: nil,
+                tag: tag,
+                isSeparator: false,
+                action: onMarkCopied
+            ))
+        }
+
+        return items
     }
 
     @ViewBuilder

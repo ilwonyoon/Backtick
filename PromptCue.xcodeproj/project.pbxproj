@@ -170,6 +170,7 @@
 		FB8EA336F8388768A2E70097 /* ClipboardFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E42D900064EA79ABFF67858 /* ClipboardFormatter.swift */; };
 		FDD211E809AEE9699F2CFAD0 /* ProjectDocumentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D104A9B87E6FA707650A2B88 /* ProjectDocumentStore.swift */; };
 		FDEB6A4E1FCC0915A473CFFA /* CaptureCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E6B1D035A1C732D61C34CC2 /* CaptureCard.swift */; };
+		FE049EB8C27AC5ED2EA9FED9 /* CardContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE8300F6EAA56EBDEBD02EEA /* CardContextMenu.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -304,6 +305,7 @@
 		B8FF6E5313712AEB634FE5B6 /* RecentClipboardImageMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentClipboardImageMonitor.swift; sourceTree = "<group>"; };
 		B939D933A65BDF815D904C38 /* StackSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackSectionHeader.swift; sourceTree = "<group>"; };
 		BB6DEC1C4F369EEBA65ED8DF /* SettingsInlinePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsInlinePanel.swift; sourceTree = "<group>"; };
+		BE8300F6EAA56EBDEBD02EEA /* CardContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardContextMenu.swift; sourceTree = "<group>"; };
 		BEEB6C15D81F9C8F2C4A411A /* StackNotificationCardSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackNotificationCardSurface.swift; sourceTree = "<group>"; };
 		BF6260CA3B20DC36344E1BBD /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		BFFA8B21D5818DC4A6138C6E /* PromptCue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PromptCue.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -647,6 +649,7 @@
 			children = (
 				0DA754E495B637178A614D3C /* CaptureCardView.swift */,
 				57A7183C8DD5C8731C131B9B /* CaptureComposerView.swift */,
+				BE8300F6EAA56EBDEBD02EEA /* CardContextMenu.swift */,
 				45B066AAC1F6859743A3CD47 /* CardStackView.swift */,
 				CEEE5AA85944AC8E4A3630EB /* InteractiveDetectedTextView.swift */,
 				EA97F3D13BA392CBAF2BDCF8 /* LocalImageThumbnail.swift */,
@@ -947,6 +950,7 @@
 				71E16059075785332FDE9994 /* CapturePanelRuntimeViewController.swift in Sources */,
 				1A221597310D99FE05170A56 /* CaptureRuntimeMetrics.swift in Sources */,
 				EE76F86A0B4911812D2E4A3E /* CaptureShellChromeRecipe.swift in Sources */,
+				FE049EB8C27AC5ED2EA9FED9 /* CardContextMenu.swift in Sources */,
 				6CBE7AB1CC9E40AF0676412A /* CardRetentionSettingsModel.swift in Sources */,
 				786094F18BF590AAD9790C44 /* CardStackView.swift in Sources */,
 				0E5795F3A40B6410EA4E1BF2 /* CardStore.swift in Sources */,
@@ -1049,7 +1053,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Backtick;
 				INFOPLIST_KEY_CFBundleName = Backtick;
@@ -1074,7 +1078,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Backtick;
 				INFOPLIST_KEY_CFBundleName = Backtick;
@@ -1098,7 +1102,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Backtick;
 				INFOPLIST_KEY_CFBundleName = Backtick;
@@ -1372,7 +1376,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Backtick;
 				INFOPLIST_KEY_CFBundleName = Backtick;
