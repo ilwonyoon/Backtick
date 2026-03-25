@@ -140,7 +140,7 @@ final class MemoryWindowController: NSObject, NSWindowDelegate, NSToolbarDelegat
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, ToolbarItemIdentifier.refresh]
+        [ToolbarItemIdentifier.refresh, .flexibleSpace]
     }
 
     func toolbar(

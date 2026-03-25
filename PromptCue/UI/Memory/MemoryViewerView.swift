@@ -145,6 +145,16 @@ struct MemoryProjectsPaneView: View {
                 onDeleteProject: confirmDeleteProject
             )
         }
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    model.refresh()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Refresh Memory")
+            }
+        }
     }
 
     private func confirmDeleteProject(_ project: String) {
