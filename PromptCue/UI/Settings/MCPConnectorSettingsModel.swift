@@ -1691,7 +1691,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         let normalizedLaunchCommand = URL(fileURLWithPath: launchSpec.command).standardizedFileURL.path
         guard normalizedLaunchCommand.hasSuffix("/Library/Application Support/Backtick/bin/BacktickMCP")
-           || normalizedLaunchCommand.hasSuffix(".app/Contents/Helpers/BacktickMCP") else {
+           || normalizedLaunchCommand.hasSuffix(".app/Contents/Helpers/BacktickMCP")
+           || normalizedLaunchCommand.hasSuffix("/.local/bin/BacktickMCP") else {
             return nil
         }
 
