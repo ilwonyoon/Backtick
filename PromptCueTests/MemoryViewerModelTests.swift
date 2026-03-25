@@ -272,6 +272,50 @@ final class MemoryViewerModelTests: XCTestCase {
         XCTAssertEqual(model.summaries(for: "Backtick"), [])
     }
 
+    func testDeleteProjectPostsPerDocumentNotifications() throws {
+        let store = try makeStore()
+        let baseDate = Date(timeIntervalSince1970: 7_000)
+        _ = try store.saveDocument(
+            project: "Doomed",
+            topic: "alpha",
+            documentType: .reference,
+            content: sampleContent(title: "Alpha"),
+            now: baseDate
+        )
+        _ = try store.saveDocument(
+            project: "Doomed",
+            topic: "beta",
+            documentType: .decision,
+            content: sampleContent(title: "Beta"),
+            now: baseDate.addingTimeInterval(10)
+        )
+        _ = try store.saveDocument(
+            project: "Doomed",
+            topic: "gamma",
+            documentType: .plan,
+            content: sampleContent(title: "Gamma"),
+            now: baseDate.addingTimeInterval(20)
+        )
+
+        var receivedIDs: [String] = []
+        let observer = NotificationCenter.default.addObserver(
+            forName: .projectDocumentDidDelete,
+            object: nil,
+            queue: .main
+        ) { notification in
+            if let id = notification.userInfo?["id"] as? String {
+                receivedIDs.append(id)
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        let count = try store.deleteProject("Doomed")
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+
+        XCTAssertEqual(count, 3)
+        XCTAssertEqual(receivedIDs.count, 3)
+    }
+
     func testCreateDocumentSelectsNewlyCreatedDocument() throws {
         let store = try makeStore()
         let model = MemoryViewerModel(store: store)

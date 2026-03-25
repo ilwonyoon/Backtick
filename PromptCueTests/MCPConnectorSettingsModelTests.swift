@@ -1471,6 +1471,16 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertTrue(launcher.commands[0].contains("claude mcp add"))
         XCTAssertTrue(launcher.commands[0].contains("--scope user"))
         XCTAssertTrue(launcher.commands[0].contains(executableURL.path))
+
+        let cmd = launcher.commands[0]
+        if let nameRange = cmd.range(of: "backtick"),
+           let transportRange = cmd.range(of: "--transport"),
+           let scopeRange = cmd.range(of: "--scope") {
+            XCTAssertTrue(nameRange.lowerBound < transportRange.lowerBound, "name must come before --transport")
+            XCTAssertTrue(nameRange.lowerBound < scopeRange.lowerBound, "name must come before --scope")
+        } else {
+            XCTFail("Expected 'backtick', '--transport', and '--scope' in command: \(cmd)")
+        }
     }
 
     @MainActor
@@ -1502,6 +1512,14 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertTrue(launcher.commands[0].contains("codex mcp add"))
         XCTAssertTrue(launcher.commands[0].contains("backtick --"))
         XCTAssertTrue(launcher.commands[0].contains(executableURL.path))
+
+        let cmd = launcher.commands[0]
+        if let nameRange = cmd.range(of: "backtick"),
+           let separatorRange = cmd.range(of: "-- ") {
+            XCTAssertTrue(nameRange.lowerBound < separatorRange.lowerBound, "name must come before -- separator")
+        } else {
+            XCTFail("Expected 'backtick' and '-- ' in command: \(cmd)")
+        }
     }
 
     @MainActor

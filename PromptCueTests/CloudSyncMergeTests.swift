@@ -418,6 +418,24 @@ final class CloudSyncMergeTests: XCTestCase {
         XCTAssertNotNil(model.cards.first?.screenshotPath)
     }
 
+    // MARK: - Plan Purity
+
+    func testCardOnlyChangesDoNotAffectDocumentState() {
+        let card1 = CaptureCard(text: "Card alpha", createdAt: Date())
+        let card2 = CaptureCard(text: "Card beta", createdAt: Date())
+        let deleteID = UUID()
+
+        model.applyRemoteChanges([
+            .upsertCard(card1, screenshotAssetURL: nil),
+            .upsertCard(card2, screenshotAssetURL: nil),
+            .deleteCard(deleteID),
+        ])
+
+        XCTAssertEqual(model.cards.count, 2)
+        XCTAssertTrue(model.cards.contains(where: { $0.text == "Card alpha" }))
+        XCTAssertTrue(model.cards.contains(where: { $0.text == "Card beta" }))
+    }
+
     // MARK: - Selection Cleanup on Delete
 
     func testRemoteDeleteClearsSelectionForDeletedCard() throws {

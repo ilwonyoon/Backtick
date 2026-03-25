@@ -53,6 +53,38 @@ final class AppModelCloudSyncLifecycleTests: XCTestCase {
         XCTAssertEqual(engine.stopCallCount, 1)
     }
 
+    func testEnablingSyncPushesExistingCardsToRemote() async throws {
+        let cardStore = CardStore(databaseURL: tempDirectoryURL.appendingPathComponent("PromptCue.sqlite"))
+        let card = CaptureCard(text: "Pre-existing card", createdAt: Date())
+        try cardStore.save([card])
+
+        let engine = RecordingCloudSyncEngine()
+        var factoryCallCount = 0
+        let model = AppModel(
+            cardStore: cardStore,
+            attachmentStore: AttachmentStore(
+                baseDirectoryURL: tempDirectoryURL.appendingPathComponent("Attachments", isDirectory: true)
+            ),
+            recentScreenshotCoordinator: LifecycleTestRecentScreenshotCoordinator(),
+            cloudSyncEngine: nil,
+            cloudSyncEngineFactory: {
+                factoryCallCount += 1
+                return engine
+            },
+            requiresCloudEntitlements: false
+        )
+        defer { model.stop() }
+
+        model.start(startupMode: .deferredMaintenance)
+        model.setSyncEnabled(true)
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(factoryCallCount, 1)
+        XCTAssertEqual(engine.pushAllLocalCardsCards.count, 1)
+        XCTAssertEqual(engine.pushAllLocalCardsCards.first?.count, 1)
+        XCTAssertEqual(engine.pushAllLocalCardsCards.first?.first?.text, "Pre-existing card")
+    }
+
     func testStopStopsExistingCloudSyncEngine() {
         let engine = RecordingCloudSyncEngine()
         let model = makeModel(cloudSyncEngine: engine)
@@ -91,6 +123,8 @@ private final class RecordingCloudSyncEngine: CloudSyncControlling {
     private(set) var pushLocalChangeCallCount = 0
     private(set) var pushDeletionCallCount = 0
     private(set) var pushBatchCallCount = 0
+    private(set) var pushAllLocalCardsCards: [[CaptureCard]] = []
+    private(set) var pushAllLocalDocumentsDocuments: [[ProjectDocument]] = []
 
     func setup() async {
         setupCallCount += 1
@@ -120,11 +154,15 @@ private final class RecordingCloudSyncEngine: CloudSyncControlling {
         pushBatchCallCount += 1
     }
 
-    func pushAllLocalCards(cards: [CaptureCard]) {}
+    func pushAllLocalCards(cards: [CaptureCard]) {
+        pushAllLocalCardsCards.append(cards)
+    }
 
     func pushLocalChange(document: ProjectDocument) {}
     func pushDocumentDeletion(id: UUID) {}
-    func pushAllLocalDocuments(documents: [ProjectDocument]) {}
+    func pushAllLocalDocuments(documents: [ProjectDocument]) {
+        pushAllLocalDocumentsDocuments.append(documents)
+    }
 }
 
 @MainActor

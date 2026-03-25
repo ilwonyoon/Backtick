@@ -40,8 +40,7 @@ final class CloudSyncEngine: CloudSyncControlling {
     private let database: CKDatabase
     private let zoneID: CKRecordZone.ID
     private let zone: CKRecordZone
-    private var recentlyPushedTimestamps: [UUID: Date] = [:]
-    private static let echoSuppressionTTL: TimeInterval = 30
+    private var echoSuppressor = TimedIDSuppressor(ttl: 30)
     private var isFetching = false
     private var networkMonitor: NWPathMonitor?
     private var periodicFetchTimer: Timer?
@@ -439,24 +438,17 @@ final class CloudSyncEngine: CloudSyncControlling {
     }
 
     private func insertRecentlyPushedID(_ id: UUID) {
-        pruneExpiredEchoEntries()
-        recentlyPushedTimestamps[id] = Date()
-    }
-
-    private func pruneExpiredEchoEntries() {
-        let cutoff = Date().addingTimeInterval(-Self.echoSuppressionTTL)
-        recentlyPushedTimestamps = recentlyPushedTimestamps.filter { $0.value > cutoff }
+        echoSuppressor.insert(id)
     }
 
     private func isRecentlyPushed(_ id: UUID) -> Bool {
-        guard let timestamp = recentlyPushedTimestamps[id] else { return false }
-        return Date().timeIntervalSince(timestamp) < Self.echoSuppressionTTL
+        echoSuppressor.isSuppressed(id)
     }
 
     // MARK: - Private
 
     private func processRemoteChanges(upserted: [CKRecord], deleted: [(CKRecord.ID, String)]) {
-        pruneExpiredEchoEntries()
+        echoSuppressor.prune()
 
         var changes: [SyncChange] = []
 
