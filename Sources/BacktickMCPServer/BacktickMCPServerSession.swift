@@ -389,7 +389,7 @@ final class BacktickMCPServerSession {
         6. Do not wait to be asked when prior Backtick context is likely relevant to the current answer.
 
         Save behavior:
-        1. ALWAYS call propose_document_saves before saving. Never call save_document or update_document directly without a prior proposal step.
+        1. Call propose_document_saves before saving when the user has not already specified the exact document structure. Skip the proposal when the user has already provided the project, topic, documentType, and content explicitly — save directly to minimize round-trips.
         2. When calling propose_document_saves, organize the content by topic before sending — separate distinct decisions or discussion threads into their own ## sections so the server can generate focused proposals. Focus on decisions, direction changes, and topics discussed at length. Skip anything only briefly mentioned.
         3. Do not save silently. Wait for the user to confirm which proposals to save before writing anything.
         4. Before writing, list or recall existing docs so you can update the right document instead of creating a duplicate.
@@ -635,7 +635,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "propose_document_saves",
-                "description": "REQUIRED before any save_document or update_document call. Draft reviewed save proposals without writing anything yet. Focus on decisions, direction changes, and topics discussed at length — skip anything only briefly mentioned. Each proposal includes a one-line summary so the user can quickly select which to keep. Good: list_documents or recall_document when needed, then propose_document_saves, then ask the user in natural language. Bad: jump straight to save_document because the thread feels important. Never skip this step.",
+                "description": "Recommended before save_document or update_document when the user has not already specified the exact document structure. Draft reviewed save proposals without writing anything yet. Focus on decisions, direction changes, and topics discussed at length — skip anything only briefly mentioned. Each proposal includes a one-line summary so the user can quickly select which to keep. Good: list_documents or recall_document when needed, then propose_document_saves, then ask the user in natural language. Skip this step when the user has already provided the exact project, topic, documentType, and content to save.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -662,7 +662,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "save_document",
-                "description": "Save a durable project document. Only call this AFTER the user has reviewed and confirmed a proposal from propose_document_saves. Never call directly without a prior proposal step. Good: propose -> user confirms -> save_document. Bad: save_document immediately at the end of a mixed conversation. List or recall existing docs first to update instead of creating duplicates. Store structured markdown with ## headers (at least two sections, 200+ characters). Map actionable PRDs to plan, settled choices to decision, exploration recaps to discussion, durable facts to reference. Do not save coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history.",
+                "description": "Save a durable project document. Prefer calling propose_document_saves first when the user has not specified the exact structure, but skip the proposal step when the user has already provided the project, topic, documentType, and content explicitly. List or recall existing docs first to update instead of creating duplicates. Store structured markdown with ## headers (at least two sections, 200+ characters). Map actionable PRDs to plan, settled choices to decision, exploration recaps to discussion, durable facts to reference. Do not save coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [

@@ -95,13 +95,11 @@ final class BacktickMCPServerTests: XCTestCase {
         let inputSchema = try XCTUnwrap(proposeTool["inputSchema"] as? [String: Any])
         XCTAssertEqual(inputSchema["additionalProperties"] as? Bool, false)
         XCTAssertEqual(inputSchema["required"] as? [String], ["project", "content"])
-        XCTAssertTrue((proposeTool["description"] as? String ?? "").contains("Good:"))
-        XCTAssertTrue((proposeTool["description"] as? String ?? "").contains("Bad:"))
+        XCTAssertTrue((proposeTool["description"] as? String ?? "").contains("propose"))
         let saveTool = try XCTUnwrap(
             tools.first(where: { ($0["name"] as? String) == exposedToolName("save_document") })
         )
-        XCTAssertTrue((saveTool["description"] as? String ?? "").contains("Good:"))
-        XCTAssertTrue((saveTool["description"] as? String ?? "").contains("Bad:"))
+        XCTAssertTrue((saveTool["description"] as? String ?? "").contains("Save a durable project document"))
         let updateTool = try XCTUnwrap(
             tools.first(where: { ($0["name"] as? String) == exposedToolName("update_document") })
         )
