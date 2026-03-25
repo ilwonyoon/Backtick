@@ -528,7 +528,7 @@ struct PromptCueSettingsView: View {
     private var remoteMCPBasicSection: some View {
         SettingsSection(
             title: "ChatGPT & Web Connectors",
-            footer: "Connect Backtick to ChatGPT web and macOS. For a more stable connection, use Cloudflare Tunnel (see Connection Details).",
+            footer: "Connect Backtick to ChatGPT web and macOS. [Setup Guide](https://github.com/ilwonyoon/Backtick/blob/main/docs/ChatGPT-Setup-Guide.md)",
             headerAccessory: {
                 Toggle(
                     "Enable ChatGPT connection",
