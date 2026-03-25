@@ -253,11 +253,11 @@ struct CaptureCardView: View {
                 }
                 Divider()
             }
+            Button("Copy Raw", action: onCopyRaw)
             Button("Edit", action: onEdit)
             if !card.isCopied {
-                Button("Mark as Copied", action: onMarkCopied)
+                Button("Mark as Copied  ⌥ click", action: onMarkCopied)
             }
-            Button("Copy Raw  ⌥ click", action: onCopyRaw)
         }
         .onTapGesture {
             if isCommandClickEvent {

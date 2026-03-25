@@ -100,7 +100,8 @@ public struct CaptureTag: Codable, Hashable, Sendable, Comparable {
     }
 
     fileprivate static func isLeadingScalar(_ scalar: UnicodeScalar) -> Bool {
-        scalar.value >= 97 && scalar.value <= 122
+        (scalar.value >= 65 && scalar.value <= 90)
+            || (scalar.value >= 97 && scalar.value <= 122)
     }
 
     fileprivate static func isBodyScalar(_ scalar: UnicodeScalar) -> Bool {

@@ -12,6 +12,22 @@ struct CaptureTagTests {
     }
 
     @Test
+    func captureTagNormalizesMixedCaseTags() {
+        #expect(CaptureTag(rawValue: "#HelloWorld")?.name == "helloworld")
+        #expect(CaptureTag(rawValue: "#HELLO")?.name == "hello")
+        #expect(CaptureTag(rawValue: "#camelCaseTag")?.name == "camelcasetag")
+    }
+
+    @Test
+    func extractCanonicalInlineTagsHandlesMixedCase() {
+        let result = CaptureTagText.extractCanonicalInlineTags(
+            in: "Fix #HelloWorld and #HELLO and #camelCaseTag here"
+        )
+
+        #expect(result.tags.map(\.name) == ["helloworld", "hello", "camelcasetag"])
+    }
+
+    @Test
     func captureTagRejectsInvalidNames() {
         #expect(CaptureTag(rawValue: "#123") == nil)
         #expect(CaptureTag(rawValue: "#bug fix") == nil)
