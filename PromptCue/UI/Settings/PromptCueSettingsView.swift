@@ -528,7 +528,7 @@ struct PromptCueSettingsView: View {
     private var remoteMCPBasicSection: some View {
         SettingsSection(
             title: "ChatGPT & Web Connectors",
-            footer: "Connect Backtick to ChatGPT web and macOS. [Setup Guide](https://github.com/ilwonyoon/Backtick/blob/main/docs/ChatGPT-Setup-Guide.md)",
+            footer: "Connect Backtick to ChatGPT web and macOS.",
             headerAccessory: {
                 Toggle(
                     "Enable ChatGPT connection",
@@ -600,6 +600,13 @@ struct PromptCueSettingsView: View {
                             }
                             .controlSize(.small)
                         }
+
+                        Button("Setup Guide") {
+                            NSWorkspace.shared.open(
+                                URL(string: "https://github.com/ilwonyoon/Backtick/blob/main/docs/ChatGPT-Setup-Guide.md")!
+                            )
+                        }
+                        .controlSize(.small)
                     }
                 }
 
