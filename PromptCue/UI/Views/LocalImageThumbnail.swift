@@ -46,7 +46,7 @@ struct LocalImageThumbnail: View {
             if let image {
                 Image(nsImage: image)
                     .resizable()
-                    .scaledToFill()
+                    .scaledToFit()
             } else {
                 RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
                     .fill(SemanticTokens.Surface.accentFill)
