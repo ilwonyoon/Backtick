@@ -343,7 +343,6 @@ struct CardStackView: View {
             .zIndex(1)
         }
         .padding(.bottom, collapsedBackPlateBottomPadding(copiedCards: copiedCards))
-        .opacity(isCopiedStackHovered ? 1 : PrimitiveTokens.Opacity.copiedCard)
         .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: isCopiedStackHovered)
         .onHover { hovered in
             isCopiedStackHovered = hovered

@@ -3,7 +3,6 @@ import SwiftUI
 // Backtick stack backdrop pattern.
 // This file owns atmospheric blur, density, and edge fade for the stack panel only.
 struct StackPanelBackdrop: View {
-    @Environment(\.colorScheme) private var colorScheme
     let densityScale: Double
     let grayscaleBias: Double
     let onTap: () -> Void
@@ -31,22 +30,50 @@ struct StackPanelBackdrop: View {
 
     @ViewBuilder
     private var backdropLayers: some View {
-        if colorScheme == .light {
-            ZStack {
-                VisualEffectBackdrop(
-                    material: .underWindowBackground,
-                    blendingMode: .behindWindow,
-                    appearanceName: nil
+        // Resolve appearance at draw time via NSAppearance — never branch
+        // on SwiftUI's @Environment(\.colorScheme) which can lag behind
+        // the actual system appearance and contaminate child views.
+        let isDark = Self.isDarkAppearance
+        ZStack {
+            VisualEffectBackdrop(
+                material: .underWindowBackground,
+                blendingMode: .behindWindow,
+                appearanceName: nil
+            )
+
+            VisualEffectBackdrop(
+                material: isDark ? .hudWindow : .underWindowBackground,
+                blendingMode: .withinWindow,
+                appearanceName: nil
+            )
+            .opacity(isDark
+                ? StackPanelBackdropRecipe.mergedDarkDensityOpacity(densityScale)
+                : StackPanelBackdropRecipe.mergedLightDensityOpacity(densityScale))
+            .mask(isDark
+                ? StackPanelBackdropRecipe.darkDensityMask(maskScale: maskScale)
+                : StackPanelBackdropRecipe.lightDensityMask(maskScale: maskScale))
+
+            if isDark {
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.004 * atmosphereScale),
+                        Color.black.opacity(0.012 * atmosphereScale),
+                        Color.black.opacity(0.032 * atmosphereScale),
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
                 )
 
-                VisualEffectBackdrop(
-                    material: .underWindowBackground,
-                    blendingMode: .withinWindow,
-                    appearanceName: nil
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.012 * atmosphereScale),
+                        Color.clear,
+                        Color.black.opacity(0.03 * atmosphereScale),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
-                .opacity(StackPanelBackdropRecipe.mergedLightDensityOpacity(densityScale))
-                .mask(StackPanelBackdropRecipe.lightDensityMask(maskScale: maskScale))
-
+            } else {
                 LinearGradient(
                     colors: [
                         Color.white.opacity(0.010 * atmosphereScale),
@@ -69,43 +96,13 @@ struct StackPanelBackdrop: View {
                 )
                 .mask(StackPanelBackdropRecipe.lightAtmosphereMask(maskScale: maskScale))
             }
-        } else {
-            ZStack {
-                VisualEffectBackdrop(
-                    material: .underWindowBackground,
-                    blendingMode: .behindWindow,
-                    appearanceName: .vibrantDark
-                )
-
-                VisualEffectBackdrop(
-                    material: .hudWindow,
-                    blendingMode: .withinWindow,
-                    appearanceName: .vibrantDark
-                )
-                .opacity(StackPanelBackdropRecipe.mergedDarkDensityOpacity(densityScale))
-                .mask(StackPanelBackdropRecipe.darkDensityMask(maskScale: maskScale))
-
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.004 * atmosphereScale),
-                        Color.black.opacity(0.012 * atmosphereScale),
-                        Color.black.opacity(0.032 * atmosphereScale),
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.012 * atmosphereScale),
-                        Color.clear,
-                        Color.black.opacity(0.03 * atmosphereScale),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
         }
+    }
+
+    private static var isDarkAppearance: Bool {
+        NSApp.effectiveAppearance
+            .bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
+            .map { $0 == .darkAqua || $0 == .vibrantDark } ?? false
     }
 
     private var atmosphereScale: Double {
