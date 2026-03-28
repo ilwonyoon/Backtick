@@ -197,6 +197,7 @@ struct CardStackView: View {
             isExpanded: false,
             onCopy: {
                 _ = model.copySingleCard(card)
+                onDismissAfterCopy()
             },
             onEdit: {
                 onEditCard(card)
