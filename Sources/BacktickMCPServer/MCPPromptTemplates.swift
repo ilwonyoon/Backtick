@@ -246,14 +246,16 @@ enum MCPPromptCatalog {
 
         For each task group:
         - Group related notes that should be addressed together. Same intent but different modules should usually become separate groups.
-        - Identify files likely touched by that group.
+        - Identify files likely touched by that group. Separate into:
+          - Files to modify: existing files that need changes
+          - Files to create: new test files or new modules (if any)
         - Assign: title, intent (execute/diagnose/investigate), difficulty (easy/medium/hard).
         - List the noteIDs that belong to this group.
         - Provide verification criteria (e.g., "builds clean, unit tests pass").
         - Write a short rationale.
 
         Then:
-        - Analyze dependencies: which group must complete before another can start.
+        - Analyze dependencies: which group must complete before another can start. For each dependency, think about the data/API flow direction — if module A produces output that module B consumes, fix A first. Example: if a classifier detects patterns and a masker acts on them, the classifier should be updated before the masker.
         - Analyze conflicts: groups that touch the same files must be sequential, not parallel.
         - Mark groups as parallel_safe when they have no dependency on each other AND no file overlap.
         - Produce an ordered execution sequence with phase numbers. Groups in the same phase can run in parallel if parallel_safe.
@@ -275,7 +277,8 @@ enum MCPPromptCatalog {
         - Intent: execute
         - Difficulty: easy
         - Note IDs: [id1, id2]
-        - Files: [path/to/file.swift, ...]
+        - Files to modify: [path/to/file.swift, ...]
+        - Files to create: [path/to/NewTests.swift, ...] (or "none")
         - Verification: builds clean, unit tests pass
         - Rationale: ...
 
@@ -345,30 +348,51 @@ enum MCPPromptCatalog {
 
         ## Protocol
 
-        ### Step 1 — Scope Check
+        ### Step 1 — Scope Declaration (MANDATORY)
         - Read the relevant files identified in the task group.
-        - Confirm which files you will modify.
+        - BEFORE making any changes, list every file you intend to modify and why.
+        - NEVER modify a file not on this list. If you discover a file needs changing mid-implementation, stop, update the list, and explain why.
         - Verify that any dependencies from prior phases are present (e.g., a type or function introduced in Phase 1).
         - If a dependency is missing, stop and report — do not proceed.
 
-        ### Step 2 — Implement
-        - Follow existing code patterns in the codebase.
+        ### Step 2 — Pattern Study
+        - Read at least one existing file in the same module or directory as your target files.
+        - Identify the patterns used: error handling style, naming conventions, import order, test structure.
+        - Your implementation MUST follow these exact patterns. Do not introduce new conventions.
+
+        ### Step 3 — Implement
+        - Follow the patterns identified in Step 2.
         - Stay focused on this task group only.
-        - Do not refactor unrelated code.
-        - Do not touch files outside the scope of this group.
+        - NEVER refactor unrelated code.
+        - NEVER create new abstractions unless explicitly asked.
+        - NEVER change function signatures that are not part of the task.
+        - If your total diff exceeds 3x the expected change size, stop and report before continuing.
 
-        ### Step 3 — Verify
+        ### Step 4 — Verify
         - Build must pass with zero errors.
-        - All existing tests must pass.
+        - All existing tests must pass (run full test suite, not just new tests).
         - Check the task-specific verification criteria stated in the plan.
-        - If verification fails, attempt one fix. If it still fails after one attempt, stop and report the failure — do not loop.
+        - If verification fails, read the error message carefully and fix only what the error describes. Do not guess or make speculative fixes.
+        - If it still fails after one targeted fix, revert your changes and report the failure — do not leave the codebase in a broken state.
 
-        ### Step 4 — Report
-        - Summarize the changes made (files modified, what changed, why).
-        - State the verification result explicitly: "Build passed. Tests passed."
+        ### Step 5 — Self-Review Checklist
+        Before reporting, verify ALL of the following:
+        - [ ] Every modified file was listed in Step 1 scope declaration
+        - [ ] No files outside the scope were modified
+        - [ ] Code follows the same patterns as existing code in the module
+        - [ ] No unnecessary abstractions, helpers, or utilities were created
+        - [ ] No unrelated refactoring was performed
+        - [ ] Diff is minimal — only changes required by the task
+        If any item fails, fix it before proceeding to Step 6.
+
+        ### Step 6 — Commit & Report
+        - Commit the changes with a descriptive message referencing the task.
+        - List every file modified and lines changed.
+        - State the verification result: "Build passed. Tests passed."
+        - State self-review result: "All checklist items passed."
         - Call `mark_notes_executed` for the noteIDs that belong to this task group.
 
-        ### Step 5 — Stop
+        ### Step 7 — Stop
         - Do not continue to the next task group.
         - The orchestrating workflow controls sequencing between groups.
         """)
