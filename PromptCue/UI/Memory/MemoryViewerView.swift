@@ -1069,7 +1069,7 @@ private struct MemoryRenderedDocumentView: View {
             .padding(.top, MemoryPaneMetrics.renderedTopInset)
             .padding(.bottom, MemoryPaneMetrics.renderedBottomInset)
         }
-        .scrollIndicators(.automatic)
+        .scrollIndicators(.hidden)
     }
 }
 
@@ -1171,7 +1171,7 @@ private struct MemoryMarkdownTableView: View {
             }
             .padding(.vertical, MemoryPaneMetrics.tableVerticalInset)
         }
-        .scrollIndicators(.automatic)
+        .scrollIndicators(.hidden)
     }
 }
 

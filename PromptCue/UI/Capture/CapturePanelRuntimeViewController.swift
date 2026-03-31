@@ -828,6 +828,8 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             return
         }
 
+        applyArrowSubstitutionIfNeeded(in: textView)
+
         let previousDraftCount = model.draftText.utf16.count
         let currentDraftText = textView.string
         let currentDraftCount = currentDraftText.utf16.count
@@ -856,6 +858,21 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         } else {
             editorHost.resolvePreferredHeight(forceMeasure: true)
         }
+    }
+
+    /// Replaces `->` with `→` when the user types `>` immediately after `-`.
+    private func applyArrowSubstitutionIfNeeded(in textView: WrappingCueTextView) {
+        guard !textView.isHandlingMarkedTextComposition else { return }
+
+        let cursorLocation = textView.selectedRange().location
+        guard cursorLocation >= 2 else { return }
+
+        let nsString = textView.string as NSString
+        let arrowRange = NSRange(location: cursorLocation - 2, length: 2)
+        guard nsString.substring(with: arrowRange) == "->" else { return }
+
+        textView.replaceCharacters(in: arrowRange, with: "→")
+        textView.setSelectedRange(NSRange(location: cursorLocation - 1, length: 0))
     }
 
     func textViewDidChangeSelection(_ notification: Notification) {

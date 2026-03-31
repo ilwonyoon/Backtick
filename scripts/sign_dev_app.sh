@@ -59,7 +59,7 @@ if [[ -z "${SIGNING_LABEL}" ]]; then
   SIGNING_LABEL="${SIGNING_REFERENCE}"
 fi
 
-ENTITLEMENTS_PATH="${PROJECT_ROOT}/PromptCue/PromptCue.entitlements"
+ENTITLEMENTS_PATH="${PROJECT_ROOT}/PromptCue/PromptCueDev.entitlements"
 
 # Embed provisioning profile if available
 PROFILE_PATH=""
