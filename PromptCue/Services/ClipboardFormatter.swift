@@ -22,55 +22,10 @@ enum ClipboardFormatter {
 
     static func copyToPasteboard(cards: [CaptureCard]) {
         let suffix = PromptExportTailPreferences.load().exportSuffix
-        let pasteboard = NSPasteboard.general
+        let screenshotURLs = cards.map { ManagedScreenshotAccess.readableURL(for: $0) }
+        let textValue = clipboardTextValue(for: cards, screenshotURLs: screenshotURLs, suffix: suffix)
 
-        let cardsWithURLs = cards.map { card in
-            (card: card, screenshotURL: ManagedScreenshotAccess.readableURL(for: card))
-        }
-        let firstImageData: (tiff: Data?, png: Data?)?
-
-        // Attach the first available image to the pasteboard
-        if let firstImageEntry = cardsWithURLs.first(where: { $0.screenshotURL != nil }),
-           let screenshotURL = firstImageEntry.screenshotURL {
-            firstImageData = clipboardImageData(for: screenshotURL)
-        } else {
-            firstImageData = nil
-        }
-
-        let textValue = clipboardTextValue(
-            for: cards,
-            screenshotURLs: cardsWithURLs.map(\.screenshotURL),
-            suffix: suffix
-        )
-
-        var types: [NSPasteboard.PasteboardType] = [.string]
-        var firstImageURL: URL? = nil
-
-        if let firstImageEntry = cardsWithURLs.first(where: { $0.screenshotURL != nil }),
-           let screenshotURL = firstImageEntry.screenshotURL,
-           let firstImageData,
-           firstImageData.tiff != nil || firstImageData.png != nil {
-            firstImageURL = screenshotURL
-            types.append(.fileURL)
-            if firstImageData.tiff != nil {
-                types.append(.tiff)
-            }
-            if firstImageData.png != nil {
-                types.append(.png)
-            }
-        }
-
-        pasteboard.declareTypes(types, owner: nil)
-        pasteboard.setString(textValue, forType: .string)
-        if let firstImageURL {
-            pasteboard.setString(firstImageURL.absoluteString, forType: .fileURL)
-        }
-        if let tiff = firstImageData?.tiff {
-            pasteboard.setData(tiff, forType: .tiff)
-        }
-        if let png = firstImageData?.png {
-            pasteboard.setData(png, forType: .png)
-        }
+        copyStringToPasteboard(textValue)
     }
 
     static func copyRawToPasteboard(card: CaptureCard) {

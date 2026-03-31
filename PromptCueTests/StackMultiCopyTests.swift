@@ -161,7 +161,7 @@ final class StackMultiCopyTests: XCTestCase {
         XCTAssertNil(model.cards.first { $0.id == cards[1].id }?.lastCopiedAt)
     }
 
-    func testSingleCardCopyWithManagedScreenshotWritesImageToPasteboard() throws {
+    func testSingleCardCopyWithManagedScreenshotWritesFallbackTextToPasteboard() throws {
         let pasteboard = NSPasteboard.general
         let originalItems = snapshotPasteboardItems(from: pasteboard)
         defer {
@@ -208,15 +208,14 @@ final class StackMultiCopyTests: XCTestCase {
         XCTAssertTrue(expectedPasteboardString.contains("Attached image path:"))
         XCTAssertTrue(expectedPasteboardString.contains(managedScreenshotURL.path))
         XCTAssertTrue(expectedPasteboardString.hasPrefix("Attached image path:\n\(managedScreenshotURL.path)\n\n• Card with screenshot"))
-        XCTAssertEqual(pasteboard.string(forType: .fileURL), managedScreenshotURL.absoluteString)
-        XCTAssertNotNil(pasteboard.data(forType: .png))
-        XCTAssertNotNil(pasteboard.data(forType: .tiff))
+        XCTAssertNil(pasteboard.string(forType: .fileURL))
+        XCTAssertNil(pasteboard.data(forType: .png))
+        XCTAssertNil(pasteboard.data(forType: .tiff))
 
         let items = pasteboard.pasteboardItems ?? []
         XCTAssertEqual(items.count, 1)
-        XCTAssertEqual(Set(items[0].types), Set([.string, .fileURL, .tiff, .png]))
+        XCTAssertEqual(Set(items[0].types), Set([.string]))
         XCTAssertEqual(items[0].string(forType: .string), expectedPasteboardString)
-        XCTAssertEqual(items[0].string(forType: .fileURL), managedScreenshotURL.absoluteString)
     }
 
     func testSingleCardCopyIncludesAttachmentPathTextByDefaultInDebug() throws {
@@ -266,9 +265,8 @@ final class StackMultiCopyTests: XCTestCase {
 
         let items = pasteboard.pasteboardItems ?? []
         XCTAssertEqual(items.count, 1)
-        XCTAssertEqual(Set(items[0].types), Set([.string, .fileURL, .tiff, .png]))
+        XCTAssertEqual(Set(items[0].types), Set([.string]))
         XCTAssertEqual(items[0].string(forType: .string), payload)
-        XCTAssertEqual(items[0].string(forType: .fileURL), managedScreenshotURL.absoluteString)
     }
 
     func testSingleCardCopyDoesNotAffectOtherCards() throws {
