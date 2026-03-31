@@ -1,4 +1,5 @@
-[
+{
+"tasks": [
   {
     "id": "capture-tag-hangul",
     "note_id": "ef2845f0-d818-4e2a-9e88-21ebb1454181",
@@ -144,4 +145,47 @@
     "depends_on": [],
     "conflicts_with": []
   }
-]
+],
+"parallel_ground_truth": {
+  "description": "Ground truth for parallel execution decisions. Tasks in the same phase with parallel_safe=true can run simultaneously. Tasks with dependencies or file conflicts MUST be sequential.",
+  "phases": [
+    {
+      "phase": 1,
+      "parallel": true,
+      "tasks": ["capture-tag-hangul", "content-classifier-secret-patterns", "screenshot-cache-subdirectory", "clipboard-formatter-duplicate-search", "mcp-http-header-size", "sign-dev-app-sha1-grep", "database-migration-silent-fail", "dispatch-workitem-to-concurrency"],
+      "rationale": "All independent — no shared files, no dependencies"
+    },
+    {
+      "phase": 2,
+      "parallel": false,
+      "tasks": ["secret-masker-short-key"],
+      "rationale": "Depends on content-classifier-secret-patterns (Phase 1) — classifier detects, masker acts"
+    },
+    {
+      "phase": 3,
+      "parallel": false,
+      "tasks": ["export-formatter-ordering-tests"],
+      "rationale": "Depends on capture-tag-hangul (Phase 1) — model change affects test fixtures"
+    },
+    {
+      "phase": 4,
+      "parallel": false,
+      "tasks": ["mcp-tool-definitions-untyped", "mcp-stdio-async"],
+      "rationale": "Both touch BacktickMCPServerSession.swift — MUST be sequential (conflicts_with). toolDefinitions first, then stdio-async."
+    }
+  ],
+  "must_be_sequential": [
+    {"from": "content-classifier-secret-patterns", "to": "secret-masker-short-key", "reason": "data flow: classifier detects → masker acts"},
+    {"from": "capture-tag-hangul", "to": "export-formatter-ordering-tests", "reason": "model change → test fixtures depend on it"},
+    {"from": "mcp-tool-definitions-untyped", "to": "mcp-stdio-async", "reason": "same file conflict, merge in order"}
+  ],
+  "must_NOT_be_parallel": [
+    ["mcp-tool-definitions-untyped", "mcp-stdio-async"],
+    ["content-classifier-secret-patterns", "secret-masker-short-key"],
+    ["capture-tag-hangul", "export-formatter-ordering-tests"]
+  ],
+  "CAN_be_parallel": [
+    ["capture-tag-hangul", "screenshot-cache-subdirectory", "clipboard-formatter-duplicate-search", "mcp-http-header-size", "sign-dev-app-sha1-grep", "database-migration-silent-fail", "dispatch-workitem-to-concurrency", "content-classifier-secret-patterns"]
+  ]
+}
+}
