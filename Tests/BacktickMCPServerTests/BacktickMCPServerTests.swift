@@ -1589,7 +1589,7 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertTrue(text.contains("Memory, Stack, or both"))
         XCTAssertTrue(text.contains(exposedToolName("classify_notes")))
         XCTAssertTrue(text.contains(exposedToolName("mark_notes_executed")))
-        XCTAssertTrue(text.contains("before the final response"))
+        XCTAssertTrue(text.contains("per task group after that group's verification passes"))
         XCTAssertTrue(text.contains("Do not call `\(exposedToolName("mark_notes_executed"))` during planning"))
     }
 
@@ -1616,8 +1616,8 @@ final class BacktickMCPServerTests: XCTestCase {
         let text = try XCTUnwrap(content["text"] as? String)
 
         XCTAssertTrue(text.contains(exposedToolName("mark_notes_executed")))
-        XCTAssertTrue(text.contains("before returning the final result"))
-        XCTAssertTrue(text.contains("leave the rest active"))
+        XCTAssertTrue(text.contains("noteIDs that belong to this task group"))
+        XCTAssertTrue(text.contains("Do not continue to the next task group"))
     }
 
     func testPromptsGetMemoryWorkflowRendersSaveReviewPlaybook() async throws {

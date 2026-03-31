@@ -94,9 +94,51 @@ enum MCPPromptCatalog {
         3. Present hypotheses before taking action
 
         ### "이거 해줘" / "execute" / "implement this"
-        1. Identify relevant notes with `classify_notes` or `list_notes`
-        2. Use the **execute** prompt to guide implementation
-        3. After verified implementation, call `mark_notes_executed` on the source notes before the final response
+
+        This is a 5-phase pipeline.
+
+        **Phase 1 — Gather**
+        - `classify_notes` (scope: active, groupBy: repository)
+        - `list_notes` (scope: active)
+
+        **Phase 2 — Triage & Plan**
+        - Use the **triage** prompt with the gathered note texts and repository/branch context.
+        - The triage prompt produces a structured execution plan in markdown and saves it via `save_document`.
+
+        **Phase 3 — Save Plan**
+        - Confirm that `save_document` was called by the triage prompt with:
+          - project: repository name
+          - topic: "backtick-plan/YYYYMMDD-summary-slug" (e.g., "backtick-plan/20260331-fix-clipboard-and-theme")
+          - documentType: "plan"
+          - content: the full plan markdown
+        - If it was not saved, call `save_document` now with the plan content.
+
+        **Phase 4 — Propose & Confirm**
+        - Present a concise summary of the plan to the user: number of task groups, execution order, any risk flags.
+        - Ask: "이 계획대로 실행할까요?"
+        - STOP and wait for the user's confirmation. Do not proceed to Phase 5 without approval.
+
+        **Phase 5 — Execute per Plan**
+        - `recall_document` with the plan topic used in Phase 3 to load the saved plan.
+        - For each task group in the plan's execution order:
+          1. Use the **execute** prompt with that group's note text and branch context.
+          2. After the execute prompt reports verification passed, call `mark_notes_executed` for that group's noteIDs.
+          3. Report progress: "Task 2/5 complete: [title]"
+          4. If verification fails after one fix attempt: stop and report the failure. Do not continue to subsequent groups.
+        - Parallel execution (CLI environments only):
+          - When the plan marks groups as parallel_safe at the same step and the client supports worktrees and multi-agent execution (e.g., Claude Code):
+            - Create a separate git worktree for each parallel group.
+            - Execute each group in its own worktree simultaneously.
+            - After all complete and verify, merge to base branch in dependency order.
+            - Run full build and tests after merge.
+          - If the client does not support parallel execution: execute sequentially.
+        - After all groups complete: `update_document` to append the completion log to the plan document.
+
+        ### "계획 보여줘" / "show plan" / "resume execution"
+        1. `list_documents` to find existing backtick-plan documents for the current repository (topic prefix: "backtick-plan/").
+        2. If multiple plans exist, show the list and let the user pick. Otherwise, `recall_document` the latest one.
+        3. Show the plan and completion status to the user.
+        4. If incomplete task groups remain, ask whether to resume from where it stopped.
 
         ### "현황" / "status" / "what do I have"
         1. If the user means Backtick broadly, `list_saved_items` first
@@ -109,7 +151,8 @@ enum MCPPromptCatalog {
         - `group_notes` creates a merged card but does not archive sources unless `archiveSources` is set.
         - Note payloads and classification groups may include `tags`; use them as routing hints when they add signal.
         - Do not call `mark_notes_executed` during planning, triage, or diagnosis.
-        - For an explicit execute request, call `mark_notes_executed` after verification for the notes that were actually completed, unless the user asks to keep them active.
+        - For execute requests, call `mark_notes_executed` per task group after that group's verification passes — not in batch at the end.
+        - The plan document in Memory is the source of truth. Always `recall_document` before resuming an interrupted execution.
         - When unsure whether to diagnose or execute, default to diagnose.
         - Show results before taking further action. Do not chain silently.
         """)
@@ -184,9 +227,9 @@ enum MCPPromptCatalog {
 
     static let triage = MCPPromptTemplate(
         name: "triage",
-        description: "Classify and group Stack notes for review before execution.",
+        description: "Classify and group Stack notes into an execution plan document.",
         arguments: sharedArguments,
-        bodyTemplate: """
+        bodyTemplate: BacktickMCPToolNaming.brandToolReferences(in: """
         You are an engineering triage assistant.
 
         ## Notes
@@ -199,15 +242,65 @@ enum MCPPromptCatalog {
 
         ## Instructions
 
-        1. Group related notes that should be addressed together.
-           - Same intent but different modules should usually become separate groups.
-           - Each title should be understandable without extra context.
-        2. For each group, provide: title, intent tag (diagnose/execute/investigate), difficulty (easy/medium/hard).
-        3. If a note is ambiguous or exploratory, tag it as investigate.
-        4. Suggest a processing order that respects dependencies.
+        Analyze the notes and produce a structured execution plan in the markdown format below.
 
-        Return JSON: { groups: [{ title, intent, difficulty, noteIDs, rationale }] }
+        For each task group:
+        - Group related notes that should be addressed together. Same intent but different modules should usually become separate groups.
+        - Identify files likely touched by that group.
+        - Assign: title, intent (execute/diagnose/investigate), difficulty (easy/medium/hard).
+        - List the noteIDs that belong to this group.
+        - Provide verification criteria (e.g., "builds clean, unit tests pass").
+        - Write a short rationale.
+
+        Then:
+        - Analyze dependencies: which group must complete before another can start.
+        - Analyze conflicts: groups that touch the same files must be sequential, not parallel.
+        - Mark groups as parallel_safe when they have no dependency on each other AND no file overlap.
+        - Produce an ordered execution sequence with phase numbers. Groups in the same phase can run in parallel if parallel_safe.
+        - List risk flags (e.g., "touches auth layer", "no tests covering this path") or write "none".
+
+        Output the plan as structured markdown using exactly this format:
+
+        # Execution Plan
+
+        ## Summary
+        - Total tasks: N
+        - Sequential steps: M
+        - Estimated difficulty: easy/medium/hard
+        - Risk flags: <list or "none">
+
+        ## Task Groups
+
+        ### 1. [Title]
+        - Intent: execute
+        - Difficulty: easy
+        - Note IDs: [id1, id2]
+        - Files: [path/to/file.swift, ...]
+        - Verification: builds clean, unit tests pass
+        - Rationale: ...
+
+        (repeat for each group)
+
+        ## Execution Order
+        Step 1: Task 1 (no dependencies)
+        Step 2: Task 3, Task 4 (parallel — no file overlap)
+        Step 3: Task 2 (depends on Task 1)
+
+        ## Dependencies
+        - Task 2 depends_on Task 1: reason
+
+        ## Completion Log
+        (empty — filled during execution)
+
+        After producing the plan, call `save_document` with:
+        - project: {repositoryName}
+        - topic: "backtick-plan/YYYYMMDD-summary-slug" (e.g., "backtick-plan/20260331-fix-clipboard-and-theme")
+          - YYYYMMDD: today's date
+          - summary-slug: 3-5 word kebab-case summary derived from the task group titles
+        - documentType: "plan"
+        - content: the full plan markdown above
         """
+        )
     )
 
     static let diagnose = MCPPromptTemplate(
@@ -237,12 +330,12 @@ enum MCPPromptCatalog {
 
     static let execute = MCPPromptTemplate(
         name: "execute",
-        description: "Implement changes described in grouped notes step by step.",
+        description: "Implement one task group from the execution plan.",
         arguments: sharedArguments,
         bodyTemplate: BacktickMCPToolNaming.brandToolReferences(in: """
-        You are an implementer working in an existing codebase.
+        You are an implementer working in an existing codebase. You are executing ONE task group.
 
-        ## Task
+        ## Task Group
 
         {noteText}
 
@@ -250,16 +343,34 @@ enum MCPPromptCatalog {
         Repository: {repositoryName}
         Branch: {branch}
 
-        ## Goal
-        Implement the changes step by step.
+        ## Protocol
 
-        ## Constraints
-        - Follow existing code patterns
-        - Keep changes focused
-        - Verify each step compiles
-        - Do not refactor unrelated code
-        - When the requested work is actually completed and verified, call `mark_notes_executed` for the completed source notes before returning the final result
-        - If only part of the work was completed, only mark the completed notes executed and leave the rest active
+        ### Step 1 — Scope Check
+        - Read the relevant files identified in the task group.
+        - Confirm which files you will modify.
+        - Verify that any dependencies from prior phases are present (e.g., a type or function introduced in Phase 1).
+        - If a dependency is missing, stop and report — do not proceed.
+
+        ### Step 2 — Implement
+        - Follow existing code patterns in the codebase.
+        - Stay focused on this task group only.
+        - Do not refactor unrelated code.
+        - Do not touch files outside the scope of this group.
+
+        ### Step 3 — Verify
+        - Build must pass with zero errors.
+        - All existing tests must pass.
+        - Check the task-specific verification criteria stated in the plan.
+        - If verification fails, attempt one fix. If it still fails after one attempt, stop and report the failure — do not loop.
+
+        ### Step 4 — Report
+        - Summarize the changes made (files modified, what changed, why).
+        - State the verification result explicitly: "Build passed. Tests passed."
+        - Call `mark_notes_executed` for the noteIDs that belong to this task group.
+
+        ### Step 5 — Stop
+        - Do not continue to the next task group.
+        - The orchestrating workflow controls sequencing between groups.
         """)
     )
 }
