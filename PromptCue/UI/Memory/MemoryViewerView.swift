@@ -100,35 +100,9 @@ struct MemoryViewerView: View {
             MemoryNewDocumentSheet(
                 draft: $uiState.newDocumentDraft,
                 errorMessage: uiState.newDocumentErrorMessage,
-                onPasteClipboard: {
-                    let pastedText = model.pasteboardString()
-                    guard let pastedText,
-                          !pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                        uiState.newDocumentErrorMessage = "Clipboard does not contain text."
-                        return
-                    }
-
-                    uiState.newDocumentDraft.content = MemoryViewerModel.NewDocumentDraft
-                        .contentForPastedText(pastedText)
-                    uiState.newDocumentErrorMessage = nil
-                },
-                onCancel: {
-                    uiState.isPresentingNewDocumentSheet = false
-                    uiState.newDocumentErrorMessage = nil
-                },
-                onCreate: {
-                    if model.createDocument(
-                        project: uiState.newDocumentDraft.project,
-                        topic: uiState.newDocumentDraft.topic,
-                        documentType: uiState.newDocumentDraft.documentType,
-                        content: uiState.newDocumentDraft.content
-                    ) {
-                        uiState.isPresentingNewDocumentSheet = false
-                        uiState.newDocumentErrorMessage = nil
-                    } else {
-                        uiState.newDocumentErrorMessage = model.storageErrorMessage
-                    }
-                }
+                onPasteClipboard: pasteClipboardIntoDraft,
+                onCancel: cancelNewDocumentDraft,
+                onCreate: createDocumentFromDraft
             )
         }
         .onChange(of: model.selectedDocument?.id) { _, _ in
@@ -139,6 +113,38 @@ struct MemoryViewerView: View {
     private func refreshMemory() {
         model.refresh()
         uiState.syncSelection(with: model)
+    }
+
+    private func pasteClipboardIntoDraft() {
+        let pastedText = model.pasteboardString()
+        guard let pastedText,
+              !pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            uiState.newDocumentErrorMessage = "Clipboard does not contain text."
+            return
+        }
+
+        uiState.newDocumentDraft.content = MemoryViewerModel.NewDocumentDraft
+            .contentForPastedText(pastedText)
+        uiState.newDocumentErrorMessage = nil
+    }
+
+    private func cancelNewDocumentDraft() {
+        uiState.isPresentingNewDocumentSheet = false
+        uiState.newDocumentErrorMessage = nil
+    }
+
+    private func createDocumentFromDraft() {
+        if model.createDocument(
+            project: uiState.newDocumentDraft.project,
+            topic: uiState.newDocumentDraft.topic,
+            documentType: uiState.newDocumentDraft.documentType,
+            content: uiState.newDocumentDraft.content
+        ) {
+            uiState.isPresentingNewDocumentSheet = false
+            uiState.newDocumentErrorMessage = nil
+        } else {
+            uiState.newDocumentErrorMessage = model.storageErrorMessage
+        }
     }
 }
 
@@ -236,29 +242,11 @@ struct MemoryDetailPaneView: View {
                 isEditing: $uiState.isEditing,
                 editorText: $uiState.editorText,
                 didCopy: $uiState.didCopy,
-                onCopy: {
-                    model.copySelectedDocument()
-                    uiState.showCopiedFeedback()
-                },
-                onStartEditing: {
-                    uiState.startEditing(with: model)
-                },
-                onCancelEditing: {
-                    uiState.cancelEditing(with: model)
-                },
-                onSaveEditing: {
-                    switch model.saveSelectedDocumentContent(uiState.editorText) {
-                    case .saved:
-                        uiState.isEditing = false
-                    case .deleteIntent:
-                        confirmDeleteSelectedDocument(model: model, uiState: uiState)
-                    case .failed:
-                        break
-                    }
-                },
-                onDeleteDocument: {
-                    confirmDeleteSelectedDocument(model: model, uiState: uiState)
-                }
+                onCopy: copySelectedDocument,
+                onStartEditing: startEditingSelectedDocument,
+                onCancelEditing: cancelEditingSelectedDocument,
+                onSaveEditing: saveSelectedDocument,
+                onDeleteDocument: deleteSelectedDocument
             )
         }
         .overlay(alignment: .bottomLeading) {
@@ -270,6 +258,34 @@ struct MemoryDetailPaneView: View {
                     .padding(.bottom, MemoryPaneMetrics.statusMessageBottomInset)
             }
         }
+    }
+
+    private func copySelectedDocument() {
+        model.copySelectedDocument()
+        uiState.showCopiedFeedback()
+    }
+
+    private func startEditingSelectedDocument() {
+        uiState.startEditing(with: model)
+    }
+
+    private func cancelEditingSelectedDocument() {
+        uiState.cancelEditing(with: model)
+    }
+
+    private func saveSelectedDocument() {
+        switch model.saveSelectedDocumentContent(uiState.editorText) {
+        case .saved:
+            uiState.isEditing = false
+        case .deleteIntent:
+            confirmDeleteSelectedDocument(model: model, uiState: uiState)
+        case .failed:
+            break
+        }
+    }
+
+    private func deleteSelectedDocument() {
+        confirmDeleteSelectedDocument(model: model, uiState: uiState)
     }
 }
 
@@ -355,15 +371,13 @@ private enum MemoryPaneMetrics {
     static let paneScrollVerticalInset: CGFloat = 8
     static let documentListHorizontalInset: CGFloat = 14
     static let documentRowContentPadding: CGFloat = 10
-    static let sidebarRowTextTopInset: CGFloat = 7
-    static let contentRowTextTopInset: CGFloat = 6
     static let chromeBarMinHeight: CGFloat = 36
     static let chromeControlSize: CGFloat = 36
+    // 2nd and 3rd column chrome share this height contract so their dividers stay aligned.
     static let sharedChromeHeaderHeight: CGFloat = 40
     static let detailHeaderChromeInset: CGFloat = 14
     static let chromeLaneTopInset: CGFloat = -44
     static let detailHeaderTopInset: CGFloat = chromeLaneTopInset + 4
-    static let detailHeaderActionTrailingInset: CGFloat = 16
     static let documentsHeaderTopInset: CGFloat = detailHeaderTopInset
     static let chromeButtonOpticalYOffset: CGFloat = -1
     static let documentsHeaderTextTopInset: CGFloat = 2
@@ -383,7 +397,7 @@ private enum MemoryPaneMetrics {
         + paneScrollVerticalInset
     static let detailHeaderDividerTopInset: CGFloat =
         sharedHeaderDividerTopInset
-    static let detailHeaderTitleOpticalOffset: CGFloat = 4
+    static let detailHeaderTitleOpticalOffset: CGFloat = 8
     static let detailHeaderTextTopInset: CGFloat =
         documentsListRowTopInsetFromPaneTop + detailHeaderTitleOpticalOffset
     static let detailHeaderContentBottomInset: CGFloat = 12
@@ -391,11 +405,7 @@ private enum MemoryPaneMetrics {
     static let footerHorizontalInset: CGFloat = detailContentInset
     static let statusMessageHorizontalInset: CGFloat = PrimitiveTokens.Space.md
     static let statusMessageBottomInset: CGFloat = PrimitiveTokens.Space.sm
-    static let footerActionIconSpacing: CGFloat = PrimitiveTokens.Space.xs
-    static let footerActionHeight: CGFloat = 42
-    static let footerHoverInset: CGFloat = PrimitiveTokens.Space.xs
     static let rowAccessorySpacing: CGFloat = 6
-    static let rowCountSpacing: CGFloat = 4
     static let newDocumentFormSpacing: CGFloat = 18
     static let newDocumentFieldSpacing: CGFloat = 6
     static let newDocumentEditorMinHeight: CGFloat = 260
@@ -406,7 +416,6 @@ private enum MemoryPaneMetrics {
     static let detailHeaderBottomInset: CGFloat = sharedChromeHeaderHeight - chromeBarMinHeight
     static let detailTitleBottomSpacing: CGFloat = PrimitiveTokens.Space.xs
     static let detailMetadataSpacing: CGFloat = 6
-    static let detailCopyIconSize: CGFloat = 24
     static let renderedSectionSpacing: CGFloat = 30
     static let renderedBlockSpacing: CGFloat = 24
     static let renderedListSpacing: CGFloat = 10
@@ -487,35 +496,39 @@ private struct MemoryChromeControlButton: View {
     var body: some View {
         if #available(macOS 26.0, *) {
             Button(action: action) {
-                Image(systemName: systemName)
-                    .symbolRenderingMode(.monochrome)
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(isHovered ? 0.10 : 0))
+
+                    Image(systemName: systemName)
+                        .symbolRenderingMode(.monochrome)
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
+                .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .background {
-                Circle()
-                    .fill(Color.white.opacity(isHovered ? 0.10 : 0))
-            }
             .glassEffect(.regular.interactive(), in: Circle())
             .offset(y: MemoryPaneMetrics.chromeButtonOpticalYOffset)
             .onHover { isHovered = $0 }
             .accessibilityLabel(accessibilityLabel)
         } else {
             Button(action: action) {
-                Image(systemName: systemName)
-                    .symbolRenderingMode(.monochrome)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(SemanticTokens.Text.primary)
-                    .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
-                    .background(
-                        Circle()
-                            .fill(
-                                isHovered
-                                    ? SemanticTokens.Text.secondary.opacity(0.18)
-                                    : SemanticTokens.Text.secondary.opacity(0.12)
-                            )
-                    )
+                ZStack {
+                    Circle()
+                        .fill(
+                            isHovered
+                                ? SemanticTokens.Text.secondary.opacity(0.18)
+                                : SemanticTokens.Text.secondary.opacity(0.12)
+                        )
+
+                    Image(systemName: systemName)
+                        .symbolRenderingMode(.monochrome)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(SemanticTokens.Text.primary)
+                }
+                .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
+                .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .offset(y: MemoryPaneMetrics.chromeButtonOpticalYOffset)
@@ -616,22 +629,8 @@ private struct MemoryProjectListPane: View {
 }
 
 private enum MemoryProjectListColors {
-    static let selectedTint = SemanticTokens.adaptiveColor(
-        light: NSColor(
-            srgbRed: 179.0 / 255.0,
-            green: 114.0 / 255.0,
-            blue: 18.0 / 255.0,
-            alpha: 1
-        ),
-        dark: NSColor(
-            srgbRed: 246.0 / 255.0,
-            green: 194.0 / 255.0,
-            blue: 84.0 / 255.0,
-            alpha: 1
-        )
-    )
-
-    static let selectedSecondaryTint = selectedTint.opacity(0.92)
+    static let selectedTint = SemanticTokens.Text.primary
+    static let selectedSecondaryTint = SemanticTokens.Text.secondary
 }
 
 private struct MemoryDocumentListPane: View {
@@ -748,48 +747,67 @@ private struct MemoryDocumentsHeader: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .topLeading) {
-                HStack {
-                    Spacer(minLength: 0)
-
-                    if #available(macOS 26.0, *) {
-                        GlassEffectContainer(spacing: 8) {
-                            MemoryChromeControlButton(
-                                systemName: "plus",
-                                accessibilityLabel: "New document",
-                                action: onCreateDocument
-                            )
-                        }
-                    } else {
-                        MemoryChromeControlButton(
-                            systemName: "plus",
-                            accessibilityLabel: "New document",
-                            action: onCreateDocument
-                        )
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(SemanticTokens.Text.primary)
-                        .lineLimit(1)
-
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(SemanticTokens.Text.secondary)
-                        .lineLimit(1)
-                }
-                .padding(.top, MemoryPaneMetrics.documentsHeaderTextTopInset)
+                MemoryDocumentsHeaderChrome(onCreateDocument: onCreateDocument)
+                    .zIndex(1)
+                MemoryDocumentsHeaderTextBlock(title: title, subtitle: subtitle)
+                    .padding(.top, MemoryPaneMetrics.documentsHeaderTextTopInset)
+                    .allowsHitTesting(false)
             }
             .frame(maxWidth: .infinity, minHeight: MemoryPaneMetrics.documentsHeaderContentHeight, alignment: .topLeading)
             .padding(.horizontal, MemoryPaneMetrics.documentListHorizontalInset)
-            .padding(.top, MemoryPaneMetrics.documentsHeaderTopInset)
+            .offset(y: MemoryPaneMetrics.documentsHeaderTopInset)
             .padding(.bottom, MemoryPaneMetrics.documentsHeaderBottomInset)
 
             Rectangle()
                 .fill(MemoryPaneColors.separatorSoft)
                 .frame(height: PrimitiveTokens.Stroke.subtle)
                 .padding(.top, MemoryPaneMetrics.documentsHeaderDividerSpacing)
+                .allowsHitTesting(false)
+        }
+    }
+}
+
+private struct MemoryDocumentsHeaderChrome: View {
+    let onCreateDocument: () -> Void
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 0)
+
+            if #available(macOS 26.0, *) {
+                GlassEffectContainer(spacing: 8) {
+                    MemoryChromeControlButton(
+                        systemName: "plus",
+                        accessibilityLabel: "New document",
+                        action: onCreateDocument
+                    )
+                }
+            } else {
+                MemoryChromeControlButton(
+                    systemName: "plus",
+                    accessibilityLabel: "New document",
+                    action: onCreateDocument
+                )
+            }
+        }
+    }
+}
+
+private struct MemoryDocumentsHeaderTextBlock: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(SemanticTokens.Text.primary)
+                .lineLimit(1)
+
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(SemanticTokens.Text.secondary)
+                .lineLimit(1)
         }
     }
 }
@@ -932,86 +950,36 @@ private struct MemoryDetailPane: View {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 0) {
                     ZStack(alignment: .topLeading) {
-                        MemoryChromeBar(debugColor: MemoryLayoutDebug.detailHeaderChrome) {
-                            HStack(alignment: .center, spacing: PrimitiveTokens.Space.sm) {
-                                Spacer(minLength: 0)
-
-                                if isEditing {
-                                    actionCluster {
-                                        MemoryChromeControlButton(
-                                            systemName: "xmark",
-                                            accessibilityLabel: "Cancel editing",
-                                            action: onCancelEditing
-                                        )
-                                        MemoryChromeControlButton(
-                                            systemName: "checkmark",
-                                            accessibilityLabel: "Save document",
-                                            action: onSaveEditing
-                                        )
-                                        .keyboardShortcut(.defaultAction)
-                                    }
-                                } else {
-                                    actionCluster {
-                                        MemoryChromeControlButton(
-                                            systemName: "trash",
-                                            accessibilityLabel: "Delete document",
-                                            action: onDeleteDocument
-                                        )
-                                        MemoryChromeControlButton(
-                                            systemName: "square.and.pencil",
-                                            accessibilityLabel: "Edit document",
-                                            action: onStartEditing
-                                        )
-                                        MemoryChromeControlButton(
-                                            systemName: didCopy ? "checkmark" : "doc.on.doc",
-                                            accessibilityLabel: didCopy ? "Copied document" : "Copy document",
-                                            action: onCopy
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        MemoryDetailHeaderChrome(
+                            isEditing: isEditing,
+                            didCopy: didCopy,
+                            onCopy: onCopy,
+                            onStartEditing: onStartEditing,
+                            onCancelEditing: onCancelEditing,
+                            onSaveEditing: onSaveEditing,
+                            onDeleteDocument: onDeleteDocument
+                        )
+                        .zIndex(1)
                         .padding(.horizontal, MemoryPaneMetrics.detailHeaderChromeInset)
-                        .padding(.top, MemoryPaneMetrics.detailHeaderTopInset)
+                        .offset(y: MemoryPaneMetrics.detailHeaderTopInset)
                         .padding(.bottom, MemoryPaneMetrics.detailHeaderBottomInset)
 
                         Rectangle()
                             .fill(MemoryPaneColors.separatorSoft)
                             .frame(height: PrimitiveTokens.Stroke.subtle)
                             .padding(.top, MemoryPaneMetrics.detailHeaderDividerTopInset)
+                            .allowsHitTesting(false)
 
-                        VStack(alignment: .leading, spacing: MemoryPaneMetrics.detailTitleBottomSpacing) {
-                            Text(document.topic)
-                                .font(.title2.weight(.semibold))
-                                .fixedSize(horizontal: false, vertical: true)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            HStack(alignment: .firstTextBaseline, spacing: MemoryPaneMetrics.detailMetadataSpacing) {
-                                MemoryTag(text: document.documentType.rawValue)
-                                    .layoutPriority(1)
-
-                                Image(systemName: "folder")
-                                    .font(MemoryPaneTypography.accessoryIcon)
-                                    .foregroundStyle(SemanticTokens.Text.secondary)
-                                    .accessibilityHidden(true)
-
-                                Text(document.project)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-
-                                Text("·")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(.secondary)
-
-                                Text(Self.timestampString(for: document.updatedAt))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                        MemoryDetailTitleBlock(
+                            topic: document.topic,
+                            documentType: document.documentType.rawValue,
+                            project: document.project,
+                            updatedAt: document.updatedAt
+                        )
                         .padding(.top, MemoryPaneMetrics.detailHeaderTextTopInset)
                         .padding(.horizontal, MemoryPaneMetrics.detailContentInset)
                         .padding(.bottom, MemoryPaneMetrics.detailHeaderContentBottomInset)
+                        .allowsHitTesting(false)
                         .memoryDebugOverlay(MemoryLayoutDebug.detailContent)
                     }
                 }
@@ -1033,24 +1001,118 @@ private struct MemoryDetailPane: View {
         }
     }
 
-    private static func timestampString(for date: Date) -> String {
+    static func timestampString(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return "Updated \(formatter.string(from: date))"
     }
+}
 
-    @ViewBuilder
-    private func actionCluster<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+private struct MemoryDetailHeaderChrome: View {
+    let isEditing: Bool
+    let didCopy: Bool
+    let onCopy: () -> Void
+    let onStartEditing: () -> Void
+    let onCancelEditing: () -> Void
+    let onSaveEditing: () -> Void
+    let onDeleteDocument: () -> Void
+
+    var body: some View {
+        MemoryChromeBar(debugColor: MemoryLayoutDebug.detailHeaderChrome) {
+            HStack(alignment: .center, spacing: PrimitiveTokens.Space.sm) {
+                Spacer(minLength: 0)
+
+                if isEditing {
+                    MemoryDetailActionCluster {
+                        MemoryChromeControlButton(
+                            systemName: "xmark",
+                            accessibilityLabel: "Cancel editing",
+                            action: onCancelEditing
+                        )
+                        MemoryChromeControlButton(
+                            systemName: "checkmark",
+                            accessibilityLabel: "Save document",
+                            action: onSaveEditing
+                        )
+                        .keyboardShortcut(.defaultAction)
+                    }
+                } else {
+                    MemoryDetailActionCluster {
+                        MemoryChromeControlButton(
+                            systemName: "trash",
+                            accessibilityLabel: "Delete document",
+                            action: onDeleteDocument
+                        )
+                        MemoryChromeControlButton(
+                            systemName: "square.and.pencil",
+                            accessibilityLabel: "Edit document",
+                            action: onStartEditing
+                        )
+                        MemoryChromeControlButton(
+                            systemName: didCopy ? "checkmark" : "doc.on.doc",
+                            accessibilityLabel: didCopy ? "Copied document" : "Copy document",
+                            action: onCopy
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct MemoryDetailTitleBlock: View {
+    let topic: String
+    let documentType: String
+    let project: String
+    let updatedAt: Date
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: MemoryPaneMetrics.detailTitleBottomSpacing) {
+            Text(topic)
+                .font(.title2.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(alignment: .firstTextBaseline, spacing: MemoryPaneMetrics.detailMetadataSpacing) {
+                MemoryTag(text: documentType)
+                    .layoutPriority(1)
+
+                Image(systemName: "folder")
+                    .font(MemoryPaneTypography.accessoryIcon)
+                    .foregroundStyle(SemanticTokens.Text.secondary)
+                    .accessibilityHidden(true)
+
+                Text(project)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Text("·")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+
+                Text(MemoryDetailPane.timestampString(for: updatedAt))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct MemoryDetailActionCluster<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
         if #available(macOS 26.0, *) {
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {
-                    content()
+                    content
                 }
             }
         } else {
             HStack(spacing: 8) {
-                content()
+                content
             }
         }
     }
