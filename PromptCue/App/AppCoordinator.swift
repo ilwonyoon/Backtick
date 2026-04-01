@@ -14,6 +14,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
     let model = AppModel()
     private let hotKeyCenter = HotKeyCenter()
     private let screenshotSettingsModel = ScreenshotSettingsModel()
+    private let launchAtLoginSettingsModel = LaunchAtLoginSettingsModel()
     private let exportTailSettingsModel = PromptExportTailSettingsModel()
     private let retentionSettingsModel = CardRetentionSettingsModel()
     private let cloudSyncSettingsModel = CloudSyncSettingsModel()
@@ -32,6 +33,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
     )
     private lazy var settingsWindowController = SettingsWindowController(
         screenshotSettingsModel: screenshotSettingsModel,
+        launchAtLoginSettingsModel: launchAtLoginSettingsModel,
         exportTailSettingsModel: exportTailSettingsModel,
         retentionSettingsModel: retentionSettingsModel,
         cloudSyncSettingsModel: cloudSyncSettingsModel,

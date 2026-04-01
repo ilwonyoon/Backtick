@@ -7,6 +7,7 @@ struct PromptCueSettingsView: View {
     @ObservedObject private var navigationModel: SettingsNavigationModel
     let onSelectTab: ((SettingsTab) -> Void)?
     @ObservedObject private var screenshotSettingsModel: ScreenshotSettingsModel
+    @ObservedObject private var launchAtLoginSettingsModel: LaunchAtLoginSettingsModel
     @ObservedObject private var exportTailSettingsModel: PromptExportTailSettingsModel
     @ObservedObject private var retentionSettingsModel: CardRetentionSettingsModel
     @ObservedObject private var cloudSyncSettingsModel: CloudSyncSettingsModel
@@ -34,6 +35,7 @@ struct PromptCueSettingsView: View {
         navigationModel: SettingsNavigationModel? = nil,
         onSelectTab: ((SettingsTab) -> Void)? = nil,
         screenshotSettingsModel: ScreenshotSettingsModel,
+        launchAtLoginSettingsModel: LaunchAtLoginSettingsModel,
         exportTailSettingsModel: PromptExportTailSettingsModel,
         retentionSettingsModel: CardRetentionSettingsModel,
         cloudSyncSettingsModel: CloudSyncSettingsModel,
@@ -44,6 +46,7 @@ struct PromptCueSettingsView: View {
         )
         self.onSelectTab = onSelectTab
         self.screenshotSettingsModel = screenshotSettingsModel
+        self.launchAtLoginSettingsModel = launchAtLoginSettingsModel
         self.exportTailSettingsModel = exportTailSettingsModel
         self.retentionSettingsModel = retentionSettingsModel
         self.cloudSyncSettingsModel = cloudSyncSettingsModel
@@ -56,6 +59,7 @@ struct PromptCueSettingsView: View {
         )
         self.onSelectTab = nil
         self.screenshotSettingsModel = ScreenshotSettingsModel()
+        self.launchAtLoginSettingsModel = LaunchAtLoginSettingsModel()
         self.exportTailSettingsModel = PromptExportTailSettingsModel()
         self.retentionSettingsModel = CardRetentionSettingsModel()
         self.cloudSyncSettingsModel = CloudSyncSettingsModel()
@@ -120,6 +124,7 @@ struct PromptCueSettingsView: View {
 
     private func refreshSettingsModels() {
         screenshotSettingsModel.refresh()
+        launchAtLoginSettingsModel.refresh()
         exportTailSettingsModel.refresh()
         retentionSettingsModel.refresh()
         cloudSyncSettingsModel.refresh()
@@ -319,6 +324,28 @@ struct PromptCueSettingsView: View {
                 ) {
                     KeyboardShortcuts.Recorder(for: .toggleMemoryViewer)
                         .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+        }
+
+        SettingsSection(
+            title: "Launch",
+            footer: "Keep Backtick in the background automatically after you sign in."
+        ) {
+            SettingsRows {
+                SettingsDetailGroupRow("Startup", showsDivider: false) {
+                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
+                        Toggle(
+                            "Open Backtick at login",
+                            isOn: binding(
+                                get: { launchAtLoginSettingsModel.isEnabled },
+                                set: launchAtLoginSettingsModel.updateEnabled
+                            )
+                        )
+                        .toggleStyle(.checkbox)
+
+                        rowNote(launchAtLoginSettingsModel.detailText)
+                    }
                 }
             }
         }

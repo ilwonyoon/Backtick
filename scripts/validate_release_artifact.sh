@@ -29,7 +29,7 @@ Options:
   --report-out PATH           Write a plain-text validation report to this path
   --expected-bundle-id ID     Expected app bundle identifier
                               (default: com.promptcue.promptcue)
-  --expected-display-name ID  Expected app display name (default: Prompt Cue)
+  --expected-display-name ID  Expected app display name (default: Backtick)
   --require-signature         Fail unless the app and helper have valid signatures
   --help                      Show this help
 EOF

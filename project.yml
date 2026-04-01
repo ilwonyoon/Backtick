@@ -93,7 +93,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.promptcue.promptcue
-        PRODUCT_NAME: Prompt Cue
+        PRODUCT_NAME: Backtick
+        PRODUCT_MODULE_NAME: Prompt_Cue
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Backtick
         INFOPLIST_KEY_CFBundleName: Backtick
@@ -124,5 +125,5 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.promptcue.promptcue.tests
         GENERATE_INFOPLIST_FILE: YES
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Prompt Cue.app/Contents/MacOS/Prompt Cue"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Backtick.app/Contents/MacOS/Backtick"
         BUNDLE_LOADER: "$(TEST_HOST)"

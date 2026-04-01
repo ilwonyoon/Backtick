@@ -135,7 +135,7 @@ OUTPUT_ROOT="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "
 LOG_ROOT="${OUTPUT_ROOT}/logs"
 ARCHIVE_VALIDATION_ROOT="${OUTPUT_ROOT}/release-validation"
 HELPER_SMOKE_ROOT="${OUTPUT_ROOT}/helper-smoke"
-HELPER_SMOKE_APP="${HELPER_SMOKE_ROOT}/Prompt Cue.app"
+HELPER_SMOKE_APP="${HELPER_SMOKE_ROOT}/Backtick.app"
 HELPER_SMOKE_LOG="${LOG_ROOT}/helper-smoke.txt"
 H6_SUMMARY_PATH="${OUTPUT_ROOT}/h6-summary.txt"
 SIGNED_RELEASE_ROOT="${OUTPUT_ROOT}/signed-release"
@@ -165,10 +165,10 @@ run_logged "${LOG_ROOT}/archive-release-validation.log" \
     --output-root "${ARCHIVE_VALIDATION_ROOT}" \
     --skip-xcodegen
 
-[[ -d "${ARCHIVE_VALIDATION_ROOT}/Prompt Cue.app" ]] \
-  || fail "release validation export is missing: ${ARCHIVE_VALIDATION_ROOT}/Prompt Cue.app"
+[[ -d "${ARCHIVE_VALIDATION_ROOT}/Backtick.app" ]] \
+  || fail "release validation export is missing: ${ARCHIVE_VALIDATION_ROOT}/Backtick.app"
 
-ditto "${ARCHIVE_VALIDATION_ROOT}/Prompt Cue.app" "${HELPER_SMOKE_APP}"
+ditto "${ARCHIVE_VALIDATION_ROOT}/Backtick.app" "${HELPER_SMOKE_APP}"
 
 env -i \
   HOME="${HOME}" \

@@ -24,7 +24,7 @@ Launch Prompt Cue with local QA env hooks, wait for the capture panel to settle,
 capture a screenshot, and save stdout/stderr logs into a timestamped output folder.
 
 Options:
-  --app PATH           Path to "Prompt Cue.app"
+  --app PATH           Path to "Backtick.app"
   --out-dir PATH       Output directory for logs and screenshot
   --draft-file PATH    Text file passed via PROMPTCUE_QA_DRAFT_TEXT_FILE
   --scenario NAME      default | wrap-two-lines | bottom-breathing | large-paste
@@ -63,7 +63,7 @@ resolve_latest_app() {
       full_product_name="$(printf '%s\n' "${settings}" | awk -F ' = ' '/FULL_PRODUCT_NAME/ { print $2; exit }')"
       resolved_path="${target_build_dir}/${full_product_name}"
 
-      if [[ -x "${resolved_path}/Contents/MacOS/Prompt Cue" ]]; then
+      if [[ -x "${resolved_path}/Contents/MacOS/Backtick" ]]; then
         printf '%s\n' "${resolved_path}"
         return 0
       fi
@@ -75,7 +75,7 @@ resolve_latest_app() {
     candidates+=("$path")
   done < <(
     find /tmp "${HOME}/Library/Developer/Xcode/DerivedData" \
-      -path '*/Build/Products/Debug/Prompt Cue.app' \
+      -path '*/Build/Products/Debug/Backtick.app' \
       -type d \
       -print 2>/dev/null
   )
@@ -196,13 +196,13 @@ done
 configure_scenario
 
 if [[ -z "${APP_PATH}" ]]; then
-  APP_PATH="$(resolve_latest_app)" || fail "could not find a local DevSigned or Debug build of Prompt Cue.app; pass --app"
+  APP_PATH="$(resolve_latest_app)" || fail "could not find a local DevSigned or Debug build of Backtick.app; pass --app"
 fi
 
 APP_PATH="$(cd "${APP_PATH}" && pwd)"
 [[ -d "${APP_PATH}" ]] || fail "app path does not exist: ${APP_PATH}"
 
-APP_BINARY="${APP_PATH}/Contents/MacOS/Prompt Cue"
+APP_BINARY="${APP_PATH}/Contents/MacOS/Backtick"
 [[ -x "${APP_BINARY}" ]] || fail "app binary is not executable: ${APP_BINARY}"
 
 TIMESTAMP="$(date '+%Y%m%d-%H%M%S')-$$"
@@ -235,7 +235,7 @@ import subprocess
 import sys
 
 app_path = sys.argv[1]
-pattern = f"{app_path}/Contents/MacOS/Prompt Cue"
+pattern = f"{app_path}/Contents/MacOS/Backtick"
 out = subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True)
 for line in out.stdout.splitlines():
     try:

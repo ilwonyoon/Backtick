@@ -108,8 +108,8 @@ TEMP_WORK_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/promptcue-release-validation.XXXXXX
 DERIVED_DATA_PATH="${TEMP_WORK_ROOT}/DerivedData"
 SOURCE_PACKAGES_DIR="${TEMP_WORK_ROOT}/SourcePackages"
 ARCHIVE_PATH="${OUTPUT_ROOT}/PromptCue.xcarchive"
-EXPORTED_APP_PATH="${OUTPUT_ROOT}/Prompt Cue.app"
-ARTIFACT_PATH="${OUTPUT_ROOT}/Prompt Cue.app.zip"
+EXPORTED_APP_PATH="${OUTPUT_ROOT}/Backtick.app"
+ARTIFACT_PATH="${OUTPUT_ROOT}/Backtick.app.zip"
 ARCHIVE_LOG_PATH="${OUTPUT_ROOT}/archive.log"
 VALIDATION_REPORT_PATH="${OUTPUT_ROOT}/release-validation.txt"
 METADATA_PATH="${OUTPUT_ROOT}/release-metadata.json"
@@ -151,7 +151,7 @@ done
 printf '\n'
 "${XCODEBUILD_CMD[@]}" 2>&1 | tee "${ARCHIVE_LOG_PATH}"
 
-ARCHIVED_APP_PATH="${ARCHIVE_PATH}/Products/Applications/Prompt Cue.app"
+ARCHIVED_APP_PATH="${ARCHIVE_PATH}/Products/Applications/Backtick.app"
 [[ -d "${ARCHIVED_APP_PATH}" ]] || fail "archived app is missing: ${ARCHIVED_APP_PATH}"
 
 run ditto "${ARCHIVED_APP_PATH}" "${EXPORTED_APP_PATH}"

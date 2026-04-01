@@ -29,7 +29,7 @@ Run the merge gate for the performance integration branch with a functional-firs
 order: regressions first, then build, then performance checks.
 
 Options:
-  --app PATH      Path to "Prompt Cue.app" for the live stack-open trace
+  --app PATH      Path to "Backtick.app" for the live stack-open trace
   --profile NAME  Verification profile: full or safe-main (default: full)
   --skip-perf     Skip perf benchmarks and the live stack-open trace
   --help          Show this help

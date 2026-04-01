@@ -27,6 +27,7 @@
 		1F0DF73DFB7C80D7255E5730 /* CapturePanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E7982703EC6D0302F17A37 /* CapturePanelController.swift */; };
 		1FE7A3F3443CA6A36A525129 /* StackCardOverflowPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D905A922322288295EECE24 /* StackCardOverflowPerformanceTests.swift */; };
 		202C1BC04959F9C7DAFE65F2 /* PromptCueDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8711C31CF0828B296D7858CA /* PromptCueDatabase.swift */; };
+		22AB5BFE2AF92D5299DD8136 /* LaunchAtLoginSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFF8C0CADB62B178C1A61009 /* LaunchAtLoginSettingsTests.swift */; };
 		23C965DA44CED7A359BCF844 /* ScreenshotSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6406A9FA30876A8FE4765C78 /* ScreenshotSettingsModel.swift */; };
 		27CAB09D5BA59322FBD7770B /* CloudSyncSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9CDF9657A7AB8E4514FEAF0 /* CloudSyncSettingsModel.swift */; };
 		2881AFAAED24B84D13C1D2F9 /* SemanticTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1A35DDD4DE852B69D3DA9D /* SemanticTokens.swift */; };
@@ -130,6 +131,7 @@
 		C2037D02EFBA614AD4B58AEB /* StackCardOverflowPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10947BDEFD2C412BCD880069 /* StackCardOverflowPolicy.swift */; };
 		C2407D1A540A57F74B8CD8A2 /* DesignSystemWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358723B50B0EB526C0C3916D /* DesignSystemWindowController.swift */; };
 		C33CB0CB8D6163E8E29C9390 /* DesignSystemPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE47CEE43805033948881E6 /* DesignSystemPreviewView.swift */; };
+		C576CD54C72BC95C985D11F0 /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 481F197240A0E2EE1CEC2FFF /* LaunchAtLoginService.swift */; };
 		C5C57DB0B35DACB9E8A166B8 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 73CC45527540F4E64392E1C7 /* PrivacyInfo.xcprivacy */; };
 		C9538C306DEACC4C17E87EAA /* ScreenshotAttachmentPersistencePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B25821259664D4A43B71610 /* ScreenshotAttachmentPersistencePolicy.swift */; };
 		CA6CE213B531826FDB3CE9A2 /* AppModelEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00306C28A217BF98D7FE59D0 /* AppModelEditingTests.swift */; };
@@ -153,6 +155,7 @@
 		E7AA21CDDCD18DB98406C867 /* ManagedScreenshotAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3830229369DD9D1FB13025A9 /* ManagedScreenshotAccess.swift */; };
 		E97D5485A326887910403E4A /* CaptureEditorResolvedHeight.swift in Sources */ = {isa = PBXBuildFile; fileRef = A377806B38E2AD651F10793B /* CaptureEditorResolvedHeight.swift */; };
 		EBE542C16D91284387C23A12 /* RecentScreenshotDirectoryObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F15E70490C98C163CB52780 /* RecentScreenshotDirectoryObserver.swift */; };
+		ED37AAE3C9780EA1944E056B /* LaunchAtLoginSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36F9CE543A7C554726FB056C /* LaunchAtLoginSettingsModel.swift */; };
 		EDD8142E6E57D70B3270212B /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B9CDCE0290CBC1B005127A /* GlassPanel.swift */; };
 		EE76F86A0B4911812D2E4A3E /* CaptureShellChromeRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD4260DC605F38E47233FB0 /* CaptureShellChromeRecipe.swift */; };
 		EE884B79C5772462A94900A4 /* CaptureTypingPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1485D7BEF641BA7134F97E0E /* CaptureTypingPerformanceTests.swift */; };
@@ -216,6 +219,7 @@
 		358114AA1F69A493530DB5A7 /* AppModel+CaptureTags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+CaptureTags.swift"; sourceTree = "<group>"; };
 		358723B50B0EB526C0C3916D /* DesignSystemWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystemWindowController.swift; sourceTree = "<group>"; };
 		35FB81673343C38C9F3E992F /* CloudSyncSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncSettingsTests.swift; sourceTree = "<group>"; };
+		36F9CE543A7C554726FB056C /* LaunchAtLoginSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginSettingsModel.swift; sourceTree = "<group>"; };
 		3823DFD1C47FC69FFB8F69A9 /* CardRetentionSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardRetentionSettingsTests.swift; sourceTree = "<group>"; };
 		3830229369DD9D1FB13025A9 /* ManagedScreenshotAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedScreenshotAccess.swift; sourceTree = "<group>"; };
 		3A1A35DDD4DE852B69D3DA9D /* SemanticTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticTokens.swift; sourceTree = "<group>"; };
@@ -225,6 +229,7 @@
 		43DD7C577FE78FD136D85527 /* PromptExportTailSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptExportTailSettingsTests.swift; sourceTree = "<group>"; };
 		45B066AAC1F6859743A3CD47 /* CardStackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStackView.swift; sourceTree = "<group>"; };
 		47233D95CF58604EC1CA8325 /* CueTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueTextEditor.swift; sourceTree = "<group>"; };
+		481F197240A0E2EE1CEC2FFF /* LaunchAtLoginService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginService.swift; sourceTree = "<group>"; };
 		493F47713E18AC9529C55F92 /* CaptureEditorMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorMetrics.swift; sourceTree = "<group>"; };
 		4AB7F40074E71FB405239B55 /* ShowcaseGlassChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowcaseGlassChrome.swift; sourceTree = "<group>"; };
 		4CDBE5DCAF84737F31BD15F4 /* VisualEffectBackdrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectBackdrop.swift; sourceTree = "<group>"; };
@@ -336,6 +341,7 @@
 		D94731587C49E57913159098 /* SettingsLongFormGroupRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsLongFormGroupRow.swift; sourceTree = "<group>"; };
 		D9BD2A11BE05AD6376D87E70 /* CaptureEditorLayoutCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorLayoutCalculatorTests.swift; sourceTree = "<group>"; };
 		DC26B220ADD91A28931B0A1D /* MCPConnectorSettingsModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPConnectorSettingsModelTests.swift; sourceTree = "<group>"; };
+		DFF8C0CADB62B178C1A61009 /* LaunchAtLoginSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginSettingsTests.swift; sourceTree = "<group>"; };
 		E16CD05EC799CA93CBD0B5E5 /* CloudSyncApplyPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncApplyPerformanceTests.swift; sourceTree = "<group>"; };
 		E7D41B26BBDE9A18011C918F /* SettingsStatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStatusBadge.swift; sourceTree = "<group>"; };
 		EA6940F989AD9EE0936045E8 /* NotificationCardChromeRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCardChromeRecipe.swift; sourceTree = "<group>"; };
@@ -479,6 +485,7 @@
 				3A94909BD4C8A3D066BC97BD /* CloudSyncEngine.swift */,
 				21A7A2D3DEFC663FBD6E00EC /* CopyEventStore.swift */,
 				F447D3D2D92FFA7B5252D467 /* HotKeyCenter.swift */,
+				481F197240A0E2EE1CEC2FFF /* LaunchAtLoginService.swift */,
 				3830229369DD9D1FB13025A9 /* ManagedScreenshotAccess.swift */,
 				D104A9B87E6FA707650A2B88 /* ProjectDocumentStore.swift */,
 				8711C31CF0828B296D7858CA /* PromptCueDatabase.swift */,
@@ -505,6 +512,7 @@
 				979ACA5A43213CAAE3000BE3 /* AppearanceSettingsModel.swift */,
 				FEBCB8BBEBAA5498AFF55F28 /* CardRetentionSettingsModel.swift */,
 				C9CDF9657A7AB8E4514FEAF0 /* CloudSyncSettingsModel.swift */,
+				36F9CE543A7C554726FB056C /* LaunchAtLoginSettingsModel.swift */,
 				CB9A9699F3BC65143AD168B4 /* MCPConnectorConnectionActivity.swift */,
 				CA87B2F4D974C62F4A4CD28F /* MCPConnectorSettingsModel.swift */,
 				7DF85020152C8E2A90F7B51D /* PromptCueSettingsView.swift */,
@@ -612,6 +620,7 @@
 				87E24278B2DDB9065FF78900 /* CloudSyncPushPerformanceTests.swift */,
 				35FB81673343C38C9F3E992F /* CloudSyncSettingsTests.swift */,
 				6F756E64C316B19267AB3E0E /* CueTextEditorMetricsTests.swift */,
+				DFF8C0CADB62B178C1A61009 /* LaunchAtLoginSettingsTests.swift */,
 				C4F563A9362443ED67F78EDE /* LocalImageThumbnailTests.swift */,
 				DC26B220ADD91A28931B0A1D /* MCPConnectorSettingsModelTests.swift */,
 				92E4BC01382932AB7A4816C6 /* MemoryViewerModelTests.swift */,
@@ -900,6 +909,7 @@
 				00422B64803D95F7CB83677E /* CloudSyncPushPerformanceTests.swift in Sources */,
 				8CE5F57D2E4721760E7A48E3 /* CloudSyncSettingsTests.swift in Sources */,
 				E11F430A23AB41A4A98614C2 /* CueTextEditorMetricsTests.swift in Sources */,
+				22AB5BFE2AF92D5299DD8136 /* LaunchAtLoginSettingsTests.swift in Sources */,
 				356AAB08707E456AA17F21D4 /* LocalImageThumbnailTests.swift in Sources */,
 				5A21BE23E7FDEF81BECD1426 /* MCPConnectorSettingsModelTests.swift in Sources */,
 				5AC74583D9481D812599662B /* MemoryViewerModelTests.swift in Sources */,
@@ -972,6 +982,8 @@
 				EDD8142E6E57D70B3270212B /* GlassPanel.swift in Sources */,
 				A9A325745A3FCD8776614A21 /* HotKeyCenter.swift in Sources */,
 				DD789D6A554599FD7839FD00 /* InteractiveDetectedTextView.swift in Sources */,
+				C576CD54C72BC95C985D11F0 /* LaunchAtLoginService.swift in Sources */,
+				ED37AAE3C9780EA1944E056B /* LaunchAtLoginSettingsModel.swift in Sources */,
 				BD3347E542F5DB6843EBB2EB /* LocalImageThumbnail.swift in Sources */,
 				861D3253E318238D3B24CC38 /* MCPConnectorConnectionActivity.swift in Sources */,
 				689FEF48023B46A799478B39 /* MCPConnectorSettingsModel.swift in Sources */,
@@ -1069,7 +1081,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.promptcue.promptcue;
-				PRODUCT_NAME = "Prompt Cue";
+				PRODUCT_MODULE_NAME = Prompt_Cue;
+				PRODUCT_NAME = Backtick;
 				PROVISIONING_PROFILE_SPECIFIER = "Backtick Developer ID";
 				SDKROOT = macosx;
 			};
@@ -1094,7 +1107,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.promptcue.promptcue;
-				PRODUCT_NAME = "Prompt Cue";
+				PRODUCT_MODULE_NAME = Prompt_Cue;
+				PRODUCT_NAME = Backtick;
 				SDKROOT = macosx;
 			};
 			name = DevSigned;
@@ -1118,7 +1132,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.promptcue.promptcue;
-				PRODUCT_NAME = "Prompt Cue";
+				PRODUCT_MODULE_NAME = Prompt_Cue;
+				PRODUCT_NAME = Backtick;
 				SDKROOT = macosx;
 			};
 			name = AppStore;
@@ -1137,7 +1152,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.promptcue.promptcue.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Prompt Cue.app/Contents/MacOS/Prompt Cue";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Backtick.app/Contents/MacOS/Backtick";
 			};
 			name = Debug;
 		};
@@ -1155,7 +1170,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.promptcue.promptcue.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Prompt Cue.app/Contents/MacOS/Prompt Cue";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Backtick.app/Contents/MacOS/Backtick";
 			};
 			name = Release;
 		};
@@ -1230,7 +1245,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.promptcue.promptcue.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Prompt Cue.app/Contents/MacOS/Prompt Cue";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Backtick.app/Contents/MacOS/Backtick";
 			};
 			name = DevSigned;
 		};
@@ -1305,7 +1320,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.promptcue.promptcue.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Prompt Cue.app/Contents/MacOS/Prompt Cue";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Backtick.app/Contents/MacOS/Backtick";
 			};
 			name = AppStore;
 		};
@@ -1392,7 +1407,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.promptcue.promptcue;
-				PRODUCT_NAME = "Prompt Cue";
+				PRODUCT_MODULE_NAME = Prompt_Cue;
+				PRODUCT_NAME = Backtick;
 				SDKROOT = macosx;
 			};
 			name = Debug;

@@ -103,7 +103,7 @@ Backtick exposes your stack to AI clients via [Model Context Protocol](https://m
 
 ```bash
 claude mcp add backtick -- \
-  "/Applications/Prompt Cue.app/Contents/Helpers/BacktickMCP"
+  "/Applications/Backtick.app/Contents/Helpers/BacktickMCP"
 ```
 
 ### Codex
@@ -114,7 +114,7 @@ Add to `~/.codex/config.json`:
 {
   "mcpServers": {
     "backtick": {
-      "command": "/Applications/Prompt Cue.app/Contents/Helpers/BacktickMCP"
+      "command": "/Applications/Backtick.app/Contents/Helpers/BacktickMCP"
     }
   }
 }

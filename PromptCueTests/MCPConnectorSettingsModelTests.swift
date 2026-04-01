@@ -161,7 +161,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         )
 
         let appBundleURL = tempDirectoryURL
-            .appendingPathComponent("Prompt Cue.app", isDirectory: true)
+            .appendingPathComponent("Backtick.app", isDirectory: true)
         let bundledHelperURL = appBundleURL
             .appendingPathComponent("Contents/Helpers", isDirectory: true)
             .appendingPathComponent("BacktickMCP")
@@ -205,7 +205,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         )
 
         let appBundleURL = tempDirectoryURL
-            .appendingPathComponent("Prompt Cue.app", isDirectory: true)
+            .appendingPathComponent("Backtick.app", isDirectory: true)
         let bundledHelperURL = appBundleURL
             .appendingPathComponent("Contents/Helpers", isDirectory: true)
             .appendingPathComponent("BacktickMCP")
@@ -270,7 +270,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         )
 
         let appBundleURL = tempDirectoryURL
-            .appendingPathComponent("Prompt Cue.app", isDirectory: true)
+            .appendingPathComponent("Backtick.app", isDirectory: true)
         let bundledHelperURL = appBundleURL
             .appendingPathComponent("Contents/Helpers", isDirectory: true)
             .appendingPathComponent("BacktickMCP")
@@ -1224,7 +1224,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     @MainActor
     func testClaudeDesktopConnectedWhenRecentActivityUsedBundledHelperBeforeStableLauncherMigration() throws {
         let appBundleURL = tempDirectoryURL
-            .appendingPathComponent("Prompt Cue.app", isDirectory: true)
+            .appendingPathComponent("Backtick.app", isDirectory: true)
         let bundledHelperURL = appBundleURL
             .appendingPathComponent("Contents/Helpers", isDirectory: true)
             .appendingPathComponent("BacktickMCP")
@@ -1289,7 +1289,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     @MainActor
     func testClaudeDesktopIgnoresRecentActivityFromDifferentBundledHelper() throws {
         let currentAppBundleURL = tempDirectoryURL
-            .appendingPathComponent("Prompt Cue.app", isDirectory: true)
+            .appendingPathComponent("Backtick.app", isDirectory: true)
         let currentBundledHelperURL = currentAppBundleURL
             .appendingPathComponent("Contents/Helpers", isDirectory: true)
             .appendingPathComponent("BacktickMCP")
@@ -1304,7 +1304,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         )
 
         let otherAppBundleURL = tempDirectoryURL
-            .appendingPathComponent("Other Prompt Cue.app", isDirectory: true)
+            .appendingPathComponent("Other Backtick.app", isDirectory: true)
         let otherBundledHelperURL = otherAppBundleURL
             .appendingPathComponent("Contents/Helpers", isDirectory: true)
             .appendingPathComponent("BacktickMCP")
@@ -2168,7 +2168,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     @MainActor
     func testModelSurfacesBundledHelperSourceWhenAppBundleContainsHelper() throws {
         let appBundleURL = tempDirectoryURL
-            .appendingPathComponent("Prompt Cue.app", isDirectory: true)
+            .appendingPathComponent("Backtick.app", isDirectory: true)
         let bundledHelperURL = appBundleURL
             .appendingPathComponent("Contents/Helpers", isDirectory: true)
             .appendingPathComponent("BacktickMCP")

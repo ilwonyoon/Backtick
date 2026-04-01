@@ -64,6 +64,7 @@ enum SettingsTab: Int, CaseIterable, Hashable {
 final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private let screenshotSettingsModel: ScreenshotSettingsModel
+    private let launchAtLoginSettingsModel: LaunchAtLoginSettingsModel
     private let exportTailSettingsModel: PromptExportTailSettingsModel
     private let retentionSettingsModel: CardRetentionSettingsModel
     private let cloudSyncSettingsModel: CloudSyncSettingsModel
@@ -71,12 +72,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let navigationModel = SettingsNavigationModel()
     init(
         screenshotSettingsModel: ScreenshotSettingsModel,
+        launchAtLoginSettingsModel: LaunchAtLoginSettingsModel,
         exportTailSettingsModel: PromptExportTailSettingsModel,
         retentionSettingsModel: CardRetentionSettingsModel,
         cloudSyncSettingsModel: CloudSyncSettingsModel,
         mcpConnectorSettingsModel: MCPConnectorSettingsModel
     ) {
         self.screenshotSettingsModel = screenshotSettingsModel
+        self.launchAtLoginSettingsModel = launchAtLoginSettingsModel
         self.exportTailSettingsModel = exportTailSettingsModel
         self.retentionSettingsModel = retentionSettingsModel
         self.cloudSyncSettingsModel = cloudSyncSettingsModel
@@ -116,6 +119,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     private func refreshModels() {
         screenshotSettingsModel.refresh()
+        launchAtLoginSettingsModel.refresh()
         exportTailSettingsModel.refresh()
         retentionSettingsModel.refresh()
         cloudSyncSettingsModel.refresh()
@@ -168,6 +172,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
                 self?.switchTab(tab)
             },
             screenshotSettingsModel: screenshotSettingsModel,
+            launchAtLoginSettingsModel: launchAtLoginSettingsModel,
             exportTailSettingsModel: exportTailSettingsModel,
             retentionSettingsModel: retentionSettingsModel,
             cloudSyncSettingsModel: cloudSyncSettingsModel,
