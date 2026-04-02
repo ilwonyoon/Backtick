@@ -120,7 +120,6 @@ struct CaptureCardView: View {
         let styledText = InteractiveDetectedTextView.styledText(
             text: visibleInlineText,
             classification: classification,
-            baseColor: actionStyle.bodyColor,
             highlightedRanges: card.visibleInlineTagRanges
         )
         let displayConfiguration = styledText.displayConfiguration
@@ -170,7 +169,10 @@ struct CaptureCardView: View {
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         } else {
-                            let textView = InteractiveDetectedTextView(styledText: styledText)
+                            let textView = InteractiveDetectedTextView(
+                                styledText: styledText,
+                                baseColor: actionStyle.bodyColor
+                            )
                                 .frame(
                                     height: displayConfiguration.prefersSingleLine
                                         ? nil

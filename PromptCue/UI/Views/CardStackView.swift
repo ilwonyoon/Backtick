@@ -66,7 +66,7 @@ struct CardStackView: View {
                     let pinnedCards = allSections.active.filter(\.isPinned)
                     let unpinnedCards = allSections.active.filter { !$0.isPinned }
 
-                    ScrollView(.vertical, showsIndicators: false) {
+                    StackOwnedScrollView {
                         LazyVStack(spacing: 0) {
                             header(railState: railState)
 
@@ -100,8 +100,6 @@ struct CardStackView: View {
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
                         .frame(width: StackLayoutMetrics.columnWidth, alignment: .trailing)
                     }
-                    .scrollIndicators(.hidden)
-                    .background(StackScrollerSuppressionView())
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
@@ -467,7 +465,6 @@ struct CardStackView: View {
         let styledText = InteractiveDetectedTextView.styledText(
             text: firstCopiedCard.visibleInlineText,
             classification: resolveClassification(for: firstCopiedCard),
-            baseColor: copiedPreviewTextColor,
             highlightedRanges: firstCopiedCard.visibleInlineTagRanges
         )
 
@@ -624,49 +621,90 @@ private struct CardSections {
     }
 }
 
-private struct StackScrollerSuppressionView: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        configure(scrollViewFrom: view)
-        return view
+private struct StackOwnedScrollView<Content: View>: NSViewRepresentable {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        configure(scrollViewFrom: nsView)
+    func makeNSView(context: Context) -> StackOwnedNSScrollView {
+        let scrollView = StackOwnedNSScrollView()
+        scrollView.update(rootView: AnyView(content))
+        return scrollView
     }
 
-    private func configure(scrollViewFrom view: NSView) {
-        DispatchQueue.main.async {
-            guard let scrollView = enclosingScrollView(for: view) else {
-                return
-            }
+    func updateNSView(_ nsView: StackOwnedNSScrollView, context: Context) {
+        nsView.update(rootView: AnyView(content))
+    }
+}
 
-            scrollView.hasVerticalScroller = false
-            scrollView.hasHorizontalScroller = false
-            scrollView.autohidesScrollers = true
-            scrollView.scrollerStyle = .overlay
-            scrollView.verticalScroller = nil
-            scrollView.horizontalScroller = nil
-        }
+private final class StackOwnedNSScrollView: NSScrollView {
+    private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+
+        drawsBackground = false
+        borderType = .noBorder
+        hasVerticalScroller = false
+        hasHorizontalScroller = false
+        autohidesScrollers = true
+        scrollerStyle = .overlay
+        verticalScroller = nil
+        horizontalScroller = nil
+        contentInsets = NSEdgeInsetsZero
+        contentView.drawsBackground = false
+
+        hostingView.translatesAutoresizingMaskIntoConstraints = true
+        hostingView.autoresizingMask = [.width]
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+        documentView = hostingView
     }
 
-    private func enclosingScrollView(for view: NSView) -> NSScrollView? {
-        if let direct = view.enclosingScrollView {
-            return direct
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layout() {
+        super.layout()
+        layoutDocumentView()
+    }
+
+    override func tile() {
+        super.tile()
+        configureScrollers()
+    }
+
+    func update(rootView: AnyView) {
+        hostingView.rootView = rootView
+        hostingView.needsLayout = true
+        hostingView.layoutSubtreeIfNeeded()
+        configureScrollers()
+        layoutDocumentView()
+    }
+
+    private func configureScrollers() {
+        hasVerticalScroller = false
+        hasHorizontalScroller = false
+        autohidesScrollers = true
+        scrollerStyle = .overlay
+        verticalScroller = nil
+        horizontalScroller = nil
+    }
+
+    private func layoutDocumentView() {
+        let targetWidth = contentView.bounds.width
+        guard targetWidth > 0 else {
+            return
         }
 
-        if let clipView = view.superview as? NSClipView,
-           let scrollView = clipView.enclosingScrollView {
-            return scrollView
-        }
+        hostingView.setFrameSize(NSSize(width: targetWidth, height: 1))
+        hostingView.layoutSubtreeIfNeeded()
 
-        var ancestor: NSView? = view
-        while let current = ancestor {
-            if let scrollView = current as? NSScrollView {
-                return scrollView
-            }
-            ancestor = current.superview
-        }
-        return nil
+        let fittingHeight = max(hostingView.fittingSize.height, contentView.bounds.height)
+        hostingView.frame = NSRect(x: 0, y: 0, width: targetWidth, height: fittingHeight)
     }
 }
