@@ -357,6 +357,9 @@ private enum MemoryPaneMetrics {
     static let documentRowContentPadding: CGFloat = 10
     static let sidebarRowTextTopInset: CGFloat = 7
     static let contentRowTextTopInset: CGFloat = 6
+
+    // Shared top-chrome contract for the second and third columns. These values
+    // must stay in sync to preserve the frozen Tahoe-aligned header rhythm.
     static let chromeBarMinHeight: CGFloat = 36
     static let chromeControlSize: CGFloat = 36
     static let sharedChromeHeaderHeight: CGFloat = 40
@@ -370,6 +373,10 @@ private enum MemoryPaneMetrics {
     static let documentsHeaderContentHeight: CGFloat = sharedChromeHeaderHeight
     static let documentsHeaderDividerSpacing: CGFloat = 2
     static let documentsHeaderBottomInset: CGFloat = 0
+
+    // The second-column title block and divider establish the canonical anchor
+    // for the detail column. Treat these values as the source of truth rather
+    // than retuning the detail side independently.
     static let sharedHeaderTitleTopInset: CGFloat =
         documentsHeaderTopInset + documentsHeaderTextTopInset
     static let sharedHeaderDividerTopInset: CGFloat =
@@ -383,6 +390,9 @@ private enum MemoryPaneMetrics {
         + paneScrollVerticalInset
     static let detailHeaderDividerTopInset: CGFloat =
         sharedHeaderDividerTopInset
+
+    // Optical offset only. This keeps the larger third-column title aligned to
+    // the second-column row rhythm without moving the divider contract.
     static let detailHeaderTitleOpticalOffset: CGFloat = 4
     static let detailHeaderTextTopInset: CGFloat =
         documentsListRowTopInsetFromPaneTop + detailHeaderTitleOpticalOffset
@@ -432,6 +442,44 @@ private enum MemoryPaneTypography {
     static let summaryRow = PrimitiveTokens.Typography.meta
     static let codeLanguage = Font.system(size: PrimitiveTokens.FontSize.micro, weight: .medium)
     static let tag = Font.system(size: PrimitiveTokens.FontSize.micro, weight: .medium)
+}
+
+private struct MemoryDocumentsHeaderLayout {
+    let contentHeight: CGFloat
+    let topInset: CGFloat
+    let textTopInset: CGFloat
+    let horizontalInset: CGFloat
+    let bottomInset: CGFloat
+    let dividerTopInset: CGFloat
+
+    static let frozen = MemoryDocumentsHeaderLayout(
+        contentHeight: MemoryPaneMetrics.documentsHeaderContentHeight,
+        topInset: MemoryPaneMetrics.documentsHeaderTopInset,
+        textTopInset: MemoryPaneMetrics.documentsHeaderTextTopInset,
+        horizontalInset: MemoryPaneMetrics.documentListHorizontalInset,
+        bottomInset: MemoryPaneMetrics.documentsHeaderBottomInset,
+        dividerTopInset: MemoryPaneMetrics.documentsHeaderDividerSpacing
+    )
+}
+
+private struct MemoryDetailHeaderLayout {
+    let chromeHorizontalInset: CGFloat
+    let chromeTopInset: CGFloat
+    let chromeBottomInset: CGFloat
+    let dividerTopInset: CGFloat
+    let textTopInset: CGFloat
+    let textHorizontalInset: CGFloat
+    let textBottomInset: CGFloat
+
+    static let frozen = MemoryDetailHeaderLayout(
+        chromeHorizontalInset: MemoryPaneMetrics.detailHeaderChromeInset,
+        chromeTopInset: MemoryPaneMetrics.detailHeaderTopInset,
+        chromeBottomInset: MemoryPaneMetrics.detailHeaderBottomInset,
+        dividerTopInset: MemoryPaneMetrics.detailHeaderDividerTopInset,
+        textTopInset: MemoryPaneMetrics.detailHeaderTextTopInset,
+        textHorizontalInset: MemoryPaneMetrics.detailContentInset,
+        textBottomInset: MemoryPaneMetrics.detailHeaderContentBottomInset
+    )
 }
 
 private enum MemoryLayoutDebug {
@@ -745,6 +793,8 @@ private struct MemoryDocumentsHeader: View {
     let subtitle: String
     let onCreateDocument: () -> Void
 
+    private let layout = MemoryDocumentsHeaderLayout.frozen
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .topLeading) {
@@ -768,28 +818,37 @@ private struct MemoryDocumentsHeader: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(SemanticTokens.Text.primary)
-                        .lineLimit(1)
-
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(SemanticTokens.Text.secondary)
-                        .lineLimit(1)
-                }
-                .padding(.top, MemoryPaneMetrics.documentsHeaderTextTopInset)
+                MemoryDocumentsHeaderTextBlock(title: title, subtitle: subtitle)
+                    .padding(.top, layout.textTopInset)
             }
-            .frame(maxWidth: .infinity, minHeight: MemoryPaneMetrics.documentsHeaderContentHeight, alignment: .topLeading)
-            .padding(.horizontal, MemoryPaneMetrics.documentListHorizontalInset)
-            .padding(.top, MemoryPaneMetrics.documentsHeaderTopInset)
-            .padding(.bottom, MemoryPaneMetrics.documentsHeaderBottomInset)
+            .frame(maxWidth: .infinity, minHeight: layout.contentHeight, alignment: .topLeading)
+            .padding(.horizontal, layout.horizontalInset)
+            .padding(.top, layout.topInset)
+            .padding(.bottom, layout.bottomInset)
 
             Rectangle()
                 .fill(MemoryPaneColors.separatorSoft)
                 .frame(height: PrimitiveTokens.Stroke.subtle)
-                .padding(.top, MemoryPaneMetrics.documentsHeaderDividerSpacing)
+                .padding(.top, layout.dividerTopInset)
+        }
+    }
+}
+
+private struct MemoryDocumentsHeaderTextBlock: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(SemanticTokens.Text.primary)
+                .lineLimit(1)
+
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(SemanticTokens.Text.secondary)
+                .lineLimit(1)
         }
     }
 }
@@ -927,6 +986,8 @@ private struct MemoryDetailPane: View {
     let onSaveEditing: () -> Void
     let onDeleteDocument: () -> Void
 
+    private let headerLayout = MemoryDetailHeaderLayout.frozen
+
     var body: some View {
         if let document {
             VStack(spacing: 0) {
@@ -971,48 +1032,20 @@ private struct MemoryDetailPane: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, MemoryPaneMetrics.detailHeaderChromeInset)
-                        .padding(.top, MemoryPaneMetrics.detailHeaderTopInset)
-                        .padding(.bottom, MemoryPaneMetrics.detailHeaderBottomInset)
+                        .padding(.horizontal, headerLayout.chromeHorizontalInset)
+                        .padding(.top, headerLayout.chromeTopInset)
+                        .padding(.bottom, headerLayout.chromeBottomInset)
 
                         Rectangle()
                             .fill(MemoryPaneColors.separatorSoft)
                             .frame(height: PrimitiveTokens.Stroke.subtle)
-                            .padding(.top, MemoryPaneMetrics.detailHeaderDividerTopInset)
+                            .padding(.top, headerLayout.dividerTopInset)
 
-                        VStack(alignment: .leading, spacing: MemoryPaneMetrics.detailTitleBottomSpacing) {
-                            Text(document.topic)
-                                .font(.title2.weight(.semibold))
-                                .fixedSize(horizontal: false, vertical: true)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            HStack(alignment: .firstTextBaseline, spacing: MemoryPaneMetrics.detailMetadataSpacing) {
-                                MemoryTag(text: document.documentType.rawValue)
-                                    .layoutPriority(1)
-
-                                Image(systemName: "folder")
-                                    .font(MemoryPaneTypography.accessoryIcon)
-                                    .foregroundStyle(SemanticTokens.Text.secondary)
-                                    .accessibilityHidden(true)
-
-                                Text(document.project)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-
-                                Text("·")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(.secondary)
-
-                                Text(Self.timestampString(for: document.updatedAt))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(.top, MemoryPaneMetrics.detailHeaderTextTopInset)
-                        .padding(.horizontal, MemoryPaneMetrics.detailContentInset)
-                        .padding(.bottom, MemoryPaneMetrics.detailHeaderContentBottomInset)
-                        .memoryDebugOverlay(MemoryLayoutDebug.detailContent)
+                        MemoryDetailHeaderTextBlock(document: document)
+                            .padding(.top, headerLayout.textTopInset)
+                            .padding(.horizontal, headerLayout.textHorizontalInset)
+                            .padding(.bottom, headerLayout.textBottomInset)
+                            .memoryDebugOverlay(MemoryLayoutDebug.detailContent)
                     }
                 }
 
@@ -1033,13 +1066,6 @@ private struct MemoryDetailPane: View {
         }
     }
 
-    private static func timestampString(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return "Updated \(formatter.string(from: date))"
-    }
-
     @ViewBuilder
     private func actionCluster<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         if #available(macOS 26.0, *) {
@@ -1053,6 +1079,57 @@ private struct MemoryDetailPane: View {
                 content()
             }
         }
+    }
+}
+
+private struct MemoryDetailHeaderTextBlock: View {
+    let document: ProjectDocument
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: MemoryPaneMetrics.detailTitleBottomSpacing) {
+            Text(document.topic)
+                .font(.title2.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            MemoryDetailMetadataRow(document: document)
+        }
+    }
+}
+
+private struct MemoryDetailMetadataRow: View {
+    let document: ProjectDocument
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: MemoryPaneMetrics.detailMetadataSpacing) {
+            MemoryTag(text: document.documentType.rawValue)
+                .layoutPriority(1)
+
+            Image(systemName: "folder")
+                .font(MemoryPaneTypography.accessoryIcon)
+                .foregroundStyle(SemanticTokens.Text.secondary)
+                .accessibilityHidden(true)
+
+            Text(document.project)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Text("·")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+
+            Text(Self.timestampString(for: document.updatedAt))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private static func timestampString(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return "Updated \(formatter.string(from: date))"
     }
 }
 
