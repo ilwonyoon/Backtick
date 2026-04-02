@@ -535,12 +535,11 @@ private struct MemoryChromeControlButton: View {
     var body: some View {
         if #available(macOS 26.0, *) {
             Button(action: action) {
-                Image(systemName: systemName)
-                    .symbolRenderingMode(.monochrome)
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
+                chromeLabel
             }
             .buttonStyle(.plain)
+            .contentShape(Circle())
+            .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
             .background {
                 Circle()
                     .fill(Color.white.opacity(isHovered ? 0.10 : 0))
@@ -551,25 +550,37 @@ private struct MemoryChromeControlButton: View {
             .accessibilityLabel(accessibilityLabel)
         } else {
             Button(action: action) {
-                Image(systemName: systemName)
-                    .symbolRenderingMode(.monochrome)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(SemanticTokens.Text.primary)
-                    .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
-                    .background(
-                        Circle()
-                            .fill(
-                                isHovered
-                                    ? SemanticTokens.Text.secondary.opacity(0.18)
-                                    : SemanticTokens.Text.secondary.opacity(0.12)
-                            )
-                    )
+                chromeLabel
             }
             .buttonStyle(.plain)
+            .contentShape(Circle())
+            .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
+            .background(
+                Circle()
+                    .fill(
+                        isHovered
+                            ? SemanticTokens.Text.secondary.opacity(0.18)
+                            : SemanticTokens.Text.secondary.opacity(0.12)
+                    )
+            )
             .offset(y: MemoryPaneMetrics.chromeButtonOpticalYOffset)
             .onHover { isHovered = $0 }
             .accessibilityLabel(accessibilityLabel)
         }
+    }
+
+    private var chromeLabel: some View {
+        ZStack {
+            Circle()
+                .fill(.clear)
+
+            Image(systemName: systemName)
+                .symbolRenderingMode(.monochrome)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(SemanticTokens.Text.primary)
+        }
+        .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
+        .contentShape(Circle())
     }
 }
 
