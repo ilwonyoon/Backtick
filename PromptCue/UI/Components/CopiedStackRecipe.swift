@@ -42,15 +42,8 @@ enum CopiedStackRecipe {
         PrimitiveTokens.Radius.md
     }
 
-    static func collapsedHorizontalInset(for index: Int) -> CGFloat {
-        switch index {
-        case 1:
-            return PrimitiveTokens.Space.sm
-        case 2:
-            return PrimitiveTokens.Space.xl
-        default:
-            return PrimitiveTokens.Space.xl + (CGFloat(index - 2) * PrimitiveTokens.Space.sm)
-        }
+    static func collapsedLeadingInset(for index: Int) -> CGFloat {
+        StackLayoutMetrics.copiedBackPlateLeadingInset(for: index)
     }
 
     static let headerTextColor = SemanticTokens.adaptiveColor(

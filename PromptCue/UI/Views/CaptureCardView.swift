@@ -138,15 +138,15 @@ struct CaptureCardView: View {
             contentPadding: compactMode
                 ? EdgeInsets(
                     top: PrimitiveTokens.Size.compactCardPadding,
-                    leading: PrimitiveTokens.Size.compactCardPaddingHorizontal,
+                    leading: StackLayoutMetrics.compactCardHorizontalInset,
                     bottom: PrimitiveTokens.Size.compactCardPadding,
-                    trailing: PrimitiveTokens.Size.compactCardPaddingHorizontal
+                    trailing: StackLayoutMetrics.compactCardHorizontalInset
                 )
                 : EdgeInsets(
-                    top: PrimitiveTokens.Size.notificationCardPadding,
-                    leading: PrimitiveTokens.Size.notificationCardPadding,
-                    bottom: PrimitiveTokens.Size.notificationCardPadding,
-                    trailing: PrimitiveTokens.Size.notificationCardPadding
+                    top: StackLayoutMetrics.cardContentInset,
+                    leading: StackLayoutMetrics.cardContentInset,
+                    bottom: StackLayoutMetrics.cardContentInset,
+                    trailing: StackLayoutMetrics.cardContentInset
                 ),
             cornerRadius: compactMode ? PrimitiveTokens.Radius.compactCard : PrimitiveTokens.Radius.md
         ) {
@@ -161,34 +161,36 @@ struct CaptureCardView: View {
                         .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }
 
-                    if compactMode {
-                        Text(card.text)
-                            .font(.system(size: PrimitiveTokens.FontSize.meta, weight: .medium))
-                            .foregroundStyle(SemanticTokens.Text.primary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        let textView = InteractiveDetectedTextView(styledText: styledText)
-                            .frame(
-                                height: displayConfiguration.prefersSingleLine
-                                    ? nil
-                                    : visibleTextHeight(for: overflowMetrics),
-                                alignment: .top
-                            )
-
-                        if overflowMetrics.overflowsAtRest || isExpanded {
-                            textView.clipped()
+                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
+                        if compactMode {
+                            Text(card.text)
+                                .font(.system(size: PrimitiveTokens.FontSize.meta, weight: .medium))
+                                .foregroundStyle(SemanticTokens.Text.primary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         } else {
-                            textView
+                            let textView = InteractiveDetectedTextView(styledText: styledText)
+                                .frame(
+                                    height: displayConfiguration.prefersSingleLine
+                                        ? nil
+                                        : visibleTextHeight(for: overflowMetrics),
+                                    alignment: .top
+                                )
+
+                            if overflowMetrics.overflowsAtRest || isExpanded {
+                                textView.clipped()
+                            } else {
+                                textView
+                            }
+                        }
+
+                        if !compactMode && !displayConfiguration.prefersSingleLine && overflowMetrics.overflowsAtRest {
+                            overflowAffordance(metrics: overflowMetrics)
+                                .padding(.top, StackCardOverflowPolicy.affordanceTopSpacing)
                         }
                     }
-
-                    if !compactMode && !displayConfiguration.prefersSingleLine && overflowMetrics.overflowsAtRest {
-                        overflowAffordance(metrics: overflowMetrics)
-                            .padding(.top, StackCardOverflowPolicy.affordanceTopSpacing)
-                    }
-
+                    .padding(.leading, compactMode ? 0 : StackLayoutMetrics.activeCardBodyLeadingReserve)
                 }
                 .padding(.trailing, compactMode ? 0 : actionColumnReservedWidth)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -514,15 +516,15 @@ struct CaptureCardView: View {
     }
 
     private var actionColumnWidth: CGFloat {
-        PrimitiveTokens.Space.xl
+        StackLayoutMetrics.actionColumnWidth
     }
 
     private var actionColumnReservedWidth: CGFloat {
-        actionColumnWidth + PrimitiveTokens.Space.sm
+        StackLayoutMetrics.actionColumnReservedWidth
     }
 
     private var textContentWidth: CGFloat {
-        StackCardOverflowPolicy.cardTextWidth
+        StackLayoutMetrics.cardTextWidth
     }
 
     private func visibleTextHeight(for metrics: StackCardOverflowPolicy.Metrics) -> CGFloat? {

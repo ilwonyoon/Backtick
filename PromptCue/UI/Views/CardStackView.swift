@@ -1,3 +1,4 @@
+import AppKit
 import PromptCueCore
 import SwiftUI
 
@@ -65,7 +66,7 @@ struct CardStackView: View {
                     let pinnedCards = allSections.active.filter(\.isPinned)
                     let unpinnedCards = allSections.active.filter { !$0.isPinned }
 
-                    ScrollView {
+                    ScrollView(.vertical, showsIndicators: false) {
                         LazyVStack(spacing: 0) {
                             header(railState: railState)
 
@@ -97,13 +98,14 @@ struct CardStackView: View {
                             }
                         }
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
-                        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
+                        .frame(width: StackLayoutMetrics.columnWidth, alignment: .trailing)
                     }
                     .scrollIndicators(.hidden)
+                    .background(StackScrollerSuppressionView())
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
-            .padding(.horizontal, PanelMetrics.stackPanelHorizontalPadding)
+            .padding(.horizontal, StackLayoutMetrics.panelHorizontalInset)
             .padding(.top, PrimitiveTokens.Space.md)
             .padding(.bottom, PrimitiveTokens.Space.md)
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -169,7 +171,7 @@ struct CardStackView: View {
                 .frame(height: PrimitiveTokens.Size.thumbnailHeight)
                 .accessibilityLabel("No cues yet")
         }
-        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
+        .frame(width: StackLayoutMetrics.columnWidth, alignment: .trailing)
     }
 
     private func pinnedCarousel(cards: [CaptureCard]) -> some View {
@@ -184,7 +186,7 @@ struct CardStackView: View {
         .contentMargins(0)
         .scrollContentBackground(.hidden)
         .fixedSize(horizontal: false, vertical: true)
-        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .leading)
+        .frame(width: StackLayoutMetrics.columnWidth, alignment: .leading)
     }
 
     private func pinnedCardRow(for card: CaptureCard) -> some View {
@@ -303,7 +305,7 @@ struct CardStackView: View {
     }
 
     private func collapsedCopiedStack(copiedCards: [CaptureCard]) -> some View {
-        ZStack(alignment: .topLeading) {
+        ZStack(alignment: .topTrailing) {
             ForEach(collapsedBackPlateIndices(for: copiedCards), id: \.self) { index in
                 stackedBackPlate(index: index)
                     .offset(y: CopiedStackRecipe.collapsedVerticalOffset(for: index))
@@ -332,6 +334,7 @@ struct CardStackView: View {
 
                     Spacer(minLength: 0)
                 }
+                .padding(.leading, StackLayoutMetrics.activeCardBodyLeadingReserve)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             .frame(height: collapsedCopiedCardHeight)
@@ -372,7 +375,8 @@ struct CardStackView: View {
                     .stroke(CopiedStackRecipe.backPlateBorder(index: index))
             }
             .frame(height: collapsedCopiedCardHeight)
-            .padding(.horizontal, CopiedStackRecipe.collapsedHorizontalInset(for: index))
+            .padding(.leading, CopiedStackRecipe.collapsedLeadingInset(for: index))
+            .frame(maxWidth: .infinity, alignment: .trailing)
             .shadow(
                 color: CopiedStackRecipe.backPlateShadowColor(index: index),
                 radius: CopiedStackRecipe.backPlateShadowRadius(index: index),
@@ -533,14 +537,14 @@ struct CardStackView: View {
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
+        .frame(width: StackLayoutMetrics.columnWidth, alignment: .trailing)
     }
 
     private func stackColumnContent<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
-            .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
+            .frame(width: StackLayoutMetrics.columnWidth, alignment: .trailing)
     }
 
     private static func partitionedCards(from cards: [CaptureCard]) -> CardSections {
@@ -617,5 +621,52 @@ private struct CardSections {
 
     var isEmpty: Bool {
         active.isEmpty && copied.isEmpty
+    }
+}
+
+private struct StackScrollerSuppressionView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        configure(scrollViewFrom: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        configure(scrollViewFrom: nsView)
+    }
+
+    private func configure(scrollViewFrom view: NSView) {
+        DispatchQueue.main.async {
+            guard let scrollView = enclosingScrollView(for: view) else {
+                return
+            }
+
+            scrollView.hasVerticalScroller = false
+            scrollView.hasHorizontalScroller = false
+            scrollView.autohidesScrollers = true
+            scrollView.scrollerStyle = .overlay
+            scrollView.verticalScroller = nil
+            scrollView.horizontalScroller = nil
+        }
+    }
+
+    private func enclosingScrollView(for view: NSView) -> NSScrollView? {
+        if let direct = view.enclosingScrollView {
+            return direct
+        }
+
+        if let clipView = view.superview as? NSClipView,
+           let scrollView = clipView.enclosingScrollView {
+            return scrollView
+        }
+
+        var ancestor: NSView? = view
+        while let current = ancestor {
+            if let scrollView = current as? NSScrollView {
+                return scrollView
+            }
+            ancestor = current.superview
+        }
+        return nil
     }
 }

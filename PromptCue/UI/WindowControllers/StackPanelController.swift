@@ -315,6 +315,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
         panel.minSize = NSSize(width: PanelMetrics.stackPanelWidth, height: PanelMetrics.stackPanelMinimumHeight)
+        panel.maxSize = NSSize(width: PanelMetrics.stackPanelWidth, height: .greatestFiniteMagnitude)
         panel.onCancel = { [weak self] in
             self?.close()
         }
@@ -370,7 +371,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
     private func onscreenPanelFrame(for size: NSSize? = nil) -> NSRect {
         let visibleFrame = screenVisibleFrame()
-        let width = max(size?.width ?? PanelMetrics.stackPanelWidth, PanelMetrics.stackPanelWidth)
+        let width = PanelMetrics.stackPanelWidth
         let height = visibleFrame.height
 
         return NSRect(
@@ -383,11 +384,12 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
     private func offscreenPanelFrame(for size: NSSize) -> NSRect {
         let visibleFrame = screenVisibleFrame()
+        let width = PanelMetrics.stackPanelWidth
 
         return NSRect(
             x: visibleFrame.maxX,
             y: visibleFrame.minY,
-            width: size.width,
+            width: width,
             height: visibleFrame.height
         )
     }
@@ -684,6 +686,17 @@ private final class StackPanelShellView: NSView {
     private let gradientLayer = CAGradientLayer()
     private let borderLayer = CAShapeLayer()
     private let topHighlightLayer = CAShapeLayer()
+    private let glassHostingView: NSHostingView<AnyView>? = {
+        guard #available(macOS 26.0, *) else {
+            return nil
+        }
+
+        let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+        return hostingView
+    }()
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -711,9 +724,12 @@ private final class StackPanelShellView: NSView {
         overlayView.layer?.addSublayer(topHighlightLayer)
 
         addSubview(effectView)
+        if let glassHostingView {
+            addSubview(glassHostingView)
+        }
         addSubview(overlayView)
 
-        NSLayoutConstraint.activate([
+        var constraints = [
             effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
             effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
             effectView.topAnchor.constraint(equalTo: topAnchor),
@@ -722,7 +738,18 @@ private final class StackPanelShellView: NSView {
             overlayView.trailingAnchor.constraint(equalTo: trailingAnchor),
             overlayView.topAnchor.constraint(equalTo: topAnchor),
             overlayView.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
+        ]
+
+        if let glassHostingView {
+            constraints.append(contentsOf: [
+                glassHostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
+                glassHostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
+                glassHostingView.topAnchor.constraint(equalTo: topAnchor),
+                glassHostingView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            ])
+        }
+
+        NSLayoutConstraint.activate(constraints)
 
         updateAppearance()
     }
@@ -750,6 +777,23 @@ private final class StackPanelShellView: NSView {
     private func updateAppearance() {
         let usesDarkAppearance = effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
             .map { $0 == .darkAqua || $0 == .vibrantDark } ?? false
+
+        if #available(macOS 26.0, *), let glassHostingView {
+            effectView.isHidden = true
+            overlayView.isHidden = true
+            glassHostingView.isHidden = false
+            glassHostingView.rootView = AnyView(
+                StackPanelLiquidGlassBackground(
+                    usesDarkAppearance: usesDarkAppearance,
+                    cornerRadius: PrimitiveTokens.Radius.lg
+                )
+            )
+            return
+        }
+
+        effectView.isHidden = false
+        overlayView.isHidden = false
+        glassHostingView?.isHidden = true
 
         effectView.blendingMode = .behindWindow
         effectView.material = usesDarkAppearance
@@ -848,6 +892,48 @@ private final class StackPanelShellView: NSView {
 
         layer.cornerRadius = radius
         layer.backgroundColor = NSColor.clear.cgColor
+    }
+}
+
+@available(macOS 26.0, *)
+private struct StackPanelLiquidGlassBackground: View {
+    let usesDarkAppearance: Bool
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        Color.clear
+            .glassEffect(.regular, in: shape)
+            .overlay {
+                shape
+                    .fill(
+                        usesDarkAppearance
+                            ? Color.white.opacity(0.04)
+                            : Color.white.opacity(0.08)
+                    )
+            }
+            .overlay {
+                shape
+                    .stroke(
+                        usesDarkAppearance
+                            ? Color.white.opacity(0.10)
+                            : Color.black.opacity(0.08),
+                        lineWidth: PrimitiveTokens.Stroke.subtle
+                    )
+            }
+            .overlay(alignment: .top) {
+                TopEdgeStrokeOverlay(
+                    shape: shape,
+                    color: usesDarkAppearance
+                        ? Color.white.opacity(0.10)
+                        : Color.white.opacity(0.26),
+                    lineWidth: PrimitiveTokens.Stroke.subtle,
+                    frameHeight: PrimitiveTokens.Space.lg,
+                    maskHeight: PrimitiveTokens.Space.lg
+                )
+            }
+            .clipShape(shape)
     }
 }
 

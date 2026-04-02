@@ -14,10 +14,10 @@ struct StackNotificationCardSurface<Content: View>: View {
         isSelected: Bool = false,
         isEmphasized: Bool = false,
         contentPadding: EdgeInsets = EdgeInsets(
-            top: PrimitiveTokens.Size.notificationCardPadding,
-            leading: PrimitiveTokens.Size.notificationCardPadding,
-            bottom: PrimitiveTokens.Size.notificationCardPadding,
-            trailing: PrimitiveTokens.Size.notificationCardPadding
+            top: StackLayoutMetrics.cardContentInset,
+            leading: StackLayoutMetrics.cardContentInset,
+            bottom: StackLayoutMetrics.cardContentInset,
+            trailing: StackLayoutMetrics.cardContentInset
         ),
         cornerRadius: CGFloat = PrimitiveTokens.Radius.md,
         @ViewBuilder content: () -> Content
