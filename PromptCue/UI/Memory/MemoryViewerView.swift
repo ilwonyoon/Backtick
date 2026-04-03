@@ -534,20 +534,12 @@ private struct MemoryChromeControlButton: View {
 
     var body: some View {
         if #available(macOS 26.0, *) {
-            Button(action: action) {
-                chromeLabel
-            }
-            .buttonStyle(.plain)
-            .contentShape(Circle())
-            .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
-            .background {
-                Circle()
-                    .fill(Color.white.opacity(isHovered ? 0.10 : 0))
-            }
-            .glassEffect(.regular.interactive(), in: Circle())
-            .offset(y: MemoryPaneMetrics.chromeButtonOpticalYOffset)
-            .onHover { isHovered = $0 }
-            .accessibilityLabel(accessibilityLabel)
+            MemoryTahoeChromeControlButton(
+                chromeLabel: chromeLabel,
+                accessibilityLabel: accessibilityLabel,
+                action: action,
+                isHovered: $isHovered
+            )
         } else {
             Button(action: action) {
                 chromeLabel
@@ -581,6 +573,31 @@ private struct MemoryChromeControlButton: View {
         }
         .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
         .contentShape(Circle())
+    }
+}
+
+@available(macOS 26.0, *)
+private struct MemoryTahoeChromeControlButton<Label: View>: View {
+    let chromeLabel: Label
+    let accessibilityLabel: String
+    let action: () -> Void
+    @Binding var isHovered: Bool
+
+    var body: some View {
+        Button(action: action) {
+            chromeLabel
+        }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
+        .background {
+            Circle()
+                .fill(Color.white.opacity(isHovered ? 0.10 : 0))
+        }
+        .glassEffect(.regular.interactive(), in: Circle())
+        .offset(y: MemoryPaneMetrics.chromeButtonOpticalYOffset)
+        .onHover { isHovered = $0 }
+        .accessibilityLabel(accessibilityLabel)
     }
 }
 
@@ -813,7 +830,7 @@ private struct MemoryDocumentsHeader: View {
                     Spacer(minLength: 0)
 
                     if #available(macOS 26.0, *) {
-                        GlassEffectContainer(spacing: 8) {
+                        MemoryTahoeGlassEffectContainer {
                             MemoryChromeControlButton(
                                 systemName: "plus",
                                 accessibilityLabel: "New document",
@@ -1080,7 +1097,7 @@ private struct MemoryDetailPane: View {
     @ViewBuilder
     private func actionCluster<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         if #available(macOS 26.0, *) {
-            GlassEffectContainer(spacing: 8) {
+            MemoryTahoeGlassEffectContainer {
                 HStack(spacing: 8) {
                     content()
                 }
@@ -1089,6 +1106,21 @@ private struct MemoryDetailPane: View {
             HStack(spacing: 8) {
                 content()
             }
+        }
+    }
+}
+
+@available(macOS 26.0, *)
+private struct MemoryTahoeGlassEffectContainer<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        GlassEffectContainer(spacing: 8) {
+            content
         }
     }
 }
