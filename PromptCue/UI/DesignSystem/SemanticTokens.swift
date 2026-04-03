@@ -39,20 +39,20 @@ enum SemanticTokens {
         )
         static let cardFill = Color(nsColor: .controlBackgroundColor).opacity(PrimitiveTokens.Opacity.surface)
         static let notificationCardFill = adaptiveColor(
-            light: NSColor.white.withAlphaComponent(0.93),
-            dark: NSColor(calibratedWhite: 0.14, alpha: 0.94)
+            light: NSColor(calibratedWhite: 0.965, alpha: 1.0),
+            dark: NSColor(calibratedWhite: 0.12, alpha: 1.0)
         )
         static let notificationCardEmphasizedFill = adaptiveColor(
-            light: NSColor.windowBackgroundColor.withAlphaComponent(0.97),
-            dark: NSColor(calibratedWhite: 0.12, alpha: 0.97)
+            light: NSColor.white,
+            dark: NSColor(calibratedWhite: 0.10, alpha: 1.0)
         )
         static let notificationCardBackdrop = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.02),
             dark: NSColor.white.withAlphaComponent(0.006)
         )
         static let notificationCardHoverFill = adaptiveColor(
-            light: NSColor.white.withAlphaComponent(0.01),
-            dark: NSColor.black.withAlphaComponent(0.04)
+            light: .clear,
+            dark: .clear
         )
         static let notificationStackPlateBase = adaptiveColor(
             light: NSColor.windowBackgroundColor.withAlphaComponent(0.70),
@@ -100,7 +100,7 @@ enum SemanticTokens {
     enum Border {
         static let subtle = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.08),
-            dark: NSColor.separatorColor.withAlphaComponent(PrimitiveTokens.Opacity.soft)
+            dark: NSColor.white.withAlphaComponent(0.035)
         )
         static let notificationCard = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.12),
@@ -108,7 +108,7 @@ enum SemanticTokens {
         )
         static let notificationCardHover = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.18),
-            dark: NSColor.white.withAlphaComponent(0.12)
+            dark: NSColor.white.withAlphaComponent(0.08)
         )
         static let emphasis = Accent.selection.opacity(PrimitiveTokens.Opacity.subtle)
         static let glassHighlight = adaptiveColor(
@@ -129,7 +129,7 @@ enum SemanticTokens {
     enum Shadow {
         static let color = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.10),
-            dark: NSColor.black.withAlphaComponent(PrimitiveTokens.Opacity.faint)
+            dark: NSColor.black.withAlphaComponent(0.20)
         )
         static let glassAmbient = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.08),
@@ -150,14 +150,6 @@ enum SemanticTokens {
         static let captureShellKey = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.22),
             dark: NSColor.black.withAlphaComponent(0.36)
-        )
-        static let notificationAmbient = adaptiveColor(
-            light: NSColor.black.withAlphaComponent(0.07),
-            dark: NSColor.black.withAlphaComponent(PrimitiveTokens.Opacity.soft * PrimitiveTokens.Opacity.faint)
-        )
-        static let notificationKey = adaptiveColor(
-            light: NSColor.black.withAlphaComponent(0.12),
-            dark: NSColor.black.withAlphaComponent(PrimitiveTokens.Opacity.strong * PrimitiveTokens.Opacity.faint)
         )
     }
 

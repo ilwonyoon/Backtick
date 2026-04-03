@@ -162,7 +162,6 @@ struct CaptureCardView: View {
                             height: PrimitiveTokens.Size.notificationThumbnailHeight,
                             accessPolicy: .managedAttachmentOnly
                         )
-                        .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }
 
                     VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
@@ -701,24 +700,10 @@ private struct CaptureCardActionStyle {
             appearance: appearance
         )
     }
-    private static func copiedBodyColor(appearance: NSAppearance?) -> Color {
-        SemanticTokens.resolvedAdaptiveColor(
-            light: NSColor.labelColor.withAlphaComponent(0.42),
-            dark: NSColor.white.withAlphaComponent(0.35),
-            appearance: appearance
-        )
-    }
     private static func defaultPrimaryIconColor(appearance: NSAppearance?) -> Color {
         SemanticTokens.resolvedAdaptiveColor(
             light: NSColor.secondaryLabelColor.withAlphaComponent(0.80),
             dark: NSColor.white.withAlphaComponent(0.50),
-            appearance: appearance
-        )
-    }
-    private static func copiedDeleteIconColor(appearance: NSAppearance?) -> Color {
-        SemanticTokens.resolvedAdaptiveColor(
-            light: NSColor.secondaryLabelColor.withAlphaComponent(0.62),
-            dark: NSColor.white.withAlphaComponent(0.35),
             appearance: appearance
         )
     }
@@ -761,8 +746,6 @@ private struct CaptureCardActionStyle {
         let bodyColor: Color
         if isSelected || isCardHovered || isCopyHovered || isDeleteHovered {
             bodyColor = SemanticTokens.Text.primary
-        } else if isRecentlyCopied || card.isCopied {
-            bodyColor = copiedBodyColor(appearance: appearance)
         } else {
             bodyColor = restingBodyColor(appearance: appearance)
         }
@@ -798,8 +781,6 @@ private struct CaptureCardActionStyle {
         let deleteIconColor: Color
         if isDeleteHovered {
             deleteIconColor = SemanticTokens.Text.primary
-        } else if card.isCopied {
-            deleteIconColor = copiedDeleteIconColor(appearance: appearance)
         } else {
             deleteIconColor = defaultDeleteIconColor(appearance: appearance)
         }

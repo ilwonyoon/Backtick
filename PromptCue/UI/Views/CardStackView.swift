@@ -77,14 +77,16 @@ struct CardStackView: View {
             stagedCount: model.stagedCopiedCount
         )
 
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .top) {
             Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onBackdropTap)
 
-            VStack(alignment: .trailing, spacing: 0) {
+            VStack(spacing: 0) {
                 if allSections.isEmpty {
-                    header(railState: railState)
+                    stackColumnContent {
+                        header(railState: railState)
+                    }
                     emptyState
                 } else {
                     let pinnedCards = allSections.active.filter(\.isPinned)
@@ -92,14 +94,18 @@ struct CardStackView: View {
 
                     StackOwnedScrollView {
                         VStack(spacing: 0) {
-                            header(railState: railState)
+                            stackColumnContent {
+                                header(railState: railState)
+                            }
 
                             if !pinnedCards.isEmpty {
-                                pinnedCarousel(
-                                    cards: pinnedCards,
-                                    classificationCache: classificationCache,
-                                    stagedCopiedCardIDSet: stagedCopiedCardIDSet
-                                )
+                                stackColumnContent {
+                                    pinnedCarousel(
+                                        cards: pinnedCards,
+                                        classificationCache: classificationCache,
+                                        stagedCopiedCardIDSet: stagedCopiedCardIDSet
+                                    )
+                                }
                                     .padding(.bottom, PrimitiveTokens.Size.cardStackSpacing)
                             }
 
@@ -117,11 +123,13 @@ struct CardStackView: View {
                             }
 
                             if !allSections.copied.isEmpty {
-                                copiedSectionHeader(
-                                    copiedCards: allSections.copied,
-                                    isExpanded: viewState.isCopiedStackExpanded,
-                                    isCollapsible: true
-                                )
+                                stackColumnContent {
+                                    copiedSectionHeader(
+                                        copiedCards: allSections.copied,
+                                        isExpanded: viewState.isCopiedStackExpanded,
+                                        isCollapsible: true
+                                    )
+                                }
                                 .padding(.top, PrimitiveTokens.Space.md)
 
                                 copiedSectionContent(
@@ -133,17 +141,16 @@ struct CardStackView: View {
                             }
                         }
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
-                        .frame(width: StackLayoutMetrics.columnWidth, alignment: .trailing)
+                        .frame(maxWidth: .infinity, alignment: .top)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
             }
-            .padding(.horizontal, StackLayoutMetrics.panelHorizontalInset)
             .padding(.top, PrimitiveTokens.Space.md)
             .padding(.bottom, PrimitiveTokens.Space.md)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
                 viewState.isCmdPressed = event.modifierFlags.contains(.command)
@@ -323,19 +330,23 @@ struct CardStackView: View {
         stagedCopiedCardIDSet: Set<CaptureCard.ID>
     ) -> some View {
         if forceExpanded || viewState.isCopiedStackExpanded {
-            VStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
-                ForEach(copiedCards) { card in
-                    cardRow(
-                        for: card,
-                        namespace: .copied,
-                        classificationCache: classificationCache,
-                        stagedCopiedCardIDSet: stagedCopiedCardIDSet
-                    )
+            stackColumnContent {
+                VStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
+                    ForEach(copiedCards) { card in
+                        cardRow(
+                            for: card,
+                            namespace: .copied,
+                            classificationCache: classificationCache,
+                            stagedCopiedCardIDSet: stagedCopiedCardIDSet
+                        )
+                    }
                 }
             }
             .id("copied-expanded-\(viewState.appearanceEpoch)")
         } else {
-            collapsedCopiedStack(copiedCards: copiedCards, classificationCache: classificationCache)
+            stackColumnContent {
+                collapsedCopiedStack(copiedCards: copiedCards, classificationCache: classificationCache)
+            }
                 .padding(.top, CopiedStackRecipe.collapsedTopShadowCompensation)
                 .id("copied-collapsed-\(viewState.appearanceEpoch)")
         }
@@ -371,7 +382,7 @@ struct CardStackView: View {
                         InteractiveDetectedTextView(
                             text: visibleInlineText,
                             classification: classification,
-                            baseColor: copiedPreviewTextColor,
+                            baseColor: collapsedCopiedFrontTextColor,
                             highlightedRanges: card.visibleInlineTagRanges,
                             multilineLineLimit: StackCardOverflowPolicy.collapsedCopiedLineLimit
                         )
@@ -392,16 +403,9 @@ struct CardStackView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             .frame(height: collapsedCopiedCardHeight)
-            .shadow(
-                color: viewState.isCopiedStackHovered ? .clear : CopiedStackRecipe.backPlateShadowColor(index: 1),
-                radius: CopiedStackRecipe.backPlateShadowRadius(index: 1),
-                x: PrimitiveTokens.Shadow.zeroX,
-                y: CopiedStackRecipe.backPlateShadowYOffset(index: 1)
-            )
             .zIndex(1)
         }
         .padding(.bottom, collapsedBackPlateBottomPadding(copiedCards: copiedCards))
-        .opacity(viewState.isCopiedStackHovered ? 1 : PrimitiveTokens.Opacity.copiedCard)
         .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: viewState.isCopiedStackHovered)
         .onHover { hovered in
             viewState.isCopiedStackHovered = hovered
@@ -448,12 +452,12 @@ struct CardStackView: View {
         PrimitiveTokens.Size.notificationStackPlateHeight
     }
 
-    private var copiedPreviewTextColor: Color {
-        CopiedStackRecipe.previewTextColor(appearance: viewState.inheritedAppearance)
-    }
-
-    private var copiedHeaderTextColor: Color {
-        CopiedStackRecipe.headerTextColor(appearance: viewState.inheritedAppearance)
+    private var collapsedCopiedFrontTextColor: Color {
+        SemanticTokens.resolvedAdaptiveColor(
+            light: NSColor.labelColor.withAlphaComponent(0.74),
+            dark: NSColor.secondaryLabelColor.withAlphaComponent(0.78),
+            appearance: viewState.inheritedAppearance
+        )
     }
 
     private func copiedControlCluster(
@@ -525,7 +529,7 @@ struct CardStackView: View {
         let styledText = InteractiveDetectedTextView.styledText(
             text: firstCopiedCard.visibleInlineText,
             classification: resolveClassification(for: firstCopiedCard, classificationCache: classificationCache),
-            baseColor: copiedPreviewTextColor,
+            baseColor: collapsedCopiedFrontTextColor,
             highlightedRanges: firstCopiedCard.visibleInlineTagRanges
         )
 
@@ -605,6 +609,7 @@ struct CardStackView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(width: StackLayoutMetrics.columnWidth, alignment: .trailing)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func stackColumnContent<Content: View>(
@@ -612,6 +617,7 @@ struct CardStackView: View {
     ) -> some View {
         content()
             .frame(width: StackLayoutMetrics.columnWidth, alignment: .trailing)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private static func partitionedCards(from cards: [CaptureCard]) -> CardSections {

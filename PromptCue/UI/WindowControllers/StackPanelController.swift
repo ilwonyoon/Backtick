@@ -689,10 +689,12 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
     }
 
     func refreshAppearance(forceRebuild: Bool = false) {
-        let appearanceSignature = Self.appearanceSignature(for: view.window?.effectiveAppearance ?? view.effectiveAppearance)
+        let effectiveAppearance = view.window?.effectiveAppearance ?? view.effectiveAppearance
+        let appearanceSignature = Self.appearanceSignature(for: effectiveAppearance)
         let didChangeAppearance = lastAppearanceSignature != nil && lastAppearanceSignature != appearanceSignature
         lastAppearanceSignature = appearanceSignature
         shellView.refreshAppearance()
+        onAppearanceChanged(effectiveAppearance)
 
         // Keep the shell host stable, but fully recreate the SwiftUI content
         // subtree when the effective appearance changes. Stack card text
@@ -705,11 +707,7 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
         if forceRebuild {
             rebuildContent()
         } else if didChangeAppearance {
-            let workItem = DispatchWorkItem { [weak self] in
-                self?.rebuildContent()
-            }
-            pendingContentRebuildWorkItem = workItem
-            DispatchQueue.main.async(execute: workItem)
+            rebuildContent()
         }
         view.needsDisplay = true
         shellView.needsDisplay = true
@@ -718,7 +716,6 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
 
     private func rebuildContent() {
         pendingContentRebuildWorkItem = nil
-        onAppearanceChanged(view.window?.effectiveAppearance ?? view.effectiveAppearance)
         hostingController.rootView = rootViewBuilder()
         hostingController.view.layer?.contents = nil
         hostingController.view.needsLayout = true
@@ -846,6 +843,15 @@ private final class StackPanelShellView: NSView {
     private func updateAppearance() {
         let usesDarkAppearance = effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
             .map { $0 == .darkAqua || $0 == .vibrantDark } ?? false
+
+        layer?.shadowColor = (
+            usesDarkAppearance
+                ? NSColor.black.withAlphaComponent(PrimitiveTokens.Opacity.faint)
+                : NSColor.black.withAlphaComponent(0.10)
+        ).cgColor
+        layer?.shadowOpacity = 1
+        layer?.shadowRadius = PrimitiveTokens.Shadow.panelBlur
+        layer?.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.panelY)
 
         if #available(macOS 26.0, *), let glassHostingView {
             effectView.isHidden = true
@@ -976,29 +982,18 @@ private struct StackPanelLiquidGlassBackground: View {
                 shape
                     .fill(
                         usesDarkAppearance
-                            ? Color.white.opacity(0.04)
-                            : Color.white.opacity(0.08)
+                            ? Color.white.opacity(0.12)
+                            : Color.white.opacity(0.32)
                     )
             }
             .overlay {
                 shape
                     .stroke(
                         usesDarkAppearance
-                            ? Color.white.opacity(0.10)
+                            ? Color.white.opacity(0.035)
                             : Color.black.opacity(0.08),
                         lineWidth: PrimitiveTokens.Stroke.subtle
                     )
-            }
-            .overlay(alignment: .top) {
-                TopEdgeStrokeOverlay(
-                    shape: shape,
-                    color: usesDarkAppearance
-                        ? Color.white.opacity(0.10)
-                        : Color.white.opacity(0.26),
-                    lineWidth: PrimitiveTokens.Stroke.subtle,
-                    frameHeight: PrimitiveTokens.Space.lg,
-                    maskHeight: PrimitiveTokens.Space.lg
-                )
             }
             .clipShape(shape)
     }
