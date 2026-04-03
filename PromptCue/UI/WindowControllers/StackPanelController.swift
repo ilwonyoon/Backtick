@@ -879,6 +879,7 @@ private final class StackPanelShellView: NSView {
         layer?.shadowRadius = PrimitiveTokens.Shadow.panelBlur
         layer?.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.panelY)
 
+#if compiler(>=6.2)
         if #available(macOS 26.0, *), let glassHostingView {
             effectView.isHidden = true
             overlayView.isHidden = true
@@ -891,6 +892,7 @@ private final class StackPanelShellView: NSView {
             )
             return
         }
+#endif
 
         effectView.isHidden = false
         overlayView.isHidden = false
@@ -994,6 +996,7 @@ private final class StackPanelShellView: NSView {
     }
 }
 
+#if compiler(>=6.2)
 @available(macOS 26.0, *)
 private struct StackPanelLiquidGlassBackground: View {
     let usesDarkAppearance: Bool
@@ -1024,6 +1027,7 @@ private struct StackPanelLiquidGlassBackground: View {
             .clipShape(shape)
     }
 }
+#endif
 
 private final class StackPanel: NSPanel {
     var onCancel: (() -> Void)?
