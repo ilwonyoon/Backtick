@@ -167,7 +167,7 @@ struct CaptureCardView: View {
                     VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                         if compactMode {
                             Text(card.text)
-                                .font(.system(size: PrimitiveTokens.FontSize.meta, weight: .medium))
+                                .font(PrimitiveTokens.Typography.metaMedium)
                                 .foregroundStyle(SemanticTokens.Text.primary)
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)

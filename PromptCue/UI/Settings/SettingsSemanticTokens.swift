@@ -3,8 +3,8 @@ import SwiftUI
 
 enum SettingsSemanticTokens {
     enum Text {
-        static let primary = Color(nsColor: .labelColor)
-        static let secondary = Color(nsColor: .secondaryLabelColor)
+        static let primary = SemanticTokens.Text.primary
+        static let secondary = SemanticTokens.Text.secondary
         static let selected = Color.white
     }
 
@@ -71,7 +71,7 @@ enum SettingsSemanticTokens {
     }
 
     enum Accent {
-        static let selection = Color(nsColor: .selectedContentBackgroundColor)
+        static let selection = SemanticTokens.Accent.selection
     }
 
     private static func adaptiveColor(light: NSColor, dark: NSColor) -> Color {

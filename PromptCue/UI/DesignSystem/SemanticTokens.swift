@@ -124,6 +124,10 @@ enum SemanticTokens {
     enum Accent {
         static let primary = Color(nsColor: .controlAccentColor)
         static let selection = Color(nsColor: .selectedContentBackgroundColor)
+        static let destructive = adaptiveColor(
+            light: NSColor.systemRed,
+            dark: NSColor.systemRed.withAlphaComponent(0.92)
+        )
     }
 
     enum Shadow {
