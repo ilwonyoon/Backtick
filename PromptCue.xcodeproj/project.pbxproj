@@ -296,6 +296,7 @@
 		9BF569996ACD466F0A9F0D65 /* StackPanelAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackPanelAppearanceTests.swift; sourceTree = "<group>"; };
 		9D04762BDA8B8FA322E67B1B /* PromptCue-main-merge */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "PromptCue-main-merge"; path = .; sourceTree = SOURCE_ROOT; };
 		9D7037F3C1F08BD57AE02B42 /* CloudSyncControlling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncControlling.swift; sourceTree = "<group>"; };
+		A3682BA7911969E8AE39234D /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 		A377806B38E2AD651F10793B /* CaptureEditorResolvedHeight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorResolvedHeight.swift; sourceTree = "<group>"; };
 		A3BAAF04096830B510376E3E /* DevSigned.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = DevSigned.xcconfig; sourceTree = "<group>"; };
 		A50539CFB15DD7757BC97835 /* CaptureEditorLayoutCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorLayoutCalculator.swift; sourceTree = "<group>"; };
@@ -444,6 +445,7 @@
 				5AA5C22F578C532BE63D3B27 /* Base.xcconfig */,
 				C14A3EAFD6C150B033EBBB9C /* Debug.xcconfig */,
 				A3BAAF04096830B510376E3E /* DevSigned.xcconfig */,
+				A3682BA7911969E8AE39234D /* Local.xcconfig */,
 				22A517CA41EFD91211A8E67E /* Local.xcconfig.example */,
 				BF6260CA3B20DC36344E1BBD /* Release.xcconfig */,
 			);
@@ -1073,7 +1075,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Backtick;
 				INFOPLIST_KEY_CFBundleName = Backtick;
@@ -1099,7 +1101,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Backtick;
 				INFOPLIST_KEY_CFBundleName = Backtick;
@@ -1124,7 +1126,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Backtick;
 				INFOPLIST_KEY_CFBundleName = Backtick;
@@ -1399,7 +1401,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Backtick;
 				INFOPLIST_KEY_CFBundleName = Backtick;
