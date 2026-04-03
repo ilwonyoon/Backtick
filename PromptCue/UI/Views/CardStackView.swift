@@ -436,10 +436,9 @@ struct CardStackView: View {
             .frame(height: collapsedCopiedCardHeight)
             .padding(.leading, CopiedStackRecipe.collapsedLeadingInset(for: index))
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .shadow(
+            .promptCueDepthShadow(
                 color: CopiedStackRecipe.backPlateShadowColor(index: index),
                 radius: CopiedStackRecipe.backPlateShadowRadius(index: index),
-                x: PrimitiveTokens.Shadow.zeroX,
                 y: CopiedStackRecipe.backPlateShadowYOffset(index: index)
             )
     }
@@ -472,9 +471,9 @@ struct CardStackView: View {
                         viewState.isConfirmingCopiedDelete = false
                     } label: {
                         Text("Cancel")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(PrimitiveTokens.Typography.metaMedium)
                             .foregroundStyle(SemanticTokens.Text.secondary)
-                            .frame(height: 16)
+                            .frame(height: PrimitiveTokens.Size.compactTrailingControlHeight)
                     }
                     .buttonStyle(.plain)
 
@@ -483,9 +482,9 @@ struct CardStackView: View {
                         viewState.isConfirmingCopiedDelete = false
                     } label: {
                         Text("Delete all")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(Color(nsColor: .systemRed))
-                            .frame(height: 16)
+                            .font(PrimitiveTokens.Typography.metaMedium)
+                            .foregroundStyle(SemanticTokens.Accent.destructive)
+                            .frame(height: PrimitiveTokens.Size.compactTrailingControlHeight)
                     }
                     .buttonStyle(.plain)
                 } else if !copiedCards.isEmpty {
@@ -493,9 +492,9 @@ struct CardStackView: View {
                         viewState.isConfirmingCopiedDelete = true
                     } label: {
                         Text("Delete all")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(PrimitiveTokens.Typography.metaMedium)
                             .foregroundStyle(SemanticTokens.Text.secondary)
-                            .frame(height: 16)
+                            .frame(height: PrimitiveTokens.Size.compactTrailingControlHeight)
                     }
                     .buttonStyle(.plain)
                 }

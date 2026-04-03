@@ -588,7 +588,7 @@ private struct MemoryChromeControlButton: View {
 
             Image(systemName: systemName)
                 .symbolRenderingMode(.monochrome)
-                .font(.system(size: 15, weight: .semibold))
+                .font(PrimitiveTokens.Typography.panelTitle)
                 .foregroundStyle(SemanticTokens.Text.primary)
         }
         .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
@@ -817,7 +817,7 @@ private struct MemoryDocumentListPane: View {
             } label: {
                 HStack(spacing: PrimitiveTokens.Space.xxs) {
                     Image(systemName: isDormantExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(PrimitiveTokens.Typography.microMediumCompact)
                         .foregroundStyle(SemanticTokens.Text.secondary)
                     Text("Older (\(dormantSummaries.count))")
                         .font(MemoryPaneTypography.summaryRow)

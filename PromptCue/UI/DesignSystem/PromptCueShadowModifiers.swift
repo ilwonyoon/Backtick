@@ -43,6 +43,15 @@ extension View {
         )
     }
 
+    func promptCueDepthShadow(color: Color, radius: CGFloat, y: CGFloat) -> some View {
+        shadow(
+            color: color,
+            radius: radius,
+            x: PrimitiveTokens.Shadow.zeroX,
+            y: y
+        )
+    }
+
     func promptCueFloatingControlShadow() -> some View {
         shadow(
             color: SemanticTokens.Shadow.color,
