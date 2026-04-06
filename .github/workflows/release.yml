@@ -105,7 +105,19 @@ jobs:
           rm -f "$P12_PATH"
 
       # -----------------------------------------------------------------------
-      # 6. Store notarytool API key credentials in the keychain
+      # 6. Install provisioning profile
+      # -----------------------------------------------------------------------
+      - name: Install provisioning profile
+        env:
+          PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          PROFILE_UUID: ${{ secrets.PROVISIONING_PROFILE_UUID }}
+        run: |
+          PROFILES_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          mkdir -p "$PROFILES_DIR"
+          echo "$PROFILE_BASE64" | base64 --decode > "$PROFILES_DIR/${PROFILE_UUID}.provisionprofile"
+
+      # -----------------------------------------------------------------------
+      # 7. Store notarytool API key credentials in the keychain
       # -----------------------------------------------------------------------
       - name: Store notarytool credentials
         env:
@@ -276,6 +288,9 @@ jobs:
           # Scrub credential files
           rm -f "$RUNNER_TEMP/notary-api-key.p8"
           rm -f Config/Local.xcconfig
+
+          # Remove provisioning profile
+          rm -rf "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
 
           # Scrub the notary submission zip (contains the full app bundle)
           rm -f "$OUTPUT_ROOT/notary-submit.zip"
