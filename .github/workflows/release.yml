@@ -184,12 +184,17 @@ jobs:
       #    Sparkle archive and appcast
       # -----------------------------------------------------------------------
       - name: Run archive_signed_release.sh
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          SPARKLE_ED_KEY_FILE: ${{ runner.temp }}/sparkle-ed-key.txt
         run: |
+          echo "$SPARKLE_PRIVATE_KEY" > "$SPARKLE_ED_KEY_FILE"
           scripts/archive_signed_release.sh \
             --package-format both \
             --output-root "$OUTPUT_ROOT" \
             --allow-dirty \
             --skip-xcodegen
+          rm -f "$SPARKLE_ED_KEY_FILE"
 
       # -----------------------------------------------------------------------
       # 10. Create GitHub Release and upload artifacts

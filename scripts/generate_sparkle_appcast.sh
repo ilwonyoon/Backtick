@@ -153,18 +153,29 @@ fi
 [[ -d "${ARCHIVES_DIR}" ]] || fail "archives dir does not exist: ${ARCHIVES_DIR}"
 resolve_generator_path
 
-if ! sparkle_key_exists "${KEY_ACCOUNT}"; then
+ED_KEY_FILE="${SPARKLE_ED_KEY_FILE:-}"
+
+if [[ -z "${ED_KEY_FILE}" ]] && ! sparkle_key_exists "${KEY_ACCOUNT}"; then
   fail "Sparkle keychain item for account '${KEY_ACCOUNT}' is missing. Run generate_keys --account ${KEY_ACCOUNT} and set PROMPTCUE_SPARKLE_PUBLIC_ED_KEY in Config/Local.xcconfig"
 fi
 
 mkdir -p "$(dirname "${OUTPUT_PATH}")"
 
-run "${GENERATOR_PATH}" \
-  --account "${KEY_ACCOUNT}" \
-  --download-url-prefix "${DOWNLOAD_URL_PREFIX}" \
-  --full-release-notes-url "${RELEASE_URL}" \
-  --link "${RELEASE_URL}" \
-  -o "${OUTPUT_PATH}" \
-  "${ARCHIVES_DIR}"
+GENERATOR_ARGS=(
+  --download-url-prefix "${DOWNLOAD_URL_PREFIX}"
+  --full-release-notes-url "${RELEASE_URL}"
+  --link "${RELEASE_URL}"
+  -o "${OUTPUT_PATH}"
+)
+
+if [[ -n "${ED_KEY_FILE}" ]]; then
+  GENERATOR_ARGS+=(--ed-key-file "${ED_KEY_FILE}")
+else
+  GENERATOR_ARGS+=(--account "${KEY_ACCOUNT}")
+fi
+
+GENERATOR_ARGS+=("${ARCHIVES_DIR}")
+
+run "${GENERATOR_PATH}" "${GENERATOR_ARGS[@]}"
 
 echo "Sparkle appcast: ${OUTPUT_PATH}"
