@@ -155,6 +155,12 @@ jobs:
             -U \
             "$KEYCHAIN_PATH"
 
+          # Allow generate_appcast to access the key without UI prompts
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign:,security: \
+            -s -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+
       # -----------------------------------------------------------------------
       # 8. Write Config/Local.xcconfig with release credentials
       # -----------------------------------------------------------------------
