@@ -224,6 +224,13 @@ jobs:
             --generate-notes \
             "${ARTIFACTS[@]}"
 
+          # Upload a fixed-name DMG so README's /releases/latest/download/Backtick.dmg always works
+          DMG_VERSIONED=$(find "$OUTPUT_ROOT" -maxdepth 1 -name '*.dmg' -print -quit)
+          if [[ -n "$DMG_VERSIONED" ]]; then
+            cp "$DMG_VERSIONED" "$OUTPUT_ROOT/Backtick.dmg"
+            gh release upload "$TAG" "$OUTPUT_ROOT/Backtick.dmg" --clobber
+          fi
+
       # -----------------------------------------------------------------------
       # 11. Deploy appcast to GitHub Pages (gh-pages branch)
       # -----------------------------------------------------------------------
